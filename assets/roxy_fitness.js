@@ -133,7 +133,7 @@
     let content='';
     if(section==='today')content=`<div class="fx-today-layout"><article class="fx-session"><span class="fx-eyebrow">PRIMERO, CONOCERTE</span><h3>${profile.primary_goal?GOALS[profile.primary_goal][1]:'Hagamos sitio para ti'}</h3><p>${profile.primary_goal?'Tu objetivo guía este espacio. Aún no tienes un entrenamiento activo.':'Tus objetivos, disponibilidad y material son el punto de partida.'}</p>${button('edit','Ajustar mis preferencias '+icon('arrow_forward'),'gold')}</article><div>${summary()}</div></div>${note('Antes del primer entrenamiento','El catálogo, el cribado y las plantillas necesitan aprobación antes de asignar sesiones. Aquí no se inventan cargas, calorías ni fechas de resultados.')}${education()}`;
     if(section==='week')content=`${week()}${button('edit-time','Cambiar mi disponibilidad','secondary')}${note('Sin cambios en tu calendario','Esta vista no crea eventos ni convierte automáticamente toda tu disponibilidad en entrenamientos.')}`;
-    if(section==='library')content=`<article class="fx-empty">${icon('video_library')}<h3>Aprender el movimiento correcto</h3><p>La biblioteca mostrará la variante exacta, instrucciones revisadas y demostraciones con permiso de uso.</p><span class="fx-pill">Catálogo y revisión pendientes</span></article><h3>Mientras tanto, conoce las bases</h3>${education()}`;
+    if(section==='library')content=`<div id="fxLibrary"><p role="status">Cargando biblioteca de movimientos…</p></div><h3>Conoce las bases</h3>${education()}`;
     if(section==='progress')content=`<article class="fx-empty">${icon('insights')}<h3>Tu historia empieza contigo</h3><p>Todavía no hay sesiones realizadas ni mediciones. Cuando existan registros, verás su fecha y si son declarados, medidos o estimados.</p>${button('week','Ver mi disponibilidad','secondary')}</article>${note('Sin números de muestra','No hay calorías, peso o porcentajes de progreso inventados. Tampoco hay un reloj conectado.')}`;
     if(section==='food')content=`<article class="fx-food"><span class="fx-eyebrow">UN SOLO RECETARIO</span><h3>Tu movimiento y tu cocina,<br>en la misma casa.</h3><p>Explora las recetas y el plan de comidas que ya tienes en Roxy Home. Tus objetivos personales no cambiarán la alimentación del resto del hogar.</p>${button('recipes','Explorar recetas '+icon('arrow_forward'))}${button('meal-plan','Ver el plan de comidas','secondary')}</article>${note('Tú confirmas los cambios','No calculamos un déficit, prescribimos suplementos ni añadimos ingredientes a Compra desde esta sección. Puedes usarla sin peso ni calorías.')}`;
     if(section==='services')content=`<article class="fx-empty">${icon('storefront')}<h3>Apoyo cuando lo necesites</h3><p>Gimnasios, profesionales y material tendrán su lugar aquí cuando podamos verificar la oferta y los acuerdos.</p><span class="fx-pill">Sin reservas ni afiliados activos</span></article><div class="fx-service-list"><div><strong>Gimnasios y clases</strong><p>Sin disponibilidad ni precios confirmados todavía.</p></div><div><strong>Equipo para tu espacio</strong><p>Se basará en el material que confirmes; no en una comisión.</p></div><div><strong>Alimentación primero</strong><p>No hay recomendación automática ni dosis de suplementos.</p></div></div>`;
@@ -145,6 +145,8 @@
   function render() {
     if(!root)return;
     root.innerHTML=`<div class="fx-shell" aria-busy="${busy}">${view==='welcome'?welcome():view==='onboarding'?onboarding():view==='settings'?settings():space()}<div class="fx-feedback" aria-live="polite">${busy?'<p>Comprobando tu espacio privado…</p>':''}${failure?`<p role="alert" tabindex="-1" class="fx-error">${esc(failure)}</p>${button('retry','Volver a comprobar','secondary')}`:''}${notice?`<p>${esc(notice)}</p>`:''}</div>${!canSave()?`<p class="fx-storage-note">${icon('lock')}${status?.personal_login?'El guardado privado aún no está disponible.':'Para guardar necesitas un perfil personal y almacenamiento privado disponible.'} ${hasRemoteState()?'Hay un estado guardado o pendiente de confirmar. Revisa Ajustes antes de darlo por eliminado.':'La vista previa no guarda tus selecciones.'}</p>`:''}</div>`;
+    if(view==='space'&&section==='library')scope.RoxyFitnessLibrary?.mount(root.querySelector('#fxLibrary'));
+    if(view==='settings'||(view==='onboarding'&&step===4))root.querySelector('.fx-onboarding')?.insertAdjacentHTML?.('beforeend','<p class="fx-caption"><a href="/privacy#ejercicio" target="_blank" rel="noopener noreferrer">Cómo protegemos tus datos de Ejercicio</a></p>');
     if(busy)root.querySelectorAll('button,input,select,textarea').forEach(control=>{control.disabled=true;});
   }
   async function submit(event) {
@@ -225,7 +227,7 @@
     context=options;const key=options.identity||'preview';
     if(identity!==key||!abort){identity=key;reset();void load();}else if(changedRoot)render();
   }
-  function clear() {identity=null;reset();render();}
+  function clear() {identity=null;reset();scope.RoxyFitnessLibrary?.clear();render();}
   scope.RoxyFitness={mount,clear};
   if(typeof module!=='undefined')module.exports={weekDates,validateAvailability,defaults,esc,validTimezone};
   scope.addEventListener?.('pagehide',()=>{pageSuspended=!!root;clear();});

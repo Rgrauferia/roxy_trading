@@ -3,7 +3,40 @@
 Actualizado: 2026-09-08. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 
-## 178 — Ejercicio: base integrada y vista previa local, NO desplegado
+## 179 — Ejercicio: candidato educativo comprobado; publicación autorizada
+
+Roberto autorizó continuar y publicar. Se incorpora selección fija de wger:
+8 fichas, 7 originales ES y 1 EN, 14 párrafos y 16 ilustraciones Everkinetic,
+NO fotografías. IDs/licencias/autores/fechas/hashes por recurso. Búsqueda por
+nombre/grupo/material, detalle y atribución; grupos/material traducidos, indicaciones
+originales conservadas. No se asignan sesiones, cargas ni se habilita cribado.
+GET educativos autenticados funcionan incluso con acceso compartido o demo
+vencida; no acceden a preferencias ni consumen cuota IA. API no-store y fuera del SW.
+Privacidad de Ejercicio añadida a /privacy, con enlace desde consentimiento/Ajustes.
+Se corrigieron mensajes de resultado incierto: un 503 no demuestra que no se guardó.
+
+PostgreSQL 17.11 REAL local: 11 pruebas aprobadas, TLS verify-full, rol restringido,
+FORCE RLS entre dos miembros, concurrencia/idempotencia, revocación, eliminación y
+persistencia tras reinicio. No se aprovisionó ni comprobó PostgreSQL en Render.
+Sesión Render cerrada; acceso con GitHub abierto y solicitado al usuario, sin claves
+copiadas, pagos ni cambios de entorno. Entrenamientos necesitan catálogo más amplio,
+cribado/plantillas revisados por profesionales, modo sesión y validación.
+
+1.242 pruebas Python Home/compras/proveedor aprobadas (1.168 + 74); 11 skips en
+entorno ordinario se ejecutaron aparte con PostgreSQL real, 11/11. 33 pruebas Node.
+Ocho fichas recorridas en navegador; las 16 imágenes cargan, búsqueda/retorno y
+enlace privacidad comprobados, sin errores/warnings ni desbordamiento a 1049×714.
+La ampliación no se ha comprobado todavía en teléfono físico; el intento de
+viewport móvil no cambió el tamaño efectivo del tab en esta ejecución.
+Ver reports/home_fitness_catalog_20260908.md,
+reports/home_fitness_postgres_integration_20260908.md y design-qa.md.
+
+Candidato HTML/APP179, JS180, SW177, fitnessJS4/CSS4, catalogueJS1. Público todavía
+177 hasta verificar el despliegue, no confundir autorización/push con publicación.
+Cuenta local de QA sintética temporal en 8767, sin proveedores ni guardado privado.
+No se modificaron mascotas, compras o datos de usuarios. Prototipo 8796 preservado.
+
+## 178 — evidencia histórica de la primera base local, antes del candidato 179
 
 Se añadió Ejercicio al menú Home y una navegación de cinco accesos al entrar.
 Bienvenida con Roxy ilustrativa, cinco pasos voluntarios de preferencias, objetivos,

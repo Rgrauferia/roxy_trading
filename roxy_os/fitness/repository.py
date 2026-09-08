@@ -22,7 +22,7 @@ from .schemas import CONSENT_PURPOSE, CONSENT_VERSION, FitnessConsentInput, Fitn
 
 class FitnessStorageUnavailable(RuntimeError):
     def __init__(self):
-        super().__init__("El almacenamiento privado de Ejercicio no está disponible. No se guardaron preferencias.")
+        super().__init__("No se pudo confirmar la operación con el almacenamiento privado de Ejercicio.")
 
 
 class FitnessConflict(ValueError):

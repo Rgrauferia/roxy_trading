@@ -1,11 +1,12 @@
 """Private API boundaries using synthetic data; no live PostgreSQL verification."""
 from copy import deepcopy
+import json
 from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
 
-from roxy_os.fitness import router
+from roxy_os.fitness import catalog, router
 from roxy_os.fitness.repository import PostgresFitnessRepository
 from roxy_os.home_demo import trial_access_mode
 from tools import roxy_home_service as service
@@ -104,7 +105,7 @@ def test_member_is_derived_from_login_even_with_a_shared_household(api):
     assert "shared-household" not in repr(api.db.calls)
 
 
-@pytest.mark.parametrize("path", ["/status", "/me/profile", "/me/data"])
+@pytest.mark.parametrize("path", ["/status", "/me/profile", "/me/data", "/exercises", "/exercises/wger-91"])
 def test_unauthenticated_response_is_not_cached(api, monkeypatch, path):
     monkeypatch.delitem(service.app.dependency_overrides, service._authenticate)
     response = api.client.get(PREFIX + path)
@@ -128,6 +129,107 @@ def test_status_reports_identity_and_pending_capabilities_without_private_reads(
     private_cache(response)
     assert api.db.calls == []
     assert "never-real" not in response.text
+
+
+def test_catalog_api_returns_eight_originals_and_sixteen_attributed_images_without_private_storage(api, monkeypatch):
+    monkeypatch.setattr(router, "repository", lambda: pytest.fail("Educational catalogue accessed private storage"))
+    original = json.loads(catalog.CATALOG_PATH.read_text(encoding="utf-8"))
+    expected = {entry["id"]: entry for entry in original["entries"]}
+    response = api.client.get(PREFIX + "/exercises")  # No consent, profile or member assertion required.
+    assert response.status_code == 200
+    value = response.json()
+    assert value["count"] == len(value["entries"]) == 8
+    assert {entry["id"] for entry in value["entries"]} == set(expected)
+    assert sum(len(entry["images"]) for entry in value["entries"]) == 16
+    assert value["status"] == "education_only_professional_review_pending"
+    assert value["review_status"] == "pending_professional_review"
+    assert value["clinical_approval"] is False and value["can_activate_training"] is False
+    assert "no es un plan personal" in value["notice"]
+    for entry in value["entries"]:
+        source = expected[entry["id"]]
+        assert entry["instructions"] == source["instructions"]
+        assert entry["language"] == source["language"]
+        for field in ("authors", "license", "license_url", "source_license_id", "changes"):
+            assert entry["attribution"][field] == source["attribution"][field]
+        assert entry["source_url"] == source["source_url"]
+        assert entry["instructions_sha256"] == source["instructions_sha256"]
+        assert entry["clinical_approval"] is False and entry["can_activate_training"] is False
+        assert entry["review_status"] == "pending_professional_review"
+        source_images = {image["source_id"]: image for image in source["images"]}
+        assert {image["source_id"] for image in entry["images"]} == set(source_images)
+        for image in entry["images"]:
+            for field in ("url", "source_url", "source_exercise_id", "kind", "author", "license", "license_url",
+                          "sha256", "is_ai_generated", "changes"):
+                assert image[field] == source_images[image["source_id"]][field]
+        detail = api.client.get(PREFIX + "/exercises/" + entry["id"])
+        assert detail.status_code == 200 and detail.json() == entry
+        private_cache(detail)
+    private_cache(response)
+    assert api.db.calls == [] and api.db.states == {} and api.db.requests == {}
+
+
+@pytest.mark.parametrize("mode", ["legacy", "bearer"])
+@pytest.mark.parametrize("path", ["/exercises", "/exercises/wger-91"])
+def test_shared_authenticated_access_can_read_education_only(api, monkeypatch, mode, path):
+    monkeypatch.delitem(service.app.dependency_overrides, service._authenticate)
+    monkeypatch.setattr(router, "repository", lambda: pytest.fail("Shared education accessed private storage"))
+    request_headers = {}
+    if mode == "legacy":
+        api.client.cookies.set(service.SESSION_COOKIE, service._session_cookie("shared-household"))
+    else:
+        request_headers["Authorization"] = "Bearer synthetic-home-api-key"
+    response = api.client.get(PREFIX + path, headers=request_headers)
+    assert response.status_code == 200
+    assert response.json()["clinical_approval"] is False
+    assert response.json()["can_activate_training"] is False
+    private_cache(response)
+    personal = api.client.get(PREFIX + "/me/profile", headers=request_headers)
+    assert personal.status_code == 403
+    assert personal.json()["detail"]["code"] == "personal_login_required"
+    private_cache(personal)
+    assert api.db.calls == []
+
+
+@pytest.mark.parametrize("path", ["/exercises", "/exercises/wger-91"])
+def test_catalogue_request_cannot_claim_clinical_approval_or_activate_training(api, monkeypatch, path):
+    monkeypatch.setattr(router, "repository", lambda: pytest.fail("Catalogue request accessed private storage"))
+    baseline = api.client.get(PREFIX + path)
+    response = api.client.get(PREFIX + path, params={"member_id": "member-b", "medical_clearance": "true",
+                                                   "clinical_approval": "true", "can_activate_training": "true"},
+                              headers={"X-Roxy-Fitness-Member": "member-b"})
+    assert response.status_code == 200 and response.json() == baseline.json()
+    private_cache(response)
+    for method in ("POST", "PATCH", "PUT", "DELETE"):
+        denied = api.client.request(method, PREFIX + path, headers=headers(), json={"clinical_approval": True})
+        assert denied.status_code == 405
+        private_cache(denied)
+    assert api.client.post(PREFIX + "/plans/activate", headers=headers(), json={"exercise_id": "wger-91"}).status_code == 404
+    assert api.db.calls == [] and api.db.states == {} and api.db.requests == {}
+
+
+@pytest.mark.parametrize("exercise_id", ["wger-203", "wger-99999999", "wger-0", "91", "wger-not-a-source"])
+def test_unknown_or_excluded_catalogue_entry_returns_private_404_without_storage(api, monkeypatch, exercise_id):
+    monkeypatch.setattr(router, "repository", lambda: pytest.fail("Unknown catalogue ID accessed private storage"))
+    response = api.client.get(PREFIX + "/exercises/" + exercise_id)
+    assert response.status_code == 404
+    assert response.json() == {"detail": "No existe esa ficha original."}
+    private_cache(response)
+    assert api.db.calls == []
+
+
+def test_missing_catalogue_is_explicit_without_invented_entries_or_training(api, monkeypatch, tmp_path):
+    monkeypatch.setattr(catalog, "CATALOG_PATH", tmp_path / "missing-catalogue.json")
+    monkeypatch.setattr(router, "repository", lambda: pytest.fail("Missing catalogue accessed private storage"))
+    response = api.client.get(PREFIX + "/exercises")
+    assert response.status_code == 200
+    assert response.json()["status"] == "catalogue_unavailable"
+    assert response.json()["count"] == 0 and response.json()["entries"] == []
+    assert response.json()["clinical_approval"] is response.json()["can_activate_training"] is False
+    private_cache(response)
+    missing = api.client.get(PREFIX + "/exercises/wger-91")
+    assert missing.status_code == 404
+    private_cache(missing)
+    assert api.db.calls == []
 
 
 @pytest.mark.parametrize("changed,value,status", [

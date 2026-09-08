@@ -1,4 +1,45 @@
-# Ejercicio — QA de base integrada local, 2026-09-08
+# Ejercicio 179 — biblioteca educativa, 2026-09-08
+
+PASS en el alcance de lectura de originales y preferencias en vista previa.
+NO es aprobación para activar rutinas o anunciar el módulo completo. La publicación
+fue autorizada por el usuario; se verificará separadamente tras desplegar.
+
+Se abrió la referencia collage del usuario junto con una captura de la ficha
+real en la misma entrada visual. La comparación abarca familia tipográfica,
+jerarquía, crema/verde/dorado, espacios y relación medio/indicaciones; no píxeles
+idénticos entre un collage móvil y una captura desktop. La ilustración original
+de cada variante reemplaza intencionalmente la foto técnica sin licencia del
+mockup. No hay IA dibujando instrucciones de postura ni vídeos ficticios.
+
+Cinco superficies revisadas:
+
+- Tipografía: títulos serif Home, cuerpo sans-serif, etiquetas de fuente pequeñas
+  pero legibles y enlaces subrayados.
+- Espacios: dos ilustraciones completas con object-fit contain, columnas fluidas,
+  detalle por debajo, navegación inferior de cinco accesos. Sin desbordamiento
+  documental en ocho fichas a tamaño efectivo 1049×714.
+- Color: se mantienen tokens crema/verde/dorado y fondo blanco del medio original.
+- Imágenes: 16/16 cargadas en ocho fichas (dos inicialmente en carga y verificadas
+  de nuevo); todas etiquetadas como ilustración Everkinetic con CC-BY-SA.
+- Texto: 7 ES y 1 EN explícitas; fuente, autores, licencia y cambios por ficha;
+  metadatos traducidos sin reescribir instrucciones. Material vacío se presenta
+  como sin confirmar, no como ejercicio sin equipo.
+
+Recorrido: búsqueda por grupo español, resultado vacío, volver a todas, ocho
+detalles/retornos, Ajustes y enlace /privacy#ejercicio. Cero errores/warnings de
+consola en esa sesión. La captura de comparación quedó en
+/tmp/roxy-fitness-catalog-179-desktop.png.
+El override de viewport no afectó al tab local (el tab seleccionado era Render);
+se restauró, NO se registra una nueva prueba móvil satisfactoria. La evidencia
+móvil 178 siguiente es histórica, no prueba de esta biblioteca ni teléfono real.
+
+Pruebas: 33 Node (8 nuevas de catálogo), 1.242 Python Home/compras/proveedor y
+11 PostgreSQL real local. Licencia/contenido fuente revisados independientemente;
+sin revisión clínica ni guardado público verificado.
+
+---
+
+# Ejercicio 178 — QA histórica de base integrada local, 2026-09-08
 
 ## Alcance y resultado
 

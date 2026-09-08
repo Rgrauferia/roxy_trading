@@ -118,6 +118,49 @@ def test_trial_expiry_is_server_side_read_only_and_login_does_not_reset_it(demo)
     assert demo.member(member["id"]) is not None
 
 
+@pytest.mark.parametrize("trial_status", ["ACTIVE", "EXPIRED"])
+def test_trial_can_read_original_exercise_catalogue_without_profile_storage_or_ai_quota(demo, monkeypatch, trial_status):
+    from roxy_os.fitness import router as fitness_router
+
+    tester = client()
+    member = signup(tester).json()
+    if trial_status == "EXPIRED":
+        expired = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
+        demo._mutate(lambda payload: payload["households"][member["household_id"]]["trial"].update(expires_at=expired))
+    assert demo.member(member["id"])["trial"]["status"] == trial_status
+    before = demo.path.read_bytes()
+    monkeypatch.setattr(fitness_router, "repository", lambda: pytest.fail("Educational reading accessed fitness storage"))
+    monkeypatch.setattr(HomeAccountStore, "reserve_trial_request", lambda *_: pytest.fail("Educational reading spent trial AI quota"))
+    catalogue = tester.get("/api/fitness/v1/exercises")
+    assert catalogue.status_code == 200
+    value = catalogue.json()
+    assert value["count"] == len(value["entries"]) == 8
+    assert sum(len(entry["images"]) for entry in value["entries"]) == 16
+    assert value["clinical_approval"] is False and value["can_activate_training"] is False
+    detail = tester.get("/api/fitness/v1/exercises/wger-91")
+    assert detail.status_code == 200
+    assert detail.json() == next(entry for entry in value["entries"] if entry["id"] == "wger-91")
+    missing = tester.get("/api/fitness/v1/exercises/wger-99999999")
+    assert missing.status_code == 404
+    for response in (catalogue, detail, missing):
+        assert response.headers["cache-control"] == "private, no-store"
+        assert response.headers["vary"] == "Cookie, Authorization"
+    assert demo.path.read_bytes() == before
+    assert demo.member(member["id"])["trial"]["ai_remaining_today"] == 5
+
+
+def test_demo_exercise_catalogue_allowlist_is_read_only_and_does_not_include_activation():
+    for path in ("/api/fitness/v1/exercises", "/api/fitness/v1/exercises/wger-91"):
+        assert trial_access_mode("GET", path) == "local"
+        for method in ("POST", "PATCH", "PUT", "DELETE"):
+            assert trial_access_mode(method, path) == "unavailable"
+        assert trial_access_mode("GET", path + "/activate") == "unavailable"
+    for path in ("/api/fitness/v1/exercises-other", "/api/fitness/v1/plans/activate",
+                 "/api/fitness/v1/exercises/wger-91/../../me/profile"):
+        assert trial_access_mode("GET", path) == "unavailable"
+        assert trial_access_mode("POST", path) == "unavailable"
+
+
 def test_trial_budget_is_atomic_shared_and_survives_new_store_instance(demo):
     member = demo.register_trial(username="one", display_name="One", password="one-test-password", admission_hash="test")
     partner = demo.add_member(member["id"], username="two", display_name="Two", password="two-test-password")

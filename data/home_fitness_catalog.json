@@ -1,0 +1,794 @@
+{
+  "version": "fitness-open-catalog-20260908-v1",
+  "product": "roxy-home",
+  "checked_on": "2026-09-08",
+  "source": "https://wger.de/api/v2/exerciseinfo/",
+  "data_license_notice": "Los textos y metadatos conservan la licencia CC BY-SA 3.0 o 4.0 indicada en cada recurso; las ilustraciones Everkinetic conservan CC BY-SA 3.0 según wger. La normalización y selección de datos de Roxy se distribuyen bajo CC BY-SA 4.0. Esta atribución se refiere a datos del catálogo, no cambia la licencia del código de la aplicación. Sin respaldo ni aprobación profesional de los autores.",
+  "coverage": {
+    "exercises": 8,
+    "spanish": 7,
+    "english": 1,
+    "illustrations": 16,
+    "photographs": 0,
+    "workout_templates": 0
+  },
+  "entries": [
+    {
+      "id": "wger-91",
+      "name": "Curl con barra",
+      "language": "es",
+      "category": "Arms",
+      "category_source_id": 8,
+      "metadata_language": "en",
+      "equipment": [
+        {
+          "id": 1,
+          "name": "Barbell"
+        }
+      ],
+      "equipment_metadata_complete": true,
+      "instructions": [
+        "Sostén la barra a la anchura de los hombros, con la espalda recta, los hombros ligeramente hacia atrás y los brazos estirados. Flexiona los brazos y levanta la pesa con un movimiento rápido. Sin pausa, baja la barra con un movimiento lento y controlado. No balancees el cuerpo durante el ejercicio; todo el trabajo lo realizan los bíceps, que son los únicos músculos que deben moverse (presta atención a los codos)."
+      ],
+      "source_url": "https://wger.de/en/exercise/91/view",
+      "source_api_url": "https://wger.de/api/v2/exerciseinfo/91/",
+      "source_exercise_id": 91,
+      "source_exercise_uuid": "7b99a081-6b1a-4aa5-b86a-5a935d083a35",
+      "source_translation_id": 2617,
+      "source_translation_uuid": "5fa2f2e3-bc3d-4c3f-9af1-ff060aebdc25",
+      "source_language_id": 4,
+      "source_last_update": "2026-06-19T18:46:19.725861+02:00",
+      "checked_on": "2026-09-08",
+      "instructions_sha256": "edbcdff9f2082414a528dc770eef9d3fefb2aa22cb7f9dee513fb317e452589e",
+      "source_description_sha256": "213cb08b36c2406e5b7b12a175a04b63c0a001575532ccf77ce9164d7b3fa1a4",
+      "attribution": {
+        "authors": [
+          "admin"
+        ],
+        "license": "CC-BY-SA-4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "source_license_id": 2,
+        "source_license_url": "https://wger.de/api/v2/license/2/",
+        "source_author_history": [
+          "admin"
+        ],
+        "changes": "Se retiró el formato HTML y se normalizaron espacios; palabras originales, sin traducción ni instrucciones añadidas."
+      },
+      "base_attribution": {
+        "author": "wger.de",
+        "license": "CC-BY-SA-3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+        "source_license_id": 1,
+        "source_author_history": [
+          "wger.de"
+        ]
+      },
+      "images": [
+        {
+          "source_id": 27,
+          "source_uuid": "7276a19e-06d0-45ae-a2a3-569bed75686b",
+          "source_exercise_id": 91,
+          "url": "https://wger.de/media/exercise-images/74/Bicep-curls-1.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/27/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-08",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "c33d15868b7856471bff7a3a5cf5efaf7082b8d1376a9cf990a2257a2a1dcd3c",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        },
+        {
+          "source_id": 28,
+          "source_uuid": "c9fee9d3-0b0e-40ae-a9c7-a4033781ea3b",
+          "source_exercise_id": 91,
+          "url": "https://wger.de/media/exercise-images/74/Bicep-curls-2.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/28/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-08",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "f3f401a35ccef993f1ca8c37db35e200f5f6d6321b66b3d609e0207b50032f57",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        }
+      ],
+      "review_status": "pending_professional_review",
+      "clinical_approval": false,
+      "can_activate_training": false
+    },
+    {
+      "id": "wger-92",
+      "name": "Curl de bíceps con mancuerna",
+      "language": "es",
+      "category": "Arms",
+      "category_source_id": 8,
+      "metadata_language": "en",
+      "equipment": [
+        {
+          "id": 3,
+          "name": "Dumbbell"
+        }
+      ],
+      "equipment_metadata_complete": true,
+      "instructions": [
+        "Sujeta dos pesas, los brazos estirados, las manos a los lados, las palmas hacia dentro. Flexiona los brazos y sube el peso con un movimiento rápido. Al mismo tiempo, gira los brazos 90 grados al principio del movimiento. En el punto más alto, gira un poco las pesas hacia fuera. Sin pausa, bájalas lentamente.No permitas que tu cuerpo se balancee durante el ejercicio, todo el trabajo lo realizan los bíceps, que son los únicos músculos que deben moverse (presta atención a los codos)."
+      ],
+      "source_url": "https://wger.de/en/exercise/92/view",
+      "source_api_url": "https://wger.de/api/v2/exerciseinfo/92/",
+      "source_exercise_id": 92,
+      "source_exercise_uuid": "1ae6a28d-10e7-4ecf-af4f-905f8193e2c6",
+      "source_translation_id": 2051,
+      "source_translation_uuid": "a3ed40fb-83d3-4901-889f-6bba313e8c80",
+      "source_language_id": 4,
+      "source_last_update": "2026-06-19T19:55:06.817496+02:00",
+      "checked_on": "2026-09-08",
+      "instructions_sha256": "2d1fb2ad77189305f426aa6c1ac9d03917113fa9b20e0328cd3f3171390c4c76",
+      "source_description_sha256": "d13fc18ba21a9560cdceef4fd30c8772e45e5bb3e6bc042b79d52fa30922fc81",
+      "attribution": {
+        "authors": [
+          "wger.de",
+          "colundrum"
+        ],
+        "license": "CC-BY-SA-3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+        "source_license_id": 1,
+        "source_license_url": "https://wger.de/api/v2/license/1/",
+        "source_author_history": [
+          "wger.de",
+          "colundrum"
+        ],
+        "changes": "Se retiró el formato HTML y se normalizaron espacios; palabras originales, sin traducción ni instrucciones añadidas."
+      },
+      "base_attribution": {
+        "author": "wger.de",
+        "license": "CC-BY-SA-3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+        "source_license_id": 1,
+        "source_author_history": [
+          "wger.de"
+        ]
+      },
+      "images": [
+        {
+          "source_id": 23,
+          "source_uuid": "ca71df8e-a6d6-453f-a25a-f4cebae3b970",
+          "source_exercise_id": 92,
+          "url": "https://wger.de/media/exercise-images/81/Biceps-curl-1.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/23/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-08",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "9db73cea5e78b57534ee38a72b8a92cc2bdb0f882f7ace4d8f3bb6354d9909b4",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        },
+        {
+          "source_id": 24,
+          "source_uuid": "13fbda16-5ef6-4f48-b58c-954c3078001c",
+          "source_exercise_id": 92,
+          "url": "https://wger.de/media/exercise-images/81/Biceps-curl-2.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/24/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-08",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "e1ac408080bfb00b4cc97665df0029d5d66207fb758857bbac0afafb5ff58881",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        }
+      ],
+      "review_status": "pending_professional_review",
+      "clinical_approval": false,
+      "can_activate_training": false
+    },
+    {
+      "id": "wger-95",
+      "name": "Curl de Bíceps en Polea",
+      "language": "es",
+      "category": "Arms",
+      "category_source_id": 8,
+      "metadata_language": "en",
+      "equipment": [
+        {
+          "id": 12,
+          "name": "Cable machine"
+        }
+      ],
+      "equipment_metadata_complete": true,
+      "instructions": [
+        "Párate a uno o dos pasos de una polea en su posición más baja y sujeta la barra o el agarre con las palmas hacia arriba (agarre supino).",
+        "Manteniendo los codos fijos a los costados de tu cuerpo, sube el peso con un movimiento relativamente rápido y potente, contrayendo el bíceps en la parte alta. La clave del ejercicio está en la bajada: regresa a la posición inicial de forma lenta y controlada, resistiendo la tensión constante del cable."
+      ],
+      "source_url": "https://wger.de/en/exercise/95/view",
+      "source_api_url": "https://wger.de/api/v2/exerciseinfo/95/",
+      "source_exercise_id": 95,
+      "source_exercise_uuid": "bcb7020c-8678-496d-8f4d-aad0e233a5bd",
+      "source_translation_id": 2672,
+      "source_translation_uuid": "22b2afe2-3fec-477a-bf44-3e4a91fe3481",
+      "source_language_id": 4,
+      "source_last_update": "2026-07-23T12:36:13.168665+02:00",
+      "checked_on": "2026-09-08",
+      "instructions_sha256": "1f924b9cc0d36044198b4a3513e5ea0444b63663a3264822d5abb18910ec31e7",
+      "source_description_sha256": "fb598731abde4990be4216b0a9283973932ffcc4a7257cd89c24553cd97ce0af",
+      "attribution": {
+        "authors": [
+          "wgerjhn"
+        ],
+        "license": "CC-BY-SA-4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "source_license_id": 2,
+        "source_license_url": "https://wger.de/api/v2/license/2/",
+        "source_author_history": [
+          "wgerjhn"
+        ],
+        "changes": "Se retiró el formato HTML y se normalizaron espacios; palabras originales, sin traducción ni instrucciones añadidas."
+      },
+      "base_attribution": {
+        "author": "wger.de",
+        "license": "CC-BY-SA-3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+        "source_license_id": 1,
+        "source_author_history": [
+          "wger.de"
+        ]
+      },
+      "images": [
+        {
+          "source_id": 19,
+          "source_uuid": "065f9418-6245-46ae-8e24-b4013ce084e4",
+          "source_exercise_id": 95,
+          "url": "https://wger.de/media/exercise-images/129/Standing-biceps-curl-1.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/19/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-08",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "417451559002fbd11eccfaeb26e93655beda6daddd50215102c512a1f95528e7",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        },
+        {
+          "source_id": 20,
+          "source_uuid": "061cf07e-96a3-4063-8bd5-7abcdb047a99",
+          "source_exercise_id": 95,
+          "url": "https://wger.de/media/exercise-images/129/Standing-biceps-curl-2.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/20/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-08",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "5d26ae966437c6769feabc30175c5a165c91cdf8bbb77590c644f17d551ae549",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        }
+      ],
+      "review_status": "pending_professional_review",
+      "clinical_approval": false,
+      "can_activate_training": false
+    },
+    {
+      "id": "wger-135",
+      "name": "Butterfly",
+      "language": "en",
+      "category": "Chest",
+      "category_source_id": 11,
+      "metadata_language": "en",
+      "equipment": [],
+      "equipment_metadata_complete": false,
+      "instructions": [
+        "Sit on the butterfly machine, the feet have a good contact with the floor, the upper arms are parallel to the floor. Press your arms together till the handles are practically together (but aren't!). Go slowly back. The weights should stay all the time in the air."
+      ],
+      "source_url": "https://wger.de/en/exercise/135/view",
+      "source_api_url": "https://wger.de/api/v2/exerciseinfo/135/",
+      "source_exercise_id": 135,
+      "source_exercise_uuid": "99449eae-0eae-44ab-a57f-fc094bbdda13",
+      "source_translation_id": 98,
+      "source_translation_uuid": "3c3857f8-d224-4d5a-8cc1-f4e7982d3475",
+      "source_language_id": 2,
+      "source_last_update": "2026-06-19T18:46:27.982120+02:00",
+      "checked_on": "2026-09-08",
+      "instructions_sha256": "2f09526817832d9afe556c29cb20cccecd61c57646bef57c286880eee5e2fcdc",
+      "source_description_sha256": "56509c9aa132dd6263fa267f72fde71327a02b2d849b83d5a5731abce17a8f0b",
+      "attribution": {
+        "authors": [
+          "wger.de"
+        ],
+        "license": "CC-BY-SA-3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+        "source_license_id": 1,
+        "source_license_url": "https://wger.de/api/v2/license/1/",
+        "source_author_history": [
+          "wger.de"
+        ],
+        "changes": "Se retiró el formato HTML y se normalizaron espacios; palabras originales, sin traducción ni instrucciones añadidas."
+      },
+      "base_attribution": {
+        "author": "wger.de",
+        "license": "CC-BY-SA-3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+        "source_license_id": 1,
+        "source_author_history": [
+          "wger.de"
+        ]
+      },
+      "images": [
+        {
+          "source_id": 111,
+          "source_uuid": "40212645-0278-4c1d-9f7a-a00ee4d12314",
+          "source_exercise_id": 135,
+          "url": "https://wger.de/media/exercise-images/98/Butterfly-machine-2.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/111/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-08",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "bbcebf4eac97b0e2767f2cd92f9b63addd8096105dd58cb59633499c69ed293b",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        },
+        {
+          "source_id": 112,
+          "source_uuid": "3e255a5f-b058-4a09-b0b0-70044285528a",
+          "source_exercise_id": 135,
+          "url": "https://wger.de/media/exercise-images/98/Butterfly-machine-1.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/112/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-08",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "d1b070a22b6ddd179928c44a8fa9518cc9b80ce26b86209e43b85aaa098c259a",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        }
+      ],
+      "review_status": "pending_professional_review",
+      "clinical_approval": false,
+      "can_activate_training": false
+    },
+    {
+      "id": "wger-272",
+      "name": "Curl Martillo",
+      "language": "es",
+      "category": "Arms",
+      "category_source_id": 8,
+      "metadata_language": "en",
+      "equipment": [
+        {
+          "id": 3,
+          "name": "Dumbbell"
+        }
+      ],
+      "equipment_metadata_complete": true,
+      "instructions": [
+        "Esta variante del curl utiliza un agarre neutro (como si sostuvieras un martillo) para enfocar el trabajo en el músculo braquial (ubicado debajo del bíceps) y el antebrazo (braquiorradial), lo que ayuda a dar más grosor y densidad al brazo.",
+        "Instrucciones",
+        "Posición: De pie o sentado, sostén un par de mancuernas a los costados de tu cuerpo con las palmas de las manos mirándose entre sí (agarre neutro).",
+        "Movimiento: Manteniendo los codos fijos a los costados de tu torso, levanta las mancuernas hasta la altura de los hombros. La clave es no rotar las muñecas en ningún momento; la orientación de las palmas no cambia.",
+        "Tempo: Sube el peso de forma potente y bájalo de manera lenta y controlada para maximizar la tensión muscular. Evita balancear el cuerpo."
+      ],
+      "source_url": "https://wger.de/en/exercise/272/view",
+      "source_api_url": "https://wger.de/api/v2/exerciseinfo/272/",
+      "source_exercise_id": 272,
+      "source_exercise_uuid": "c0d9fe98-f4fe-49f3-8037-05e1984e7d2d",
+      "source_translation_id": 2735,
+      "source_translation_uuid": "9405e68f-9efb-4b58-ae44-5db7dc32b2dc",
+      "source_language_id": 4,
+      "source_last_update": "2026-06-19T18:46:39.253111+02:00",
+      "checked_on": "2026-09-08",
+      "instructions_sha256": "266a85f3f6bd7864ad7ee0fcec77322a93a430acac748913c87db976638d8cad",
+      "source_description_sha256": "74be47a7e006bc75868ef742035329277286f9115c4d5ffa10e1f33130497f47",
+      "attribution": {
+        "authors": [
+          "wgerjhn"
+        ],
+        "license": "CC-BY-SA-4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "source_license_id": 2,
+        "source_license_url": "https://wger.de/api/v2/license/2/",
+        "source_author_history": [
+          "wgerjhn"
+        ],
+        "changes": "Se retiró el formato HTML y se normalizaron espacios; palabras originales, sin traducción ni instrucciones añadidas."
+      },
+      "base_attribution": {
+        "author": "wger.de",
+        "license": "CC-BY-SA-3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+        "source_license_id": 1,
+        "source_author_history": [
+          "wger.de"
+        ]
+      },
+      "images": [
+        {
+          "source_id": 47,
+          "source_uuid": "aa574839-4a7e-4c0d-ac72-2f7448478a1c",
+          "source_exercise_id": 272,
+          "url": "https://wger.de/media/exercise-images/86/Bicep-hammer-curl-1.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/47/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-08",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "f9809143f121283705612669b9d98cd25432be0c9018fe1f79ed924bafec7801",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        },
+        {
+          "source_id": 48,
+          "source_uuid": "75382eaf-468f-4c21-8710-6bf475d8ecc2",
+          "source_exercise_id": 272,
+          "url": "https://wger.de/media/exercise-images/86/Bicep-hammer-curl-2.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/48/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-08",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "c5591af9a40419516da525aa108997807881e9c0ea4293b4b1f432c7b9862452",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        }
+      ],
+      "review_status": "pending_professional_review",
+      "clinical_approval": false,
+      "can_activate_training": false
+    },
+    {
+      "id": "wger-365",
+      "name": "Curl de piernas (tumbado)",
+      "language": "es",
+      "category": "Legs",
+      "category_source_id": 9,
+      "metadata_language": "en",
+      "equipment": [],
+      "equipment_metadata_complete": false,
+      "instructions": [
+        "Túmbate en un banco y coloca los gemelos detrás del soporte para las piernas (mejor si quedan sujetos por la parte baja de los gemelos). Agárrate a las barras para asegurarte de que el cuerpo queda firmemente fijado. Flexiona las piernas llevando el peso hacia arriba y baja lentamente. Durante el ejercicio el cuerpo no debe moverse, todo el trabajo lo hacen las piernas."
+      ],
+      "source_url": "https://wger.de/en/exercise/365/view",
+      "source_api_url": "https://wger.de/api/v2/exerciseinfo/365/",
+      "source_exercise_id": 365,
+      "source_exercise_uuid": "3bc8b411-a28d-4e1c-a6d1-769e18fe9881",
+      "source_translation_id": 4317,
+      "source_translation_uuid": "e32fa490-897b-40e0-a868-fcdecd68698b",
+      "source_language_id": 4,
+      "source_last_update": "2026-06-19T18:56:57.741764+02:00",
+      "checked_on": "2026-09-08",
+      "instructions_sha256": "88536ccd643893aa7786c6e00fc2802243767e24e50a588a8a4be611a9e90c42",
+      "source_description_sha256": "26af7f28559310d589524bb899439468742b09ce6cdc97f566d454aa996dbc90",
+      "attribution": {
+        "authors": [
+          "wger.de"
+        ],
+        "license": "CC-BY-SA-4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "source_license_id": 2,
+        "source_license_url": "https://wger.de/api/v2/license/2/",
+        "source_author_history": [
+          "wger.de"
+        ],
+        "changes": "Se retiró el formato HTML y se normalizaron espacios; palabras originales, sin traducción ni instrucciones añadidas."
+      },
+      "base_attribution": {
+        "author": "wger.de",
+        "license": "CC-BY-SA-3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+        "source_license_id": 1,
+        "source_author_history": [
+          "wger.de"
+        ]
+      },
+      "images": [
+        {
+          "source_id": 179,
+          "source_uuid": "fd35994a-70b4-4ca4-b236-12c178062996",
+          "source_exercise_id": 365,
+          "url": "https://wger.de/media/exercise-images/154/lying-leg-curl-machine-large-1.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/179/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-08",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "e8da278d94c2c7fe5feed8aab3d4666aac55f699f19bad38c086cea2208c98ad",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        },
+        {
+          "source_id": 180,
+          "source_uuid": "f8d23bc0-4b42-40fb-aa01-970fb573a212",
+          "source_exercise_id": 365,
+          "url": "https://wger.de/media/exercise-images/154/lying-leg-curl-machine-large-2.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/180/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-08",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "c9476f7baeaa61ea503abd07219be240eaa7cd443040447da004485d7f0dc1e4",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        }
+      ],
+      "review_status": "pending_professional_review",
+      "clinical_approval": false,
+      "can_activate_training": false
+    },
+    {
+      "id": "wger-366",
+      "name": "Curl femoral sentado",
+      "language": "es",
+      "category": "Legs",
+      "category_source_id": 9,
+      "metadata_language": "en",
+      "equipment": [],
+      "equipment_metadata_complete": false,
+      "instructions": [
+        "Ajusta la palanca de la máquina para adaptarla a tu altura y siéntate en la máquina con la espalda contra la almohadilla de respaldo. Coloca los tobillos sobre los cojines , los muslos debajo del cojinete de sujeción justo por encima de las rodillas y las manos en los agarres.Al inspirar realiza una flexión de las rodillas. Mantener la espalda inmóvil en todo momento únicamente solo debe movilizarse los pies por la flexión de rodilla. Mantén la posición contraída por un segundo. Lentamente regresa a la posición inicial. Espirar al final del movimiento."
+      ],
+      "source_url": "https://wger.de/en/exercise/366/view",
+      "source_api_url": "https://wger.de/api/v2/exerciseinfo/366/",
+      "source_exercise_id": 366,
+      "source_exercise_uuid": "440a5184-de58-4a86-a7ba-76ddeafaa855",
+      "source_translation_id": 2637,
+      "source_translation_uuid": "bb9e846b-80d1-418e-902d-c59f19f2d28a",
+      "source_language_id": 4,
+      "source_last_update": "2026-04-15T22:23:53.335983+02:00",
+      "checked_on": "2026-09-08",
+      "instructions_sha256": "00bcc3a601a14d6f9c87e4cc2d1c1b1b14ea4d3b451c394f3853e34d03534b44",
+      "source_description_sha256": "674bb359a739b9bf345886e58724d277464f16e50c41211dfe4efad166611b11",
+      "attribution": {
+        "authors": [
+          "admin"
+        ],
+        "license": "CC-BY-SA-4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "source_license_id": 2,
+        "source_license_url": "https://wger.de/api/v2/license/2/",
+        "source_author_history": [
+          "admin"
+        ],
+        "changes": "Se retiró el formato HTML y se normalizaron espacios; palabras originales, sin traducción ni instrucciones añadidas."
+      },
+      "base_attribution": {
+        "author": "wger.de",
+        "license": "CC-BY-SA-3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+        "source_license_id": 1,
+        "source_author_history": [
+          "wger.de"
+        ]
+      },
+      "images": [
+        {
+          "source_id": 181,
+          "source_uuid": "1fbfbec9-2431-45db-8ca7-a8e477add80f",
+          "source_exercise_id": 366,
+          "url": "https://wger.de/media/exercise-images/117/seated-leg-curl-large-1.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/181/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-08",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "d13ff4f8aa04ab62b8ed1b42a9493307bd4077eaf4f84da57d4cc7dbe28ac372",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        },
+        {
+          "source_id": 182,
+          "source_uuid": "d7c5c697-8a93-4d69-8c9d-a919cb4e1f77",
+          "source_exercise_id": 366,
+          "url": "https://wger.de/media/exercise-images/117/seated-leg-curl-large-2.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/182/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-08",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "9985758b68e0d1b8eddbe5b5e5f3ede345005b21eca337e74245b13bd02c8593",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        }
+      ],
+      "review_status": "pending_professional_review",
+      "clinical_approval": false,
+      "can_activate_training": false
+    },
+    {
+      "id": "wger-572",
+      "name": "Encogimientos de hombros con mancuernas",
+      "language": "es",
+      "category": "Shoulders",
+      "category_source_id": 13,
+      "metadata_language": "en",
+      "equipment": [
+        {
+          "id": 3,
+          "name": "Dumbbell"
+        }
+      ],
+      "equipment_metadata_complete": true,
+      "instructions": [
+        "Ponte de pie con el cuerpo erguido; las manos cuelgan libremente a los lados, cada una sujetando una mancuerna. Desde esta posición, eleva los hombros lo más alto que puedas, pero no flexiones los brazos durante el movimiento. En el punto más alto, haz una breve pausa de 1 o 2 segundos antes de volver lentamente a la posición inicial.",
+        "Cuando entrenes con un peso mayor, asegúrate de seguir realizando el movimiento completo."
+      ],
+      "source_url": "https://wger.de/en/exercise/572/view",
+      "source_api_url": "https://wger.de/api/v2/exerciseinfo/572/",
+      "source_exercise_id": 572,
+      "source_exercise_uuid": "72a945ec-3a7f-424b-9a05-1616ef7dce91",
+      "source_translation_id": 4361,
+      "source_translation_uuid": "ef2c10cf-956f-4a53-86c4-e39014ffafdf",
+      "source_language_id": 4,
+      "source_last_update": "2026-06-19T18:57:28.480428+02:00",
+      "checked_on": "2026-09-08",
+      "instructions_sha256": "fadf325fc1d6b3281a33d00af4f12cb391604f7ff45dae077b947c11d1ca1c5c",
+      "source_description_sha256": "928e283f664ad849f96deecad82289fb159913f1eb618d623614612fa18181a9",
+      "attribution": {
+        "authors": [
+          "wger.de"
+        ],
+        "license": "CC-BY-SA-4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "source_license_id": 2,
+        "source_license_url": "https://wger.de/api/v2/license/2/",
+        "source_author_history": [
+          "wger.de"
+        ],
+        "changes": "Se retiró el formato HTML y se normalizaron espacios; palabras originales, sin traducción ni instrucciones añadidas."
+      },
+      "base_attribution": {
+        "author": "wger.de",
+        "license": "CC-BY-SA-3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+        "source_license_id": 1,
+        "source_author_history": [
+          "wger.de"
+        ]
+      },
+      "images": [
+        {
+          "source_id": 39,
+          "source_uuid": "dd0a0445-11cf-45d3-bbd1-6ae0add6b39c",
+          "source_exercise_id": 572,
+          "url": "https://wger.de/media/exercise-images/151/Dumbbell-shrugs-2.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/39/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-08",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "b0c74fd695fc0ec90eac9e2c00d1f8e6652956e9fd7c806d40d3df13fced1560",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        },
+        {
+          "source_id": 40,
+          "source_uuid": "5f318812-108b-402c-bca3-6e409af076c7",
+          "source_exercise_id": 572,
+          "url": "https://wger.de/media/exercise-images/151/Dumbbell-shrugs-1.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/40/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-08",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "7d4582f8f8e0573cbbf40527d461a9a67337bc147e00cf097147bab753026b10",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        }
+      ],
+      "review_status": "pending_professional_review",
+      "clinical_approval": false,
+      "can_activate_training": false
+    }
+  ]
+}

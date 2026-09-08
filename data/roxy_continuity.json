@@ -5,8 +5,8 @@
   "public_url": "https://roxy-home.onrender.com/lista#mascotas",
   "last_verified_public_version": 177,
   "deployed_implementation_commit": "ae7164fe6",
-  "candidate_version": 178,
-  "candidate_status": "178_local_exercise_foundation_1174_python_25_node_tests_no_deployment",
+  "candidate_version": 179,
+  "candidate_status": "179_tested_educational_catalog_and_private_foundation_publication_authorized_not_yet_verified",
   "exercise_candidate_178": {
     "requested_objective": "integrated_private_member_exercise_module_following_user_specification",
     "scope": "five_step_preferences_and_six_section_preview_not_operational_training",
@@ -23,11 +23,23 @@
     "public_deployed": false,
     "production_data_modified": false,
     "payments_or_provider_secrets_changed": false,
-    "tests": {"python_home_shopping": 1174, "node_fitness_ui": 25},
-    "responsive_verified": ["393x852", "768x1024", "1280x900"],
+    "tests": {
+      "python_home_shopping": 1174,
+      "node_fitness_ui": 25
+    },
+    "responsive_verified": [
+      "393x852",
+      "768x1024",
+      "1280x900"
+    ],
     "privacy_regressions": "cross_tab_member_binding_shared_login_rejection_late_responses_consent_only_deletion_no_private_cache",
     "visual_fixes": "five_item_nav_crop_CTA_focus_CSP_progress_and_shared_action_hidden",
-    "next_steps": ["provision_and_test_Home_private_PostgreSQL_with_two_members", "license_and_review_exact_exercise_media", "professionally_review_screening_and_templates", "implement_and_validate_workout_activation_logging_calendar_confirmation"],
+    "next_steps": [
+      "provision_and_test_Home_private_PostgreSQL_with_two_members",
+      "license_and_review_exact_exercise_media",
+      "professionally_review_screening_and_templates",
+      "implement_and_validate_workout_activation_logging_calendar_confirmation"
+    ],
     "evidence": "reports/home_fitness_implementation_20260908.md",
     "design_qa": "design-qa.md"
   },
@@ -51,7 +63,12 @@
     "production_key_configured": false,
     "real_provider_response_verified": false,
     "trial_access": false,
-    "remaining": ["commercial_license_and_third_party_rights", "Home_only_key", "authorized_live_test", "servings_translation_and_content_review_before_cooking_or_shopping"]
+    "remaining": [
+      "commercial_license_and_third_party_rights",
+      "Home_only_key",
+      "authorized_live_test",
+      "servings_translation_and_content_review_before_cooking_or_shopping"
+    ]
   },
   "onboarding_prototype": {
     "status": "appearance_gallery_and_five_module_choices_verified_local_only",
@@ -66,14 +83,24 @@
     "tests_passed": 20,
     "choice_combinations_tested": 2592,
     "choice_test_scope": "unit_enumeration_not_browser_sessions",
-    "appearance_choices": ["classic", "casual", "watercolor"],
+    "appearance_choices": [
+      "classic",
+      "casual",
+      "watercolor"
+    ],
     "decision_chapters": 8,
     "followup_media": "3_generated_ImageGen_stills_plus_reused_Home_room; no_new_video_audio_calls",
     "guide_chapters": "Renueva_Nexo_still_examples_with_benefits_permissions_and_include_skip",
     "verified_on": "2026-09-08",
     "build": "passed",
     "protected_runtime_files_verified": 28,
-    "remaining": ["user_created_avatar", "final_narration_and_Home_provider_isolation", "animated_alternate_appearances_and_Renueva_Nexo_chapters", "production_preferences_and_signup_integration", "physical_device_audio_accessibility"],
+    "remaining": [
+      "user_created_avatar",
+      "final_narration_and_Home_provider_isolation",
+      "animated_alternate_appearances_and_Renueva_Nexo_chapters",
+      "production_preferences_and_signup_integration",
+      "physical_device_audio_accessibility"
+    ],
     "evidence": "prototypes/roxy-cinema/design-qa.md"
   },
   "storage": {
@@ -140,7 +167,10 @@
     "public_normal_url_version": 176,
     "public_asset_scope_176": "HTML_JS_CSS_SW_providerJS_HTTP200_byte_identical_to_65d829d42",
     "public_browser_176": "Bella_Luna_retained; Luna_Ferret_8_recipes_8_unique_images_loaded; saved_eggs_Desayunos_5_specific_steps; provider_pending; Google_Map_Robert_Roxy_weather_model_timestamp_visible",
-    "public_recipe_catalog_176": {"available": 59, "drafts": 458},
+    "public_recipe_catalog_176": {
+      "available": 59,
+      "drafts": 458
+    },
     "public_asset_scope_173": "HTML_JS_SW_8_cat_images_byte_identical; CSS124_unchanged_verified172",
     "public_asset_scope_174": "HTML_JS_CSS_SW_12_smallpet_images_byte_identical",
     "public_asset_scope_175": "HTML_JS_CSS_SW_HTTP200_byte_identical_to_09298929e",
@@ -170,22 +200,21 @@
     "Aderezo César photo showed a salad; quarantine until an exact replacement is visually reviewed",
     "Only five manufacturer ingredient panels screened; restrictions fail closed, not clinical allergy clearance"
   ],
-  "next_step": "177 publicly verified. User has no TheMealDB account or key; confirm commercial and third-party rights, then Home-only key and authorized live test; no payment authorized. Expand reviewed original recipes and exact photos; 57 pet preparations still lack verified originals. Review old speed beside stale Nexo location. Administrator billing and real Turnstile setup required before public signup; account recovery/support remain. Keep signup disabled. No universal coverage or demo readiness claim.",
+  "next_step": "Publish and verify 179 educational Exercise scope via existing Home deploy branch. Need user Render login, authorized dedicated Home PostgreSQL provisioning and production isolation checks before persistent preferences. Professional screening/template review and larger exact-media catalogue required before implementing/enabling guided plans. No payment authorized; no complete module or open-demo readiness claim. Existing recipe/provider/registration gates remain.",
   "launch": {
     "five_day_web_beta": "requested_not_scheduled",
     "app_store": "target_next_month_not_guaranteed",
-    "exercise_section": "requested_not_implemented",
+    "exercise_section": "179_educational_catalog_and_private_foundation_not_complete_training_module",
     "database_and_media_migration": "recommended_not_performed",
     "registration": "public_open_approved_implemented_167_disabled_pending_real_verification",
     "trial_days": 5
   },
   "candidate_verification": {
-    "version": 176,
-    "focused_tests": 26,
-    "full_tests": 805,
-    "qa_server": "isolated_8767_and_weather_fixture_8788_stopped_ports_verified_no_listener; public_Luna_tab_preserved_viewport_reset; prototype8796_untouched",
-    "recipes": "synthetic_Luna_Bella_Betta; Luna8; corrected_eggs_5_step_guide; empty_video_panel_hidden; mobile_provider_pending",
-    "provider_frontend": "in_memory_Node_mock_checks_passed; explicit_search_only_original_measures_safe_image_hosts_no_mutations_stale_response_suppressed; not_live_provider_test",
+    "version": 179,
+    "python_tests": 1242,
+    "node_tests": 33,
+    "postgres_real_tests": 11,
+    "public_verified": false,
     "production_data_mutated": false
   },
   "public_registration": {
@@ -238,5 +267,57 @@
     "product_csp_catalog": "all_remote_origins_match_image_only_allowlist",
     "public_loading_missing_states": "171_verified_screenshots_25_26_27",
     "qa_browser_cleanup": "temporary_tab_closed_viewport_reset_public_mascotas_open"
+  },
+  "exercise_candidate_179": {
+    "scope": "educational_library_and_preferences_preview_not_operational_training",
+    "user_authorized_publication": true,
+    "catalogue": {
+      "provider": "wger",
+      "entries": 8,
+      "spanish": 7,
+      "english": 1,
+      "original_paragraphs": 14,
+      "illustrations": 16,
+      "photos": 0,
+      "clinical_review": "pending"
+    },
+    "postgres_local_real": {
+      "version": "17.11",
+      "tests_passed": 11,
+      "tls_verify_full": true,
+      "force_rls_member_isolation": true
+    },
+    "postgres_public_verified": false,
+    "render_access": "GitHub_login_requested_no_credentials_or_payment_changed",
+    "can_activate_training": false,
+    "tests": {
+      "python_home_shopping_provider": 1242,
+      "node_fitness": 33,
+      "postgres_real": 11,
+      "postgres_skipped_in_regular_environment": 11
+    },
+    "browser": {
+      "all_eight_details": true,
+      "loaded_images": 16,
+      "effective_viewport": "1049x714",
+      "console_errors": 0,
+      "new_mobile_check": false
+    },
+    "production_user_data_modified": false,
+    "public_deployed": false,
+    "evidence": [
+      "reports/home_fitness_catalog_20260908.md",
+      "reports/home_fitness_postgres_integration_20260908.md",
+      "design-qa.md"
+    ]
+  },
+  "candidate_verification_176_historical": {
+    "version": 176,
+    "focused_tests": 26,
+    "full_tests": 805,
+    "qa_server": "isolated_8767_and_weather_fixture_8788_stopped_ports_verified_no_listener; public_Luna_tab_preserved_viewport_reset; prototype8796_untouched",
+    "recipes": "synthetic_Luna_Bella_Betta; Luna8; corrected_eggs_5_step_guide; empty_video_panel_hidden; mobile_provider_pending",
+    "provider_frontend": "in_memory_Node_mock_checks_passed; explicit_search_only_original_measures_safe_image_hosts_no_mutations_stale_response_suppressed; not_live_provider_test",
+    "production_data_mutated": false
   }
 }

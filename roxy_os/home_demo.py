@@ -52,6 +52,9 @@ def trial_access_mode(method: str, path: str) -> str:
     if (method, path) in {("GET", "/api/fitness/v1/status"), ("GET", "/api/fitness/v1/me/profile"), ("GET", "/api/fitness/v1/me/data"), ("PATCH", "/api/fitness/v1/me/profile"), ("POST", "/api/fitness/v1/me/consents"), ("DELETE", "/api/fitness/v1/me/data"), ("POST", "/api/fitness/v1/plans/preview")}:
         # Preference foundation only; no workouts, AI calls or commercial writes.
         return "local"
+    if method == "GET" and re.fullmatch(r"/api/fitness/v1/exercises(?:/wger-[A-Za-z0-9-]+)?", path):
+        # Licensed bundled education, never a provider call or workout activation.
+        return "local"
     if path in {"/v1/home-account/me", "/v1/home-account/preferences", "/v1/home-account/members"}:
         return "local"
     if method == "GET" and path in {"/v1/home-food/recipe-photo", "/v1/home-food/recipe-photo-info"}:

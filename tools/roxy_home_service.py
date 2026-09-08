@@ -1636,7 +1636,7 @@ def shopping_page() -> Response:
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; img-src 'self' data: blob: https://maps.googleapis.com "
         "https://maps.gstatic.com https://*.googleapis.com https://*.gstatic.com "
-        "https://images.openfoodfacts.org https://www.themealdb.com https://themealdb.com https://upload.wikimedia.org https://*.rainviewer.com "
+        "https://images.openfoodfacts.org https://www.themealdb.com https://themealdb.com https://upload.wikimedia.org https://wger.de https://*.rainviewer.com "
         "https://*.basemaps.cartocdn.com https://tile.openstreetmap.org "
         "https://mazuri.com https://oxbowanimalhealth.com https://www.wysong.net "
         "https://www.kaytee.com https://www.midwesthomes4pets.com "

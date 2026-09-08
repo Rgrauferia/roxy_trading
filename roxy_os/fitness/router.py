@@ -11,6 +11,7 @@ from .repository import (FitnessConflict, FitnessConsentRequired,
                          FitnessStorageUnavailable, PostgresFitnessRepository)
 from .schemas import FitnessConsentRequest, FitnessDeleteRequest, FitnessWriteRequest
 from .sources import fitness_education_links
+from .catalog import fitness_catalog, fitness_catalog_entry
 
 
 def repository() -> PostgresFitnessRepository:
@@ -47,7 +48,7 @@ def create_fitness_router(authenticate: Callable, rate_limit: Callable) -> APIRo
         try:
             return callback(repository())
         except FitnessStorageUnavailable:
-            raise HTTPException(503, detail={"code": "private_storage_unavailable", "message": "El almacenamiento privado no está disponible. No se guardaron cambios; puedes explorar sin guardar."}) from None
+            raise HTTPException(503, detail={"code": "private_storage_unavailable", "message": "No pude confirmar la operación con el almacenamiento privado. Revisa la conexión antes de dar por guardados o eliminados tus cambios; puedes explorar sin guardar."}) from None
         except FitnessConflict as exc:
             raise HTTPException(409, detail={"code": "version_conflict", "message": str(exc)}) from None
         except FitnessConsentRequired as exc:
@@ -60,10 +61,23 @@ def create_fitness_router(authenticate: Callable, rate_limit: Callable) -> APIRo
         rate_limit(request)
         return {"release": "foundation-preview", "personal_login": auth.mode == "member" and bool(auth.member_id), "member_id": auth.member_id if auth.mode == "member" else None,
                 "storage": repository().configuration_status(), "can_activate_plans": False,
-                "clinical_review": "pending", "catalogue": "license_and_editorial_review_pending",
+                "clinical_review": "pending", "catalogue": "educational_originals_available_training_review_pending",
                 "screening": "not_available", "bookings_enabled": False,
                 "wearables_enabled": False, "supplement_recommendations_enabled": False,
                 "education": fitness_education_links()}
+
+    @router.get("/exercises")
+    def exercises(request: Request, auth=Depends(authenticate)):
+        rate_limit(request)
+        return fitness_catalog()
+
+    @router.get("/exercises/{exercise_id}")
+    def exercise(exercise_id: str, request: Request, auth=Depends(authenticate)):
+        rate_limit(request)
+        entry = fitness_catalog_entry(exercise_id)
+        if entry is None:
+            raise HTTPException(404, "No existe esa ficha original.")
+        return entry
 
     @router.get("/me/profile")
     def profile(member: str = Depends(personal)):
