@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import json
-import os
 import re
-import tempfile
 import unicodedata
 from copy import deepcopy
 from datetime import date, datetime, time, timedelta, timezone
@@ -11,6 +8,10 @@ from pathlib import Path
 from typing import Any, Callable
 from uuid import uuid4
 from zoneinfo import ZoneInfo
+
+from roxy_os.home_private_storage import (
+    HomePrivateStorageError, read_private_json, storage_io, write_private_json,
+)
 
 try:
     import fcntl
@@ -58,64 +59,105 @@ def _ics_stamp(value: datetime) -> str:
     return value.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
+class HomeCalendarStorageError(HomePrivateStorageError):
+    """Calendar data is unavailable; never replace it with an empty calendar."""
+
+
+def _valid_calendar_event(row: Any) -> bool:
+    # Validate stored shapes only. Do not re-run _validate(), which normalizes
+    # times, reminders and text and would change an existing record on read.
+    if not isinstance(row, dict):
+        return False
+    if any(not isinstance(row.get(key), str) or not row[key] for key in ("id", "owner_id", "title", "starts_at", "ends_at")):
+        return False
+    if any(key in row and not isinstance(row[key], str) for key in ("timezone", "category", "location", "notes", "recurrence", "source", "created_at", "updated_at")):
+        return False
+    if "reminder_minutes" in row and type(row["reminder_minutes"]) is not int:
+        return False
+    if "all_day" in row and not isinstance(row["all_day"], bool):
+        return False
+    if row.get("recurrence_until") is not None and not isinstance(row["recurrence_until"], str):
+        return False
+    participants = row.get("participants", [])
+    return isinstance(participants, list) and all(isinstance(person, str) for person in participants)
+
+
+def _valid_calendar_state(value: Any) -> bool:
+    if not isinstance(value, dict) or not isinstance(value.get("events"), list) or not isinstance(value.get("drafts"), dict):
+        return False
+    version = value.get("schema_version", CALENDAR_STORE_VERSION)
+    if type(version) is not int or version != CALENDAR_STORE_VERSION:
+        return False
+    identities: set[tuple[str, str]] = set()
+    for event in value["events"]:
+        if not _valid_calendar_event(event):
+            return False
+        identity = (event["owner_id"], event["id"])
+        if identity in identities:
+            return False
+        identities.add(identity)
+    for owner, draft in value["drafts"].items():
+        if not isinstance(draft, dict) or not isinstance(draft.get("id"), str) or not draft["id"] or draft.get("owner_id") != owner:
+            return False
+        if "status" in draft and not isinstance(draft["status"], str):
+            return False
+        if draft.get("action") == "DELETE":
+            event = draft.get("event")
+            if not _valid_calendar_event(event) or event["owner_id"] != owner or draft.get("event_id") != event["id"]:
+                return False
+        elif not _valid_calendar_event(draft):
+            return False
+    return True
+
+
 class HomeCalendarStore:
     """Private, durable calendar and confirmation drafts for each Home member."""
 
     def __init__(self, path: str | Path = "data/roxy_home_calendar.json") -> None:
         self.path = Path(path)
         self.lock_path = self.path.with_suffix(self.path.suffix + ".lock")
+        self._storage_status = "NEW"
 
     @staticmethod
     def _empty() -> dict[str, Any]:
         return {"schema_version": CALENDAR_STORE_VERSION, "events": [], "drafts": {}, "updated_at": _now_iso()}
 
     def _read_unlocked(self) -> dict[str, Any]:
-        try:
-            payload = json.loads(self.path.read_text(encoding="utf-8"))
-        except (OSError, TypeError, ValueError):
-            return self._empty()
-        if not isinstance(payload, dict):
-            return self._empty()
-        payload["schema_version"] = CALENDAR_STORE_VERSION
-        payload["events"] = [row for row in payload.get("events", []) if isinstance(row, dict)]
-        payload["drafts"] = payload.get("drafts") if isinstance(payload.get("drafts"), dict) else {}
+        payload, self._storage_status = read_private_json(self.path, self._empty, _valid_calendar_state, HomeCalendarStorageError)
         return payload
 
+    def storage_status(self) -> str:
+        self._read_unlocked()
+        return self._storage_status
+
     def _write_unlocked(self, payload: dict[str, Any]) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
         payload["schema_version"] = CALENDAR_STORE_VERSION
         payload["updated_at"] = _now_iso()
-        handle, temp_name = tempfile.mkstemp(prefix=f".{self.path.name}.", suffix=".tmp", dir=str(self.path.parent))
-        try:
-            with os.fdopen(handle, "w", encoding="utf-8") as stream:
-                json.dump(payload, stream, ensure_ascii=False, indent=2, sort_keys=True)
-                stream.flush()
-                os.fsync(stream.fileno())
-            os.chmod(temp_name, 0o600)
-            os.replace(temp_name, self.path)
-        finally:
-            try:
-                os.unlink(temp_name)
-            except FileNotFoundError:
-                pass
+        write_private_json(self.path, payload, _valid_calendar_state, HomeCalendarStorageError)
+        self._storage_status = "READY"
 
     def _mutate(self, callback: Callable[[dict[str, Any]], Any]) -> Any:
-        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
-        with self.lock_path.open("a+", encoding="utf-8") as lock:
-            try:
-                self.lock_path.chmod(0o600)
-            except OSError:
-                pass
-            if fcntl is not None:
-                fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
-            try:
-                payload = self._read_unlocked()
-                result = callback(payload)
-                self._write_unlocked(payload)
-                return result
-            finally:
-                if fcntl is not None:
-                    fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+        committed = False
+        try:
+            with storage_io(HomeCalendarStorageError):
+                self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+                with self.lock_path.open("a+", encoding="utf-8") as lock:
+                    self.lock_path.chmod(0o600)
+                    if fcntl is not None:
+                        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+                    try:
+                        payload = self._read_unlocked()
+                        result = callback(payload)
+                        self._write_unlocked(payload)
+                        committed = True
+                        return result
+                    finally:
+                        if fcntl is not None:
+                            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+        except HomeCalendarStorageError as exc:
+            if committed:
+                exc.committed = True
+            raise
 
     @staticmethod
     def _validate(raw: dict[str, Any]) -> dict[str, Any]:
@@ -239,8 +281,9 @@ class HomeCalendarStore:
             for index, current in enumerate(payload["events"]):
                 if current.get("owner_id") != owner or current.get("id") != str(event_id):
                     continue
-                event = self._validate({**current, **raw})
-                event.update({key: current.get(key) for key in ("id", "owner_id", "source", "created_at")})
+                # Retain existing metadata (including absent optional fields)
+                # while only accepting normalized editable fields from raw.
+                event = {**deepcopy(current), **self._validate({**current, **raw})}
                 event["updated_at"] = _now_iso()
                 payload["events"][index] = event
                 return deepcopy(event)

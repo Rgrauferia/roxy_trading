@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Callable
 from uuid import uuid4
 
-from roxy_os.home_ai import HomeAIBudgetLedger, HomeAIConfig, HomeAIConfigurationError
+from roxy_os.home_ai import HomeAIBudgetLedger, HomeAIConfig, HomeAIConfigurationError, _usage_output_tokens
 from roxy_os.home_private_storage import HomePrivateStorageError, discard_new_media, read_private_json, storage_io, write_new_private_media, write_private_json
 
 try:
@@ -509,10 +509,12 @@ class HomePlantIdentifier:
             from openai import OpenAI
             self.client = OpenAI(api_key=self.config.api_key)
         ledger = HomeAIBudgetLedger(self.config.budget_path, request_limit=self.config.daily_request_limit, output_token_limit=self.config.daily_output_token_limit)
-        ledger.reserve_request()
         schema = {"type": "object", "additionalProperties": False, "required": ["species_key", "confidence", "alternatives", "warning"], "properties": {"species_key": {"type": "string", "enum": sorted(PLANT_CATALOG)}, "confidence": {"type": "number", "minimum": 0, "maximum": 1}, "alternatives": {"type": "array", "items": {"type": "string"}, "maxItems": 3}, "warning": {"type": "string"}}}
-        response = self.client.responses.create(model=self.config.routine_model, input=[{"role": "user", "content": [{"type": "input_text", "text": "Identifica la planta de la foto solo si hay rasgos visibles suficientes. Elige la clave de catálogo más cercana; usa unknown si no es fiable. No diagnostiques enfermedades. Devuelve español."}, {"type": "input_image", "image_url": data_url}]}], text={"format": {"type": "json_schema", "name": "roxy_plant_identification", "strict": True, "schema": schema}}, max_output_tokens=500, store=False)
-        usage = getattr(response, "usage", None); ledger.record_output_tokens(int(getattr(usage, "output_tokens", 0) or 0))
+        request = dict(model=self.config.routine_model, input=[{"role": "user", "content": [{"type": "input_text", "text": "Identifica la planta de la foto solo si hay rasgos visibles suficientes. Elige la clave de catálogo más cercana; usa unknown si no es fiable. No diagnostiques enfermedades. Devuelve español."}, {"type": "input_image", "image_url": data_url}]}], text={"format": {"type": "json_schema", "name": "roxy_plant_identification", "strict": True, "schema": schema}}, max_output_tokens=500, store=False)
+        create = self.client.responses.create
+        reservation = ledger.reserve_request()
+        response = create(**request)
+        ledger.record_output_tokens(_usage_output_tokens(response), reservation_id=reservation["reservation_id"])
         result = json.loads(str(getattr(response, "output_text", "") or "{}")); result["status"] = "PROPOSED"; result["confidence"] = min(float(result.get("confidence") or 0), 0.95); return result
 
 

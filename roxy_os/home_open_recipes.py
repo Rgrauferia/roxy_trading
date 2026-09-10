@@ -13,6 +13,7 @@ from pathlib import Path
 import unicodedata
 
 CATALOG_PATH = Path(__file__).resolve().parents[1] / "data" / "home_open_recipes.json"
+TRANSLATIONS_PATH = CATALOG_PATH.with_name("home_open_recipes_es.json")
 LICENSE_URL = "https://creativecommons.org/licenses/by-sa/4.0/"
 
 
@@ -75,21 +76,72 @@ def _catalog():
         return []
 
 
+@lru_cache(maxsize=1)
+def _translations():
+    """Editorial translations never promote a held or changed source revision."""
+    try:
+        if TRANSLATIONS_PATH.stat().st_size > 250_000:
+            return []
+        data = json.loads(TRANSLATIONS_PATH.read_text(encoding="utf-8"))
+        rows = data["translations"]
+        if type(data.get("schema_version")) is not int or data["schema_version"] != 1 or not isinstance(rows, list) or len(rows) > 200:
+            return []
+        return rows
+    except (OSError, ValueError, KeyError, TypeError):
+        return []
+
+
+def _translation(row):
+    matches = [value for value in _translations() if isinstance(value, dict) and value.get("source_id") == row["id"]]
+    if len(matches) != 1:
+        return None
+    value = matches[0]
+    if (value.get("language") != "es" or type(value.get("source_revid")) is not int or value["source_revid"] != row["revid"]
+            or value.get("source_sha256") != row["source_sha256"]
+            or value.get("license") != "CC BY-SA 4.0" or value.get("license_url") != LICENSE_URL):
+        return None
+    for field in ("title", "attribution", "changes"):
+        if not isinstance(value.get(field), str) or not value[field].strip():
+            return None
+    if not isinstance(value.get("time"), str):
+        return None
+    if not isinstance(value.get("editorial_notes", []), list) or any(
+            not isinstance(note, str) or not note.strip() for note in value.get("editorial_notes", [])):
+        return None
+    for field, source in (("ingredients", "ingredients_original"), ("steps", "steps_original"),
+                          ("equipment", "equipment_original"), ("notes", "notes_original")):
+        translated = value.get(field)
+        if (not isinstance(translated, list) or len(translated) != len(row.get(source, []))
+                or any(not isinstance(item, str) or not item.strip() for item in translated)):
+            return None
+    # Explicit projection: a translation cannot introduce shopping/cooking grants
+    # or replace the source's quantities, license, identity or source evidence.
+    result = deepcopy({key: value[key] for key in (
+        "source_id", "source_revid", "source_sha256", "language", "title", "ingredients",
+        "steps", "equipment", "notes", "time", "attribution", "license", "license_url", "changes")})
+    result["editorial_notes"] = deepcopy(value.get("editorial_notes", []))
+    return result
+
+
 def open_recipe_catalog(query="", cuisine="", *, limit=24):
     rows = deepcopy(_catalog())
     cuisines = sorted({str(row.get("cuisine") or "") for row in rows} - {""})
     selected = []
     for row in rows:
+        translation = _translation(row)
         if cuisine and _key(row.get("cuisine")) != _key(cuisine):
             continue
         text = " ".join([str(row.get("title") or ""), str(row.get("cuisine") or ""), *row.get("ingredients_original", [])])
+        if translation:
+            text += " " + " ".join([translation["title"], *translation["ingredients"]])
         if query and _key(query) not in _key(text):
             continue
         # Runtime admission respects editorial holds as well as presence,
         # integrity and license. A readable original is not a tested Roxy guide.
         row.pop("original_wikitext", None)  # Evidence stays in the source manifest, not a UI markup blob.
-        selected.append({**row, "attribution": row["rights"]["attribution"], "provider": "wikibooks", "audience": "human",
-                         "can_read_original": True, "can_add_to_shopping": False,
+        selected.append({**row, "translation": translation,
+                         "attribution": row["rights"]["attribution"], "provider": "wikibooks", "audience": "human",
+                         "can_read_original": True, "can_cook_with_roxy": False, "can_add_to_shopping": False,
                          "license_url": LICENSE_URL,
                          "review_scope": "Original con ingredientes, raciones y pasos. No es una adaptación a alergias ni una receta ensayada por Roxy."})
     return {"provider": "wikibooks", "status": "READY" if rows else "UNAVAILABLE",

@@ -1,0 +1,31 @@
+{
+  "continue": {
+    "rvcontinue": "20130516132914|2526441",
+    "continue": "||"
+  },
+  "query": {
+    "pages": {
+      "290958": {
+        "pageid": 290958,
+        "ns": 102,
+        "title": "Cookbook:Coconut Pyramids",
+        "revisions": [
+          {
+            "revid": 2526443,
+            "parentid": 2526441,
+            "user": "ChrisHodgesUK",
+            "timestamp": "2013-05-16T13:35:57Z",
+            "slots": {
+              "main": {
+                "contentmodel": "wikitext",
+                "contentformat": "text/x-wiki",
+                "*": "{{recipesummary|Confection recipes|12|20 minutes|2|[[File:Coconut pyramid sharp.png|thumb|alt=Coconut pyramids in cupcake cases, displayed for a cake sale|Coconut pyramids at a cake sale]]}}\n\n{{recipe}}\n\n'''Coconut pyramids''' are cakes simple enough for children to make, and gluten free.\n\n== Ingredients ==\n* 100g desiccated  [[Cookbook:coconut|coconut]]\n* 50g [[Cookbook:castor sugar|castor sugar]]\n* 1 [[Cookbook:egg|egg]]\n* (Optional) approx. 12 glacé [[Cookbook:cherry|cherries]]\n* (Optional) a few drops pink food colouring\n\n== Procedure ==\n# Preheat oven to 180°C\n# Mix the caster sugar and desiccated coconut in a bowl.\n# Beat the egg in another bowl.\n# Add the egg (and food colouring if using) to the dry ingredients, and stir until evenly mixed.\n# Form into pyramids using your hands or an egg cup, and place on a lined baking sheet (or use cupcake cases).\n# Lightly press a glacé cherry (if using) into the top of each pyramid.\n# Bake for 15-20 minutes until a pale golden-brown.\n\nCoconut pyramids will keep for a few days in an airtight container.\n\n==Variations==\nAfter baking, the pyramids can be decorated with a little melted dark chocolate.\n\n[[Category:Confection recipes|{{PAGENAME}}]][[Category:Coconut Recipes|{{PAGENAME}}]][[Category:Gluten-free recipes|{{PAGENAME}}]]"
+              }
+            },
+            "comment": "image, expand, fix"
+          }
+        ]
+      }
+    }
+  }
+}

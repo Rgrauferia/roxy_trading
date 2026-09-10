@@ -3,7 +3,32 @@
 Actualizado: 2026-09-10. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 
-## 183 — candidato verificado; publicación pendiente
+## 184 — candidato probado; pendiente de publicación y verificación
+
+Seis originales legibles ahora con traducciónES cotejada (33ingredientes,
+27pasos,5equipos,8notas), mismo catálogo, no seis recetas nuevas ni ensayadas.
+Lectorbilingüe conserva paso al comparar, buscaES/EN ydescargaTXT con atribución.
+ID/revisión/hash controlan correspondencia; notas editoriales fuera de pasos.
+Calendarfailclosed conserva metadatoslegacy al editar;presupuestoIAUUID pendiente
+durable ysettlementidempotente impide seguir llamando tras consumo incierto.
+LedgerHome serializa llamadas;timeout/usageausente requiere conciliación, noreset.
+Handlers503/429 identifican almacenamiento/límite, no502 engañoso.
+1880Pythonpass/11PGskip,211Node+2mjs;QA393px login/lectorES/EN/búsqueda sinoverflow.
+HTML/APP184,JS186,CSS129,SW183,openrecipesv3. Informehome_release_184_20260910.md.
+FotoCoconutvista;versión2013rinde12 frentea2025rinde6–7: nopromoverporfoto.
+510candidatassiguen0aprobadas;Pothosnorecuperado;no demo lista. Prototipospreservados.
+
+## 183 — PUBLICADO y comprobado; NO demo terminada
+
+Publicado desde eda247368fc040aa8d5efae5cd2cfc162ba50f46; Render Live
+dep-dahetah5efls73d2beh0 (1m08s). Respuesta502 transitoria durante cambio de
+instancia; después health200/ok y seis assets públicos200/idénticos al commit.
+Navegador conserva sesión, meta183/JS185. Nexo muestra dos miembros, mapaGoogle,
+modeloOpen-Meteo y radarRainViewer reales; pausa funciona y al salir aCompra el
+canvasMapLibre pasa de1 a0. Compra responde sin error de almacenamiento y sin
+inventar precios cuando no hay verificables. Seis imágenes de Desayunos cargadas
+a480px tras desplazarse; foto del detallePanqueques1024px. Ilustraciones previas,
+NO seis originales externos nuevos. Ejercicio sigue siendo vista educativa.
 
 Despensa: corregida pérdida de decimales/unidades con coma. Entrada semicolon,
 compatibilidad legacy de tres campos, error por línea y ninguna sustitución
@@ -26,6 +51,11 @@ reproduce1,5litros→1/unidad5 antes del arreglo; ahora error visible y posterio
 Sin desbordamiento horizontal393px. Datos sólo sintéticos en8768; no teléfono
 físico ni todos los módulos verificados. Evidencia /tmp/roxy-home-qa-183/.
 Detalle: reports/home_release_183_20260910.md. NO afirmar demo terminada.
+Segundo bloque editorial:10EN revisadas (78ingredientes/75pasos; hashescorrectos),
+2prioritarias/6conaclaraciones/2retenidas,0aprobadas. Informe
+reports/home_recipe_10en_editorial_20260910.md. Pohe yCoconutPyramids siguientes;
+no rellenar huecos ni confundir licencia/foto temática con preparación exacta.
+QA8768 detenido(PID19892),tab9cerrada,viewportreset; público abiertoEjercicio.
 
 ## Incidente de persistencia — 182 PUBLICADO y comprobado; NO demo terminada
 

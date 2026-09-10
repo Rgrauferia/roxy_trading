@@ -862,6 +862,10 @@ def _home_ai() -> RoxyHomeAI:
 def _ai_call(callback: Any) -> dict[str, Any]:
     try:
         return callback()
+    except HomePrivateStorageError:
+        # Preserve the fail-closed storage handler: a ledger/calendar failure
+        # is not a provider failure, and must never encourage an untracked retry.
+        raise
     except HomeAIConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except HomeAIBudgetExceeded as exc:
@@ -2800,6 +2804,10 @@ def identify_home_plant(
     _authorize_user(user_id, auth)
     try:
         proposal = HomePlantIdentifier.from_env().identify(payload.photo_data_url)
+    except HomePrivateStorageError:
+        raise
+    except HomeAIBudgetExceeded as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
     except (ValueError, HomeAIConfigurationError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:

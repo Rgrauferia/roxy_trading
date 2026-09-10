@@ -142,3 +142,64 @@ for (const mutation of [
   assert.ok(photoPanel.textContent.includes('No hay una fotografía de la fuente disponible'));
 }
 console.log('PASS: deferred same-origin GET, exact originals, licensed source-only photos on explicit recipe opening, error fallback, local filters, bounded reader, attributed TXT, signature persistence, hidden mode, stale responses, retry and safe links.');
+
+const translations = JSON.parse(fs.readFileSync(new URL('../data/home_open_recipes_es.json', import.meta.url), 'utf8')).translations;
+const spanishPayload = () => {
+  const value = payload();
+  value.recipes.forEach(row => { row.translation = structuredClone(translations.find(value => value.source_id === row.id)); });
+  return value;
+};
+const esPanel = container();
+render(esPanel, {user:'spanish-test', api:async () => spanishPayload()}); await open(esPanel.firstChild);
+assert.equal(cards(esPanel).length, 6);
+cards(esPanel).forEach((card, index) => {
+  const translation = translations.find(value => value.source_id === catalog.recipes[index].id);
+  assert.equal(card.firstChild.textContent, translation.title);
+  assert.equal(card.firstChild.lang, 'es');
+  assert.deepEqual(all(card, 'ol')[0].children.map(el => el.textContent), translation.steps);
+  assert.equal(all(card, 'ol')[0].lang, 'es');
+  assert.ok(card.textContent.includes('no es una adaptación a alergias ni una receta ensayada'));
+  assert.ok(!findButton(card, 'Agregar ingredientes') && !findButton(card, 'Cocinar paso a paso'));
+});
+const esCard = cards(esPanel)[0]; await open(esCard);
+const esReader = all(esCard, 'section')[0];
+await findButton(esCard, 'Leer paso a paso').click(); await findButton(esCard, 'Siguiente').click();
+assert.equal(esReader.children[0].textContent, 'Paso 2 de 5');
+assert.equal(esReader.children[1].textContent, translations[0].steps[1]);
+await findButton(esCard, 'Ver original en inglés').click();
+assert.equal(esCard.firstChild.textContent, catalog.recipes[0].title);
+assert.equal(esReader.children[0].textContent, 'Paso 2 de 5', 'switch keeps the same original step');
+assert.equal(esReader.children[1].textContent, catalog.recipes[0].steps_original[1]);
+assert.equal(esReader.children[1].lang, 'en');
+await findButton(esCard, 'Ver traducción al español').click();
+assert.equal(esReader.children[1].textContent, translations[0].steps[1]);
+const previousDownloads = downloads.length;
+await findButton(esCard, 'Descargar traducción TXT').click();
+assert.equal(downloads.length, previousDownloads + 1);
+assert.equal(downloads.at(-1).filename, 'roxy-es-wikibooks-150880.txt');
+const spanishText = await blobs.at(-1).text();
+for (const field of [...translations[0].ingredients, ...translations[0].steps, translations[0].attribution,
+  translations[0].license_url, catalog.recipes[0].source_revision_url]) assert.ok(spanishText.includes(field));
+await findButton(esCard, 'Descargar original TXT').click();
+assert.ok((await blobs.at(-1).text()).includes(catalog.recipes[0].steps_original[0]));
+const esSearch = all(esPanel, 'input')[0]; esSearch.value = 'lentejas'; await esSearch.emit('input');
+assert.equal(cards(esPanel).length, 1); assert.equal(cards(esPanel)[0].firstChild.textContent, 'Sopa de lentejas rojas');
+esSearch.value = 'lentil'; await esSearch.emit('input'); assert.equal(cards(esPanel).length, 1);
+esSearch.value = 'tomato'; await esSearch.emit('input');
+const pastaCard = cards(esPanel)[0];
+assert.ok(pastaCard.textContent.includes('Esa expresión es ambigua'));
+assert.equal(all(pastaCard, 'ol')[0].children.length, 4, 'editorial notes cannot become cooking steps');
+await findButton(pastaCard, 'Descargar traducción TXT').click();
+assert.ok((await blobs.at(-1).text()).includes('Notas editoriales de Roxy (no son pasos del original)'));
+for (const mutation of [
+  {source_id:'wrong'}, {source_revid:1}, {source_sha256:'changed'}, {title:''}, {steps:['incomplete']},
+  {language:'fr'}, {license:'CC BY-NC 4.0'}, {ingredients:[]}, {editorial_notes:'bad'}, {editorial_notes:[null]},
+]) {
+  const value = spanishPayload(); value.recipes = [value.recipes[0]]; Object.assign(value.recipes[0].translation, mutation);
+  const badTranslationPanel = container();
+  render(badTranslationPanel, {user:'invalid-translation', api:async () => value}); await open(badTranslationPanel.firstChild);
+  assert.equal(cards(badTranslationPanel)[0].firstChild.textContent, 'Potatoes Anna', JSON.stringify(mutation));
+  assert.equal(findButton(badTranslationPanel, 'Ver original en inglés'), undefined);
+  assert.equal(findButton(badTranslationPanel, 'Descargar traducción TXT'), undefined);
+}
+console.log('PASS: six pinned Spanish translations, same-step comparison, bilingual search, independent attributed downloads, editorial notes separate from steps, invalid translation falls back without new action grants.');

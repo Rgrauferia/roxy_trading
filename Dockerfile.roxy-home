@@ -43,6 +43,7 @@ COPY data/home_fitness_catalog.json ./data/home_fitness_catalog.json
 COPY assets/roxy_home/fitness ./assets/roxy_home/fitness
 COPY migrations/fitness ./migrations/fitness
 COPY data/home_open_recipes.json ./data/home_open_recipes.json
+COPY data/home_open_recipes_es.json ./data/home_open_recipes_es.json
 COPY assets/roxy_avatar_card.jpg ./assets/roxy_avatar_card.jpg
 COPY assets/roxy_avatar.jpg ./assets/roxy_avatar.jpg
 COPY assets/roxy_home/products ./assets/roxy_home/products
