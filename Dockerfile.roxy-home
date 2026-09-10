@@ -35,6 +35,7 @@ COPY assets/vendor/maplibre-gl.js assets/vendor/maplibre-gl.css ./assets/vendor/
 COPY assets/roxy_home_registration.js ./assets/roxy_home_registration.js
 COPY assets/roxy_home_recipe_provider.js ./assets/roxy_home_recipe_provider.js
 COPY assets/roxy_home_weather_renderer.js ./assets/roxy_home_weather_renderer.js
+COPY assets/roxy_home_map_readiness.js ./assets/roxy_home_map_readiness.js
 COPY assets/roxy_home_open_recipes.js ./assets/roxy_home_open_recipes.js
 COPY assets/roxy_fitness.js assets/roxy_fitness.css assets/roxy_fitness_catalog.js ./assets/
 COPY assets/roxy_garden_guide.js assets/roxy_garden_guide.css ./assets/

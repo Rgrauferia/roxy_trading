@@ -25,7 +25,8 @@ function harness({panel='family', wait=null, existing=false}={}) {
   };
   const map = {addListener(){return {}}, setOptions(){calls.options++}, setCenter(){}, setZoom(){}, fitBounds(){}, getZoom(){return 14}};
   const context = {
-    activePanel:panel, account:{mode:'member'},
+    activePanel:panel, account:{mode:'member',id:'synthetic-A'}, user:'synthetic-home', document:{hidden:false},
+    collectionIdentity:()=>`${context.account.mode}:${context.account.id}`,
     homeFamily:{members:[], places:[], map:{provider:'GOOGLE_MAPS'}},
     $: id => id === 'familyMap' ? root : null,
     loadFamilyGoogleMaps:async()=>{calls.load++; if(wait) await wait;},
@@ -36,6 +37,12 @@ function harness({panel='family', wait=null, existing=false}={}) {
       Circle:class {constructor(){calls.markers++;} setMap(){}},
     }},
     familyMap:existing?map:null, familyMapMarkers:[], familyMapZoomListener:null,
+    familyMapStyle:'roadmap', familyMapRetryView:null, familyMapRetryScope:'',
+    familyBaseMapScope:()=>JSON.stringify([context.user,context.collectionIdentity()]),
+    // The full readiness/controller integration has separate actual-function
+    // tests; these fixtures continue to isolate renderer visibility/privacy.
+    syncFamilyMapReadiness(){}, trackFamilyBaseMap(){},
+    resetFamilyBaseMap(){context.familyMap=null;context.familyMapViewportInitialized=false;},
     familyMapTransitioning:false, familyWeatherGlobeActive:false,
     familySelectedPlaceId:'', familySelectedMemberId:'', familyMapViewportInitialized:false,
     familyHistoryOpen:false, familyHistoryPoints:[],

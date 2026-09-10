@@ -75,12 +75,12 @@ assert.equal(canvas.width,540);assert.equal(canvas.height,945); // DPR is bounde
 assert.equal(canvas.attributes['aria-hidden'],'true');assert.equal(canvas.attributes.role,'presentation');
 const count=Number(canvas.dataset.particleCount);assert(count>=200&&count<=320);
 tick(0);const first=canvas.ctx.draws.splice(0);assert.equal(first.length,count);
-tick(16);const next=canvas.ctx.draws.splice(0);
+tick(40);const next=canvas.ctx.draws.splice(0); // Sample after the 30fps draw interval.
 assert(new Set(first.map(drop=>drop.dimensions[3].toFixed(1))).size>40);
 assert(new Set(first.map(drop=>drop.alpha.toFixed(2))).size>20);
 const travel=next.map((drop,i)=>drop.transform[5]-first[i].transform[5]);
 assert(new Set(travel.map(value=>value.toFixed(1))).size>40);
-assert(travel.every(value=>value>0)); // No CSS cycles disappearing/reappearing together.
+assert(travel.every((value,i)=>value>0||(first[i].transform[5]/1.5>canvas.height/1.5&&next[i].transform[5]/1.5<=-55))); // Only offscreen drops recycle.
 render(root,weather);assert.equal(root.children[0],canvas);assert.equal(frames.size,1);
 render(root,scene({mode:'rain',intensity:.12}));
 assert(Number(canvas.dataset.particleCount)<count/2);
@@ -94,13 +94,13 @@ def test_snow_and_wind_have_distinct_motion_without_storm_flashes():
 const render=win.RoxyWeatherRenderer.render;render(root,scene({drift:90}));tick(0);
 const canvas=root.children[0];let drawn=canvas.ctx.draws.splice(0);
 assert(drawn.every(drop=>drop.transform[1]<0));
-render(root,scene({drift:-90}));tick(16);drawn=canvas.ctx.draws.splice(0);
+render(root,scene({drift:-90}));tick(40);drawn=canvas.ctx.draws.splice(0);
 assert(drawn.every(drop=>drop.transform[1]>0));
-render(root,scene({mode:'snow',drift:0}));tick(32);drawn=canvas.ctx.draws.splice(0);
+render(root,scene({mode:'snow',drift:0}));tick(80);drawn=canvas.ctx.draws.splice(0);
 assert(drawn.every(drop=>drop.dimensions[2]===drop.dimensions[3]));
-tick(48);const second=canvas.ctx.draws.splice(0);
-const travel=second.map((drop,i)=>drop.transform[5]-drawn[i].transform[5]);
-assert(travel.every(value=>value>0&&value<2)); // Slow falling flakes, not falling rain sprites.
+tick(120);const second=canvas.ctx.draws.splice(0);
+const travel=second.map((drop,i)=>(drop.transform[5]-drawn[i].transform[5])/1.5);
+assert(travel.every(value=>value>0&&value<3)); // Under 75px/s: slow flakes at a 40ms sample, not rain.
 render(root,scene({mode:'sunny'}));assert.equal(root.children.length,0);assert.equal(frames.size,0);
 assert.equal(root.dataset.weatherMotion,'on');
 """)

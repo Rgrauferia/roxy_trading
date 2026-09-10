@@ -49,8 +49,8 @@ assert.equal(requests.length, 0, 'rendering must not make a request');
 const initialDetails = panel.firstChild;
 await open(initialDetails);
 assert.deepEqual(requests, ['/v1/home-food/household%2Fa/open-recipes']);
-assert.equal(cards(panel).length, 6);
-assert.equal(all(panel, 'ol').reduce((count, list) => count + list.children.length, 0), 27);
+assert.equal(cards(panel).length, 7);
+assert.equal(all(panel, 'ol').reduce((count, list) => count + list.children.length, 0), 38);
 cards(panel).forEach((card, i) => {
   assert.deepEqual(all(card, 'ul')[0].children.map(el => el.textContent), catalog.recipes[i].ingredients_original);
   assert.deepEqual(all(card, 'ol')[0].children.map(el => el.textContent), catalog.recipes[i].steps_original);
@@ -58,13 +58,13 @@ cards(panel).forEach((card, i) => {
   assert.ok(card.textContent.includes(catalog.recipes[i].rights.attribution));
 });
 const sourceImages = all(panel, 'img');
-assert.equal(sourceImages.length, 2, 'only photographs from unheld source recipes');
+assert.equal(sourceImages.length, 3, 'only photographs from unheld source recipes');
 assert.ok(sourceImages.every(image => !image.src), 'no remote image request before opening its recipe');
 const photographed = catalog.recipes.filter(row => row.image_url);
-assert.deepEqual(photographed.map(row => row.id), ['wikibooks-150880', 'wikibooks-219286']);
+assert.deepEqual(photographed.map(row => row.id), ['wikibooks-150880', 'wikibooks-219286', 'wikibooks-en-83396']);
 photographed.forEach(row => {
   const filename = decodeURIComponent(new URL(row.image_url).pathname.split('/').pop()).replaceAll('_', ' ');
-  assert.ok(row.original_wikitext.includes(`Image:${filename}`), 'actual image must be embedded in pinned source recipe');
+  assert.ok(['Image', 'File'].some(namespace => row.original_wikitext.includes(`${namespace}:${filename}`)), 'actual image must be embedded in pinned source recipe');
   assert.equal(row.image_mime, 'image/jpeg'); assert.equal(row.image_commercial_use_permitted, true);
   assert.ok(row.image_dimensions.width > 0 && row.image_dimensions.height > 0);
   assert.ok(row.photo_scope.startsWith('Fotografía publicada con '));
@@ -121,7 +121,7 @@ assert.equal(cards(stalePanel).length, 1); assert.equal(cards(stalePanel)[0].fir
 const retryPanel = container(); let attempts = 0;
 render(retryPanel, {user:'retry-user', api:async () => { if (++attempts === 1) throw new Error('offline'); return payload(); }});
 await open(retryPanel.firstChild); assert.equal(cards(retryPanel).length, 0); assert.ok(retryPanel.textContent.includes('No se pudo cargar'));
-await close(retryPanel.firstChild); await open(retryPanel.firstChild); assert.equal(cards(retryPanel).length, 6);
+await close(retryPanel.firstChild); await open(retryPanel.firstChild); assert.equal(cards(retryPanel).length, 7);
 const unsafePanel = container(); const unsafe = payload(); unsafe.recipes = [unsafe.recipes[0]]; unsafe.recipes[0].source_url = 'javascript:alert(1)';
 render(unsafePanel, {user:'unsafe-source', api:async () => unsafe}); await open(unsafePanel.firstChild);
 assert.ok(all(unsafePanel, 'a').every(anchor => anchor.href.startsWith('https://')));
@@ -151,7 +151,7 @@ const spanishPayload = () => {
 };
 const esPanel = container();
 render(esPanel, {user:'spanish-test', api:async () => spanishPayload()}); await open(esPanel.firstChild);
-assert.equal(cards(esPanel).length, 6);
+assert.equal(cards(esPanel).length, 7);
 cards(esPanel).forEach((card, index) => {
   const translation = translations.find(value => value.source_id === catalog.recipes[index].id);
   assert.equal(card.firstChild.textContent, translation.title);
@@ -202,4 +202,26 @@ for (const mutation of [
   assert.equal(findButton(badTranslationPanel, 'Ver original en inglés'), undefined);
   assert.equal(findButton(badTranslationPanel, 'Descargar traducción TXT'), undefined);
 }
-console.log('PASS: six pinned Spanish translations, same-step comparison, bilingual search, independent attributed downloads, editorial notes separate from steps, invalid translation falls back without new action grants.');
+esSearch.value = 'copos'; await esSearch.emit('input');
+assert.equal(cards(esPanel).length, 1);
+const poheCard = cards(esPanel)[0], pohe = catalog.recipes.find(row => row.id === 'wikibooks-en-83396');
+assert.ok(poheCard.textContent.includes('1–2 raciones'), 'render range without choosing exact servings');
+assert.equal(all(poheCard, 'ol')[0].children.length, 11);
+assert.equal(all(poheCard, 'img')[0].src, undefined, 'Pohe photo remains deferred until opening');
+await open(poheCard);
+assert.equal(all(poheCard, 'img')[0].src, pohe.image_url);
+assert.ok(poheCard.textContent.includes('Nizil Shah'));
+await findButton(poheCard, 'Descargar traducción TXT').click();
+const poheText = await blobs.at(-1).text();
+assert.ok(poheText.includes('Servings (source): 1–2'));
+assert.ok(poheText.includes('fry pay') && poheText.includes('2 cucharadas de aceite'));
+await findButton(poheCard, 'Leer paso a paso').click();
+for (let i = 0; i < 8; i++) await findButton(poheCard, 'Siguiente').click();
+const poheReader = all(poheCard, 'section')[0];
+assert.equal(poheReader.children[0].textContent, 'Paso 9 de 11');
+assert.ok(poheReader.children[1].textContent.includes('5 minutos'));
+await findButton(poheCard, 'Ver original en inglés').click();
+assert.equal(poheReader.children[0].textContent, 'Paso 9 de 11');
+assert.equal(poheReader.children[1].textContent, pohe.steps_original[8]);
+assert.ok(!findButton(poheCard, 'Agregar ingredientes') && !findButton(poheCard, 'Cocinar paso a paso'));
+console.log('PASS: seven pinned Spanish translations, original 1–2 range, source Pohe photo attribution, same-step comparison, bilingual search, independent attributed downloads, editorial notes separate from steps, invalid translation falls back without new action grants.');

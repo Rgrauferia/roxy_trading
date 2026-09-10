@@ -8,23 +8,24 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="184" />
+  <meta name="roxy-home-version" content="185" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=129" />
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=130" />
   <link rel="stylesheet" href="/assets/roxy_fitness.css?v=5" />
   <link rel="stylesheet" href="/assets/roxy_garden_guide.css?v=1" />
   <script src="/assets/roxy_maplibre_loader.js?v=1" defer></script>
   <script src="/assets/roxy_home_recipe_provider.js?v=2" defer></script>
   <script src="/assets/roxy_home_open_recipes.js?v=3" defer></script>
-  <script src="/assets/roxy_home_weather_renderer.js?v=1" defer></script>
+  <script src="/assets/roxy_home_weather_renderer.js?v=2" defer></script>
+  <script src="/assets/roxy_home_map_readiness.js?v=1" defer></script>
   <script src="/assets/roxy_fitness_catalog.js?v=2" defer></script>
   <script src="/assets/roxy_fitness.js?v=4" defer></script>
   <script src="/assets/roxy_garden_guide.js?v=1" defer></script>
-  <script src="/assets/roxy_list.js?v=186" defer></script>
+  <script src="/assets/roxy_list.js?v=187" defer></script>
   <script src="/assets/roxy_home_registration.js?v=1" defer></script>
 </head>
 <body>
@@ -169,6 +170,7 @@
           <div id="familyMap" class="family-map" role="region" aria-label="Mapa Google de ubicaciones compartidas"><div class="family-map-empty"><span class="material-symbols-rounded" aria-hidden="true">map</span><strong>El mapa real aparecerá aquí</strong><p>Activa la ubicación y mantén Roxy Home abierta para actualizar tu recorrido.</p></div></div>
           <div id="familyWeatherFx" class="family-weather-fx" aria-hidden="true"></div>
           <span id="familyWeatherFxNote" class="family-weather-fx-note" hidden>Ambiente visual según Open-Meteo</span>
+          <aside id="familyMapLoadNotice" class="family-map-load-notice" hidden><p role="status">El mapa tarda en cargar. Puedes reintentar sin cambiar tu ubicación.</p><button id="familyMapRetry" type="button" class="secondary">Reintentar mapa</button></aside>
           <section id="familyWeatherGlobePanel" class="family-weather-globe-panel" aria-labelledby="familyWeatherGlobeTitle" aria-hidden="true">
             <div class="family-weather-globe-shell">
               <div id="familyWeatherGlobe" class="family-weather-globe" role="region" aria-label="Globo 3D con radar real de precipitación"></div>

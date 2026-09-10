@@ -46,6 +46,10 @@ function fixture(options = {}) {
     homeFamily: { map: { provider: 'GOOGLE_MAPS' }, members: [], places: [] },
     user: 'synthetic-house', commerce: { profile: { location_enabled: true } },
     account: { mode: 'member', id: 'synthetic-A' }, location: { hash: '' }, $, console: { warn() {} },
+    collectionIdentity: () => `${context.account.mode}:${context.account.id}`,
+    // Basemap readiness is exercised with the actual helper in the 185 suite;
+    // this fixture retains its focused globe/hidden-loader privacy assertions.
+    syncFamilyMapReadiness() {},
     document: { body: element(), querySelectorAll: () => [], addEventListener() {}, removeEventListener() {} },
     window: { scrollTo() {}, addEventListener() {}, removeEventListener() {}, RoxyMapLibre: { load() { calls.loader++; return options.loader ? options.loader(calls.loader) : Promise.resolve({}); } } },
     familyWeatherAtmosphere: () => ({ fresh: true, location: 'Lugar de prueba', validAt: '2026-09-10T12:00:00Z' }),

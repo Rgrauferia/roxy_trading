@@ -31,10 +31,11 @@ EXPECTED = {
     "wikibooks-4034": ("Tomato Pasta", "", 3, 8, 4, 4516489),
     "wikibooks-85651": ("Chicken Cacciatore", "Italian", 4, 14, 5, 4540895),
     "wikibooks-252225": ("Baked Lemon Thyme Halibut", "Native American", 5, 6, 3, 4511873),
+    "wikibooks-en-83396": ("Pohe (Spiced Flattened Rice)", "Indian", None, 9, 11, 4633573),
 }
 READABLE_IDS = {
     "wikibooks-150880", "wikibooks-128617", "wikibooks-219286", "wikibooks-167989",
-    "wikibooks-9014", "wikibooks-4034",
+    "wikibooks-9014", "wikibooks-4034", "wikibooks-en-83396",
 }
 HELD_IDS = set(EXPECTED) - READABLE_IDS
 
@@ -54,11 +55,11 @@ def valid_source_row():
     return deepcopy(next(row for row in source_rows() if row["id"] == "wikibooks-150880"))
 
 
-def test_fourteen_fixed_originals_preserve_english_measures_steps_and_attribution(monkeypatch):
+def test_fifteen_fixed_originals_preserve_english_measures_steps_and_attribution(monkeypatch):
     monkeypatch.setattr("requests.get", lambda *a, **k: pytest.fail("Bundled catalog cannot call a provider"))
     original = {row["id"]: row for row in source_rows()}
     result = catalog.open_recipe_catalog()
-    assert result["status"] == "READY" and result["count"] == result["total"] == 6
+    assert result["status"] == "READY" and result["count"] == result["total"] == 7
     assert result["cost"] == "free_local_catalog" and not result["live_provider_request"]
     assert result["language"] == "en" and result["license"] == "CC BY-SA 4.0"
     assert set(EXPECTED) == set(original)
@@ -91,10 +92,10 @@ def test_fourteen_fixed_originals_preserve_english_measures_steps_and_attributio
             assert row["image_source_url"].startswith("https://commons.wikimedia.org/wiki/File:")
             assert row["image_commercial_use_permitted"]
             assert row["image_author"] and row["image_license"].startswith("CC BY-SA ")
-    assert sum(bool(row["image_url"]) for row in result["recipes"]) == 2
-    assert sum(bool(row["image_url"]) for row in original.values()) == 5
-    assert sum(len(row["ingredients_original"]) for row in original.values()) == 100
-    assert sum(len(row["steps_original"]) for row in original.values()) == 76
+    assert sum(bool(row["image_url"]) for row in result["recipes"]) == 3
+    assert sum(bool(row["image_url"]) for row in original.values()) == 6
+    assert sum(len(row["ingredients_original"]) for row in original.values()) == 109
+    assert sum(len(row["steps_original"]) for row in original.values()) == 87
 
 
 def test_editorial_holds_preserve_original_evidence_but_never_appear_in_readable_results():
@@ -150,7 +151,7 @@ def test_expanded_originals_keep_every_source_ingredient_step_and_note_in_order(
     assert soup["image_url"] == "" and soup["image_status"] == "not_included_source_image_has_unlisted_variation"
 
 
-def test_all_fourteen_originals_preserve_every_source_section_after_display_markup_removal():
+def test_all_fifteen_originals_preserve_every_source_section_after_display_markup_removal():
     from tools.roxy_home_recipe_import_wikibooks import section, source_lines
     headings = {
         "ingredients_original": (r"^ingredients$", "*"),
@@ -194,7 +195,7 @@ def test_filters_use_exact_cuisine_and_source_title_or_ingredients(query, cuisin
     result = catalog.open_recipe_catalog(query, cuisine)
     assert [row["id"] for row in result["recipes"]] == expected
     assert result["count"] == len(expected)
-    assert result["total"] == 6 and result["status"] == "READY"
+    assert result["total"] == 7 and result["status"] == "READY"
     assert result["cuisines"] == ["French", "Greek", "Indian", "Japanese"]
 
 
@@ -208,7 +209,7 @@ def test_reading_and_modifying_returned_catalog_never_changes_original_file_or_c
     assert catalog.open_recipe_catalog() == original
     assert catalog.CATALOG_PATH.read_bytes() == before
     assert catalog.open_recipe_catalog(limit=2)["count"] == 2
-    assert catalog.open_recipe_catalog(limit=999)["count"] == 6
+    assert catalog.open_recipe_catalog(limit=999)["count"] == 7
 
 
 @pytest.mark.parametrize("bad", [None, 2, "bad", [], {"title": "Incomplete"}])
@@ -346,7 +347,7 @@ def test_trial_may_read_local_originals_without_quota_or_household_mutation(test
     path = BASE.replace("source_test", member["storage_user_id"])
     before = accounts.path.read_bytes()
     response = tester.get(path)
-    assert response.status_code == 200 and response.json()["count"] == 6
+    assert response.status_code == 200 and response.json()["count"] == 7
     assert accounts.path.read_bytes() == before
     assert tester.get(BASE).status_code == 403
     assert trial_access_mode("GET", path) == "local"

@@ -209,6 +209,54 @@
       "license": "CC BY-SA 4.0",
       "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
       "changes": "Spanish translation of the title, ingredient list, equipment, procedure, notes and displayed time. Original quantities, units, alternatives, sequence and omissions retained; no ingredients, instructions, conversions or cooking verification added."
+    },
+    {
+      "source_id": "wikibooks-en-83396",
+      "source_revid": 4633573,
+      "source_sha256": "d848882b745701adf3f7abdacfa4841675a3537a692328f44b2b130abe56cde6",
+      "source_revision_url": "https://en.wikibooks.org/w/index.php?title=Cookbook%3APohe+%28Spiced+Flattened+Rice%29&oldid=4633573",
+      "source_history_url": "https://en.wikibooks.org/w/index.php?title=Cookbook%3APohe+%28Spiced+Flattened+Rice%29&action=history",
+      "language": "es",
+      "title": "Pohe (copos de arroz especiados)",
+      "ingredients": [
+        "200 g de pohe grueso (arroz aplanado)",
+        "2 cucharadas de aceite",
+        "1 cucharadita de rai (semillas de mostaza)",
+        "¼ de cucharadita de haldi (cúrcuma en polvo)",
+        "1 pizca de asafétida en polvo",
+        "2 chiles verdes de la India, picados finamente",
+        "½ cebolla mediana, picada finamente",
+        "2 ramitas de cilantro (coriandro)",
+        "Sal al gusto"
+      ],
+      "steps": [
+        "Humedece el pohe con agua fría poniéndolo en un bol bajo un chorro suave del grifo. Mezcla con la mano, escurre el exceso de agua y reserva (ten cuidado de no dejarlo en remojo demasiado tiempo, o el pohe se volverá pastoso).",
+        "Calienta el aceite en una sartén hasta que esté moderadamente caliente. Añade las semillas de mostaza y deja que crepiten durante unos segundos.",
+        "Añade la cúrcuma en polvo y la asafétida y fríe durante unos segundos (ten cuidado de no quemar la cúrcuma).",
+        "Añade los chiles verdes y fríe durante unos segundos.",
+        "Añade la cebolla picada y baja el fuego. Tapa y cocina durante 2 minutos. La cebolla debe quedar blanda, pero no dorada.",
+        "Para entonces, el pohe que reservaste debería haber absorbido el exceso de humedad.",
+        "Mezcla el pohe con la mano para que los copos no se peguen entre sí y añádelo a la sartén.",
+        "Añade sal al gusto y remueve el contenido de la sartén para que el color amarillo de la cúrcuma se reparta uniformemente por el pohe.",
+        "Tapa y cocina durante 5 minutos a fuego bajo. No destapes durante este tiempo, ya que el pohe debe cocinarse con el vapor.",
+        "Remueve y cocina durante 1 minuto más sin tapar.",
+        "Sirve en un bol, decorado con hojas de cilantro picadas."
+      ],
+      "equipment": [],
+      "notes": [
+        "Al añadir la cebolla, también puedes agregar guisantes verdes frescos y/o cacahuetes. Si añades cacahuetes, procura freírlos bien junto con la cebolla.",
+        "Para decorar, espolvorea un poco de coco rallado o seco junto con el cilantro. Para una decoración colorida, prueba a añadir una pequeña cantidad de zanahoria y/o remolacha ralladas, pero no añadas demasiado, ya que dominarían el sabor."
+      ],
+      "editorial_notes": [
+        "El rendimiento original es un rango de 1–2 raciones. No se eligió una cantidad exacta ni se escalaron los ingredientes.",
+        "El paso 8 del original dice «fry pay»; esta traducción lo interpreta como «sartén» por el contexto de los pasos 2 y 7. El texto inglés se conserva sin corregir.",
+        "Los guisantes, cacahuetes, coco, zanahoria y remolacha pertenecen a variantes opcionales de la fuente, sin cantidades definidas; no se han añadido a los ingredientes básicos."
+      ],
+      "time": "15 minutos",
+      "attribution": "Traducción al español por Roxy Home del texto de los colaboradores de Wikibooks — Cookbook:Pohe (Spiced Flattened Rice), revisión 4633573. Los autores del original figuran en su historial.",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "changes": "Spanish translation of title, nine ingredient lines, eleven ordered steps, two optional notes and displayed time. Source quantities, 1–2 yield, alternatives, timing and sequence retained. Source typo fry pay interpreted contextually as frying pan in Spanish and disclosed separately; original English unchanged. No cooking verification, scaling, new quantities or shopping approval."
     }
   ]
 }

@@ -115,11 +115,9 @@ def _remember(key: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def condition_for_code(value: Any) -> dict[str, Any]:
-    try:
-        code = int(value)
-    except (TypeError, ValueError):
-        code = -1
-    label, icon, emoji = WMO_CONDITIONS.get(code, ("Condiciones variables", "partly_cloudy_day", "🌤️"))
+    number = _weather_number(value)
+    code = int(number) if number is not None and number.is_integer() and number in WMO_CONDITIONS else -1
+    label, icon, emoji = WMO_CONDITIONS.get(code, ("Condición no disponible", "help_outline", ""))
     return {"code": code, "condition": label, "icon": icon, "emoji": emoji}
 
 
@@ -129,7 +127,7 @@ def _weather_number(value: Any, *, minimum: float | None = None, maximum: float 
         return None
     try:
         number = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
     if not math.isfinite(number) or (minimum is not None and number < minimum) or (maximum is not None and number > maximum):
         return None
@@ -185,27 +183,34 @@ def geocode_place(
 
 
 def _hourly_best_window(hourly: dict[str, Any], day_key: str) -> dict[str, Any] | None:
-    times = hourly.get("time") or []
-    rain = hourly.get("precipitation_probability") or []
-    temperatures = hourly.get("temperature_2m") or []
-    candidates: list[tuple[int, int, float]] = []
+    if not isinstance(hourly, dict):
+        return None
+    def values(name: str) -> list[Any]:
+        value = hourly.get(name)
+        return value if isinstance(value, list) else []
+    times, rain, temperatures, codes = (values(name) for name in ("time", "precipitation_probability", "temperature_2m", "weather_code"))
+    candidates: list[tuple[float, int, float, int]] = []
     for index, raw_time in enumerate(times):
-        if not str(raw_time).startswith(day_key):
+        if not isinstance(raw_time, str) or not raw_time.startswith(day_key + "T"):
             continue
         try:
-            hour = int(str(raw_time)[11:13])
-            chance = int(rain[index] if index < len(rain) and rain[index] is not None else 0)
-            temp = float(temperatures[index] if index < len(temperatures) and temperatures[index] is not None else 0)
+            instant = datetime.fromisoformat(raw_time)
         except (TypeError, ValueError):
             continue
+        hour = instant.hour
+        chance = _weather_number(rain[index] if index < len(rain) else None, minimum=0, maximum=100)
+        temp = _weather_number(temperatures[index] if index < len(temperatures) else None)
+        code = condition_for_code(codes[index] if index < len(codes) else None)["code"]
+        if chance is None or temp is None or code == -1 or code in (95, 96, 99):
+            continue
         if 7 <= hour <= 20:
-            candidates.append((chance, hour, temp))
+            candidates.append((chance, hour, temp, instant.minute))
     if not candidates:
         return None
-    chance, hour, temp = min(candidates, key=lambda row: (row[0], abs(row[2] - 74), row[1]))
+    chance, hour, temp, minute = min(candidates, key=lambda row: (row[0], abs(row[2] - 74), row[1], row[3]))
     suffix = "a. m." if hour < 12 else "p. m."
     display_hour = hour if 1 <= hour <= 12 else abs(hour - 12) or 12
-    return {"hour": hour, "label": f"{display_hour}:00 {suffix}", "rain_probability": chance, "temperature": round(temp)}
+    return {"hour": hour, "label": f"{display_hour}:{minute:02d} {suffix}", "rain_probability": chance, "temperature": round(temp)}
 
 
 def forecast_location(
@@ -242,7 +247,9 @@ def forecast_location(
     response = http_get(config.forecast_url, params=params, timeout=config.timeout_seconds)
     response.raise_for_status()
     raw = response.json()
-    current_raw = raw.get("current") or {}
+    if not isinstance(raw, dict):
+        raise ValueError("El proveedor meteorológico no devolvió un objeto válido.")
+    current_raw = raw.get("current") if isinstance(raw.get("current"), dict) else {}
     current_condition = condition_for_code(current_raw.get("weather_code"))
     temperature = _weather_number(current_raw.get("temperature_2m"))
     feels_like = _weather_number(current_raw.get("apparent_temperature"))
@@ -252,7 +259,7 @@ def forecast_location(
         "temperature": round(temperature) if temperature is not None else None,
         "feels_like": round(feels_like) if feels_like is not None else None,
         "wind_mph": round(wind) if wind is not None else None,
-        "is_day": bool(current_raw["is_day"]) if current_raw.get("is_day") in (0, 1) else None,
+        "is_day": bool(current_raw["is_day"]) if type(current_raw.get("is_day")) in (int, float) and current_raw["is_day"] in (0, 1) else None,
         "observed_at": str(current_raw.get("time") or ""),
         "valid_at": _weather_valid_at(raw, current_raw),
         "interval_seconds": _weather_number(current_raw.get("interval"), minimum=1, maximum=3600),
@@ -263,25 +270,45 @@ def forecast_location(
         "wind_direction_degrees": _weather_number(current_raw.get("wind_direction_10m"), minimum=0, maximum=360),
         "source_kind": "weather_model",
     }
-    daily_raw = raw.get("daily") or {}
+    daily_raw = raw.get("daily") if isinstance(raw.get("daily"), dict) else {}
     daily: list[dict[str, Any]] = []
-    for index, day_key in enumerate(daily_raw.get("time") or []):
-        def value(name: str, default: Any = 0) -> Any:
-            values = daily_raw.get(name) or []
-            return values[index] if index < len(values) and values[index] is not None else default
+    times = daily_raw.get("time") if isinstance(daily_raw.get("time"), list) else []
+    for index, day_key in enumerate(times):
+        try:
+            if not isinstance(day_key, str) or date.fromisoformat(day_key).isoformat() != day_key:
+                continue
+        except ValueError:
+            continue
+        def value(name: str) -> Any:
+            values = daily_raw.get(name)
+            return values[index] if isinstance(values, list) and index < len(values) else None
 
-        chance = int(value("precipitation_probability_max"))
-        code = value("weather_code", -1)
+        chance = _weather_number(value("precipitation_probability_max"), minimum=0, maximum=100)
+        condition = condition_for_code(value("weather_code"))
+        code = condition["code"]
+        high = _weather_number(value("temperature_2m_max"))
+        low = _weather_number(value("temperature_2m_min"))
+        wind_max = _weather_number(value("wind_speed_10m_max"), minimum=0)
+        if high is not None and low is not None and low > high:
+            high, low = None, None  # Inconsistent source values are not silently swapped.
+        if code in (95, 96, 99) or (chance is not None and chance >= 70):
+            rating = "poor"
+        elif chance is not None and chance >= 35:
+            rating = "caution"
+        elif code == -1 or any(item is None for item in (chance, low, high, wind_max)):
+            rating = "unknown"
+        else:
+            rating = "good"
         row = {
             "date": str(day_key),
-            **condition_for_code(code),
-            "temperature_max": round(float(value("temperature_2m_max"))),
-            "temperature_min": round(float(value("temperature_2m_min"))),
+            **condition,
+            "temperature_max": round(high) if high is not None else None,
+            "temperature_min": round(low) if low is not None else None,
             "rain_probability": chance,
-            "wind_max_mph": round(float(value("wind_speed_10m_max"))),
-            "sunrise": str(value("sunrise", "")),
-            "sunset": str(value("sunset", "")),
-            "outdoor_rating": "poor" if int(code) >= 95 or chance >= 70 else "caution" if chance >= 35 else "good",
+            "wind_max_mph": round(wind_max) if wind_max is not None else None,
+            "sunrise": value("sunrise") if isinstance(value("sunrise"), str) else None,
+            "sunset": value("sunset") if isinstance(value("sunset"), str) else None,
+            "outdoor_rating": rating,
         }
         row["best_outdoor_window"] = _hourly_best_window(raw.get("hourly") or {}, str(day_key))
         daily.append(row)
@@ -390,20 +417,33 @@ def answer_weather_query(
             "message": "Esa fecha está fuera del pronóstico disponible. Puedo revisarla cuando falten 16 días o menos.",
         }
     location_label = forecast.get("location", {}).get("label") or "tu ubicación"
-    chance = int(selected.get("rain_probability") or 0)
+    chance = _weather_number(selected.get("rain_probability"), minimum=0, maximum=100)
     window = selected.get("best_outdoor_window") or {}
     recommendation = (
         "No la elegiría para una actividad exterior sin un plan alternativo."
         if selected.get("outdoor_rating") == "poor"
         else "Lleva un plan alternativo por si cambia el tiempo."
         if selected.get("outdoor_rating") == "caution"
-        else "En principio se ve como un buen día para estar afuera."
+        else "La probabilidad de lluvia es baja. Confirma las alertas oficiales, la temperatura y el viento antes de salir."
+        if selected.get("outdoor_rating") == "good"
+        else "Faltan datos para recomendar una actividad al aire libre."
     )
-    message = (
-        f"Para {location_label}, el {target.strftime('%d/%m')} se espera {str(selected.get('condition') or '').lower()}, "
-        f"entre {selected.get('temperature_min')} y {selected.get('temperature_max')} grados Fahrenheit, con {chance}% de probabilidad de lluvia. "
-        f"{recommendation}"
-    )
-    if window and chance >= 20:
-        message += f" La ventana con menor riesgo se aproxima a las {window.get('label')}."
+    details = []
+    if condition_for_code(selected.get("code"))["code"] != -1:
+        details.append(f"se espera {str(selected.get('condition') or '').lower()}")
+    else:
+        details.append("la condición meteorológica no está disponible")
+    low, high = _weather_number(selected.get("temperature_min")), _weather_number(selected.get("temperature_max"))
+    if low is not None and high is not None:
+        details.append(f"entre {low:g} y {high:g} grados Fahrenheit")
+    elif high is not None:
+        details.append(f"máxima de {high:g} grados Fahrenheit; mínima no disponible")
+    elif low is not None:
+        details.append(f"mínima de {low:g} grados Fahrenheit; máxima no disponible")
+    else:
+        details.append("temperatura no disponible")
+    details.append(f"con {chance:g}% de probabilidad de lluvia" if chance is not None else "probabilidad de lluvia no disponible")
+    message = f"Para {location_label}, el {target.strftime('%d/%m')}, " + ", ".join(details) + f". {recommendation}"
+    if window and chance is not None and chance >= 20:
+        message += f" Entre las horas disponibles, la menor probabilidad de lluvia se aproxima a las {window.get('label')}. No garantiza ausencia de riesgos."
     return {**forecast, "selected_day": selected, "target_date": target.isoformat(), "message": message}

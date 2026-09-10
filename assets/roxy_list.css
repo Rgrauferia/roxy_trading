@@ -877,6 +877,10 @@ dialog > form, dialog > article { display: grid; gap: 14px; padding: 23px; }
 .family-live-state { padding:7px 10px; border-radius:99px; color:#66756c; background:#edf1ec; font-size:10px; font-weight:800; }.family-live-state.is-live{color:#fff;background:#16845b;box-shadow:0 0 0 5px rgba(22,132,91,.12)}
 .family-map-stage { position:relative; }
 .family-weather-fx{position:absolute;inset:0;z-index:3;overflow:hidden;border-radius:30px;pointer-events:none;opacity:0;transition:opacity .7s ease;background:transparent;contain:paint}
+.family-map-load-notice{position:absolute;z-index:7;top:205px;left:78px;right:76px;padding:12px;border:1px solid #d5dbd1;border-radius:18px;background:#fffdf8;color:#174d36;box-shadow:0 6px 18px #163c2b18;font-size:12px;line-height:1.5}
+.family-map-load-notice[hidden]{display:none}
+.family-map-load-notice p{margin:0 0 8px}
+.family-map-load-notice button{min-height:44px;width:100%;padding:9px;font-size:12px}
 .family-weather-fx[data-active="true"][data-weather-motion="on"]{opacity:1}
 .family-weather-fx[data-weather-motion="off"],.family-weather-fx.is-paused{opacity:0;transition:none}
 .family-weather-fx .family-weather-canvas{position:absolute;inset:0;display:block;width:100%;height:100%;pointer-events:none}

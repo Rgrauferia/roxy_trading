@@ -10,6 +10,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import re
 import unicodedata
 
 CATALOG_PATH = Path(__file__).resolve().parents[1] / "data" / "home_open_recipes.json"
@@ -19,6 +20,39 @@ LICENSE_URL = "https://creativecommons.org/licenses/by-sa/4.0/"
 
 def _key(value):
     return unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode().casefold()
+
+
+def _positive_servings(value):
+    if not isinstance(value, (int, float)) or isinstance(value, bool) or value <= 0:
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
+
+def _valid_servings(row):
+    """Keep a source range as a range, never select an endpoint or midpoint.
+
+    Only an explicit, simple numeric range is supported. Textual yields, units,
+    alternatives and unknown yields still need editorial representation. The
+    structured bounds must agree with the unchanged source label; a range is not
+    permission to scale ingredients or claim one exact nutritional portion.
+    """
+    scalar = row.get("servings")
+    if "servings_range" not in row:
+        return _positive_servings(scalar)
+    bounds = row["servings_range"]
+    if scalar is not None or not isinstance(bounds, dict) or set(bounds) != {"min", "max"}:
+        return False
+    low, high = bounds["min"], bounds["max"]
+    if not all(_positive_servings(value) for value in (low, high)) or low >= high:
+        return False
+    original = row.get("servings_original")
+    if not isinstance(original, str) or len(original) > 64:
+        return False
+    match = re.fullmatch(r"\s*([0-9]+(?:\.[0-9]+)?)\s*[–—-]\s*([0-9]+(?:\.[0-9]+)?)\s*", original)
+    return bool(match and float(match[1]) == low and float(match[2]) == high)
 
 
 def _publishable(row):
@@ -44,8 +78,7 @@ def _publishable(row):
         return False
     if not isinstance(row.get("revid"), int) or isinstance(row["revid"], bool) or row["revid"] <= 0:
         return False
-    servings = row.get("servings")
-    if not isinstance(servings, (int, float)) or isinstance(servings, bool) or not math.isfinite(servings) or servings <= 0:
+    if not _valid_servings(row):
         return False
     for field in ("ingredients_original", "steps_original"):
         values = row.get(field)

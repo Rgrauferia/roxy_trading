@@ -20,10 +20,10 @@ def originals():
     return json.loads(catalog.CATALOG_PATH.read_text())["recipes"]
 
 
-def test_all_six_readable_sources_have_revision_pinned_spanish_without_new_recipe_approvals():
+def test_all_seven_readable_sources_have_revision_pinned_spanish_without_new_cooking_approvals():
     source = {row["id"]: row for row in originals()}
     result = catalog.open_recipe_catalog()
-    assert result["total"] == 6
+    assert result["total"] == 7
     for row in result["recipes"]:
         translation = row["translation"]
         assert translation["source_revid"] == row["revid"]
@@ -36,7 +36,7 @@ def test_all_six_readable_sources_have_revision_pinned_spanish_without_new_recip
         assert row["can_cook_with_roxy"] is False
         assert row["can_add_to_shopping"] is False
         assert row["can_read_original"] is True
-    assert sum(len(row["translation"]["steps"]) for row in result["recipes"]) == 27
+    assert sum(len(row["translation"]["steps"]) for row in result["recipes"]) == 38
 
 
 def test_spanish_search_and_original_search_find_same_revision():
@@ -93,7 +93,7 @@ def test_bad_translation_file_keeps_originals_available(monkeypatch, tmp_path, v
     path.write_text(json.dumps(value))
     monkeypatch.setattr(catalog, "TRANSLATIONS_PATH", path)
     result = catalog.open_recipe_catalog()
-    assert result["count"] == 6 and all(row["translation"] is None for row in result["recipes"])
+    assert result["count"] == 7 and all(row["translation"] is None for row in result["recipes"])
 
 
 @pytest.mark.parametrize("raw", [None, "{broken", "x" * 250_001])

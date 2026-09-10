@@ -51,7 +51,9 @@ def test_visible_zoom_buttons_only_change_zoom_never_request_location():
 const assert=require('node:assert/strict'),fs=require('node:fs');
 const source=fs.readFileSync('assets/roxy_list.js','utf8');
 const begin=source.indexOf("    $('familyZoomIn').addEventListener");
-const end=source.indexOf("    $('familyTrafficToggle').addEventListener",begin);
+// Stop before the independent retry binding; execute exactly the zoom controls.
+const end=source.indexOf("    $('familyMapRetry').addEventListener",begin);
+assert.ok(begin>=0&&end>begin);
 const actions={};let zoom=15;
 const $=id=>({addEventListener:(event,callback)=>actions[id]=callback});
 const familyMap={getZoom:()=>zoom,setZoom:value=>zoom=value};

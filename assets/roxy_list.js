@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '184';
+  const APP_VERSION = '185';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -127,6 +127,8 @@
   let homeFamily={status:'UNAVAILABLE',members:[],places:[],alerts:[],capabilities:{}};
   let familyWatchId=null,familyMap=null,familyMapMarkers=[],familyRoutes=[],familyMapLoader=null,familyRefreshTimer=null,familyMapZoomListener=null;
   let familyMapViewportInitialized=false,familyHistoryOpen=false,familyHistoryPoints=[];
+  let familyHistoryGeneration=0,familyHistoryRequest=null,familyHistoryScope='';
+  let familyMapReadiness=null,familyMapReadinessScope='',familyMapRetryView=null,familyMapRetryScope='',familyMapRetryAttempt=null;
   let familySelectedMemberId='',familySelectedPlaceId='',familyMapStyle='roadmap',familyDirectionsRenderer=null,familyRouteSnapshot=null,familyRouteMode=false;
   let familyRouteRenderGeneration=0;
   let familyProfilePhotoData='';
@@ -509,6 +511,7 @@
       if(account.id!==nextAccount.id||account.mode!==nextAccount.mode)window.RoxyFitness?.clear();
       account=nextAccount;
       if(account.storage_user_id){user=account.storage_user_id;localStorage.setItem('roxyShoppingUser',user)}
+      syncFamilyMapReadiness();
       requestedOwner=user;identity=collectionIdentity();identityConfirmed=true;
       if(!hasRenderedScope())$('app').hidden=true;
       if(activePanel==='fitness')mountFitness();
@@ -570,6 +573,7 @@
       populateHomeForms();
       render();
       load.renderedScope={owner:requestedOwner,identity};$('app').hidden=false;
+      resumeFamilyBaseMap();
       renderAccount();
       renderHomeMoment();
       if(familyData){void redeemNexoInvitationFromUrl();void resumeFamilyLocationIfEnabled()}
@@ -581,6 +585,7 @@
       if(error.status===401||error.status===403){
         // Do not reveal offline snapshots after the server rejects a session.
         account={mode:'signed_out',requires_profile_setup:false};
+        syncFamilyMapReadiness();
         window.RoxyFitness?.clear();
         $('app').hidden=true;
         document.querySelectorAll('dialog[open]').forEach(dialog=>dialog.close());
@@ -690,6 +695,7 @@
   function mountFitness(){window.RoxyFitness?.mount($('fitnessRoot'),{identity:account.id||account.mode||'preview',navigate:selectPanel})}
   function selectPanel(panel,{smooth=true}={}) {
     activePanel=panel;
+    syncFamilyMapReadiness();
     if(panel!=='family'&&familyWeatherGlobeActive)exitFamilyWeatherGlobe();
     const contentPanel=panel==='pets'?'recipes':panel;
     if(panel==='pets')recipeAudience='pet';else if(panel==='recipes')recipeAudience='human';
@@ -737,10 +743,29 @@
   const eventsForDay=value=>(homeCalendar.events||[]).filter(event=>sameDate(event.starts_at,value));
   const weatherForDay=value=>(homeWeather.daily||[]).find(row=>row.date===dateKey(value))||null;
 
+  function weatherMeasurement(value){
+    if((typeof value!=='number'&&typeof value!=='string')||String(value).trim()==='')return null;
+    const number=Number(value);return Number.isFinite(number)?number:null;
+  }
+  function weatherDaySummary(weather={}){
+    const low=weatherMeasurement(weather.temperature_min),high=weatherMeasurement(weather.temperature_max),rain=weatherMeasurement(weather.rain_probability);
+    const temperature=low!==null&&high!==null?`${low}–${high} °F`:low!==null?`Mín. ${low} °F`:high!==null?`Máx. ${high} °F`:'Temperatura no disponible';
+    const chance=rain!==null&&rain>=0&&rain<=100?`${rain}% de lluvia`:'Probabilidad de lluvia no disponible';
+    return `${temperature} · ${chance}`;
+  }
+
   function renderWeather(){
     const ready=homeWeather&&homeWeather.status==='READY';const current=homeWeather.current||{};const today=weatherForDay(new Date());const location=(homeWeather.location||{}).label||'Tu ubicación';
-    const apply=(prefix,calendar=false)=>{const icon=$(`${prefix}WeatherIcon`);const place=$(`${prefix}WeatherLocation`);const title=$(`${prefix}WeatherTitle`);const detail=$(`${prefix}WeatherDetail`);if(!icon||!place||!title||!detail)return;if(!ready){icon.textContent='location_off';place.textContent='Clima local';title.textContent='Activa tu ubicación aproximada';detail.textContent='Roxy podrá anticipar lluvia y ayudarte a organizar el día.';return}icon.textContent=current.icon||today?.icon||'partly_cloudy_day';place.textContent=calendar?`Pronóstico · ${location}`:location;title.textContent=calendar?`${current.condition||'Pronóstico listo'} · ${Math.round(Number(current.temperature||0))} °F`:`${Math.round(Number(current.temperature||0))} °F · ${current.condition||'Condiciones variables'}`;detail.textContent=today?`${today.temperature_min}–${today.temperature_max} °F · ${today.rain_probability}% de lluvia${today.best_outdoor_window?` · Mejor ventana ${today.best_outdoor_window.label}`:''}`:`Sensación de ${Math.round(Number(current.feels_like||0))} °F`;};
-    apply('today');apply('calendar',true);[['todayWeatherAction',ready?'calendar_month':'location_on',ready?'Ver':'Activar'],['calendarWeatherAsk',ready?'mic':'location_on',ready?'Preguntar':'Activar']].forEach(([id,icon,label])=>{const button=$(id);if(!button)return;button.querySelector('.material-symbols-rounded').textContent=icon;button.querySelector('b').textContent=label;button.setAttribute('aria-label',ready?(id==='calendarWeatherAsk'?'Preguntarle a Roxy por el clima':'Ver el pronóstico en el calendario'):'Usar mi ubicación aproximada para mostrar el clima')});
+    const apply=(prefix,calendar=false)=>{
+      const icon=$(`${prefix}WeatherIcon`),place=$(`${prefix}WeatherLocation`),title=$(`${prefix}WeatherTitle`),detail=$(`${prefix}WeatherDetail`);if(!icon||!place||!title||!detail)return;
+      if(!ready){icon.textContent='location_off';place.textContent='Clima local';title.textContent=homeWeather.status==='LOCATION_REQUIRED'?'Activa tu ubicación aproximada':'Clima no disponible';detail.textContent=homeWeather.status==='LOCATION_REQUIRED'?'Roxy podrá anticipar lluvia y ayudarte a organizar el día.':'No hay datos actuales del proveedor. No mostraré valores estimados como si fueran mediciones.';return}
+      icon.textContent=current.icon||today?.icon||'help_outline';place.textContent=calendar?`Pronóstico · ${location}`:location;
+      const measured=weatherMeasurement(current.temperature),feels=weatherMeasurement(current.feels_like),temperature=measured===null?'Temperatura no disponible':`${Math.round(measured)} °F`,condition=current.condition||'Condición no disponible';
+      title.textContent=calendar?`${condition} · ${temperature}`:`${temperature} · ${condition}`;
+      detail.textContent=today?`${weatherDaySummary(today)}${today.best_outdoor_window?` · Mejor ventana ${today.best_outdoor_window.label}`:''}`:feels===null?'Sensación térmica no disponible':`Sensación de ${Math.round(feels)} °F`;
+    };
+    const locationRequired=homeWeather.status==='LOCATION_REQUIRED';
+    apply('today');apply('calendar',true);[['todayWeatherAction',ready?'calendar_month':locationRequired?'location_on':'refresh',ready?'Ver':locationRequired?'Activar':'Reintentar'],['calendarWeatherAsk',ready?'mic':locationRequired?'location_on':'refresh',ready?'Preguntar':locationRequired?'Activar':'Reintentar']].forEach(([id,icon,label])=>{const button=$(id);if(!button)return;button.querySelector('.material-symbols-rounded').textContent=icon;button.querySelector('b').textContent=label;button.setAttribute('aria-label',ready?(id==='calendarWeatherAsk'?'Preguntarle a Roxy por el clima':'Ver el pronóstico en el calendario'):locationRequired?'Usar mi ubicación aproximada para mostrar el clima':'Reintentar el pronóstico con la ubicación ya guardada')});
   }
 
   function renderUpcomingEvent(){
@@ -781,13 +806,13 @@
 
   function renderCalendarWeekStrip(){
     const root=$('calendarWeekStrip');root.replaceChildren();const first=startOfWeek(calendarSelectedDate);
-    for(let index=0;index<7;index+=1){const day=new Date(first);day.setDate(first.getDate()+index);const weather=weatherForDay(day);const button=document.createElement('button');button.type='button';button.className='calendar-day-button';button.classList.toggle('active',sameDate(day,calendarSelectedDate));button.classList.toggle('has-events',eventsForDay(day).length>0);button.setAttribute('aria-pressed',String(sameDate(day,calendarSelectedDate)));const label=document.createElement('small');label.textContent=new Intl.DateTimeFormat('es',{weekday:'short'}).format(day).replace('.','');const number=document.createElement('strong');number.textContent=day.getDate();button.append(label,number);if(weather){const climate=document.createElement('span');climate.className='calendar-day-weather';climate.textContent=weather.emoji||'🌤️';climate.title=`${weather.condition}, ${weather.temperature_min} a ${weather.temperature_max} grados Fahrenheit, ${weather.rain_probability}% de lluvia`;button.append(climate)}button.addEventListener('click',()=>{calendarSelectedDate=day;calendarDisplayMonth=new Date(day.getFullYear(),day.getMonth(),1);renderCalendar()});root.append(button)}
+    for(let index=0;index<7;index+=1){const day=new Date(first);day.setDate(first.getDate()+index);const weather=weatherForDay(day);const button=document.createElement('button');button.type='button';button.className='calendar-day-button';button.classList.toggle('active',sameDate(day,calendarSelectedDate));button.classList.toggle('has-events',eventsForDay(day).length>0);button.setAttribute('aria-pressed',String(sameDate(day,calendarSelectedDate)));const label=document.createElement('small');label.textContent=new Intl.DateTimeFormat('es',{weekday:'short'}).format(day).replace('.','');const number=document.createElement('strong');number.textContent=day.getDate();button.append(label,number);if(weather){const climate=document.createElement('span');climate.className='calendar-day-weather';climate.textContent=weather.emoji||'—';climate.title=`${weather.condition||'Condición no disponible'} · ${weatherDaySummary(weather)}`;button.append(climate)}button.addEventListener('click',()=>{calendarSelectedDate=day;calendarDisplayMonth=new Date(day.getFullYear(),day.getMonth(),1);renderCalendar()});root.append(button)}
   }
 
   function renderCalendarAgenda(){
     const root=$('calendarAgenda');root.replaceChildren();const dates=[];
     if(calendarView==='week'){const first=startOfWeek(calendarSelectedDate);for(let i=0;i<7;i+=1){const day=new Date(first);day.setDate(first.getDate()+i);dates.push(day)}}else dates.push(new Date(calendarSelectedDate));
-    dates.forEach(day=>{const section=document.createElement('section');section.className='calendar-agenda-day';const header=document.createElement('header');const titleWrap=document.createElement('div');const title=document.createElement('h3');title.textContent=sameDate(day,new Date())?`Hoy, ${formatCalendarDay(day)}`:formatCalendarDay(day);titleWrap.append(title);const weather=weatherForDay(day);if(weather){const climate=document.createElement('small');climate.className='calendar-agenda-weather';climate.textContent=`${weather.emoji||''} ${weather.condition} · ${weather.temperature_min}–${weather.temperature_max} °F · ${weather.rain_probability}% lluvia`;titleWrap.append(climate)}const add=makeButton('+','',()=>openCalendarEvent(null,day),`Agregar evento el ${formatCalendarDay(day)}`);header.append(titleWrap,add);section.append(header);const events=eventsForDay(day);if(events.length)events.forEach(event=>section.append(calendarEventRow(event)));else{const empty=document.createElement('div');empty.className='calendar-empty';const icon=document.createElement('span');icon.className='material-symbols-rounded';icon.textContent='event_available';const copy=document.createElement('span');copy.textContent='No hay compromisos. Puedes decirle a Roxy qué quieres programar.';empty.append(icon,copy);section.append(empty)}root.append(section)});
+    dates.forEach(day=>{const section=document.createElement('section');section.className='calendar-agenda-day';const header=document.createElement('header');const titleWrap=document.createElement('div');const title=document.createElement('h3');title.textContent=sameDate(day,new Date())?`Hoy, ${formatCalendarDay(day)}`:formatCalendarDay(day);titleWrap.append(title);const weather=weatherForDay(day);if(weather){const climate=document.createElement('small');climate.className='calendar-agenda-weather';climate.textContent=`${weather.emoji||''} ${weather.condition||'Condición no disponible'} · ${weatherDaySummary(weather)}`;titleWrap.append(climate)}const add=makeButton('+','',()=>openCalendarEvent(null,day),`Agregar evento el ${formatCalendarDay(day)}`);header.append(titleWrap,add);section.append(header);const events=eventsForDay(day);if(events.length)events.forEach(event=>section.append(calendarEventRow(event)));else{const empty=document.createElement('div');empty.className='calendar-empty';const icon=document.createElement('span');icon.className='material-symbols-rounded';icon.textContent='event_available';const copy=document.createElement('span');copy.textContent='No hay compromisos. Puedes decirle a Roxy qué quieres programar.';empty.append(icon,copy);section.append(empty)}root.append(section)});
   }
 
   function renderCalendarMonth(){
@@ -1724,8 +1749,8 @@
   }
   function familyWeatherMode(){
     if(homeWeather.status!=='READY')return '';
-    const current=homeWeather.current||{};if(current.code===null||current.code===undefined||current.code==='')return '';const code=Number(current.code);
-    if(!Number.isFinite(code))return '';
+    const current=homeWeather.current||{};if(typeof current.code!=='number'&&typeof current.code!=='string')return '';if(String(current.code).trim()==='')return '';const code=Number(current.code);
+    if(!Number.isInteger(code))return '';
     if([95,96,99].includes(code))return 'storm';
     if([71,73,75,77,85,86].includes(code))return 'snow';
     if([51,53,55,56,57,61,63,65,66,67,80,81,82].includes(code))return 'rain';
@@ -1996,10 +2021,29 @@
     const first=segment[0],last=segment[segment.length-1],started=new Date(first.recordedAt),ended=new Date(last.recordedAt),minutes=Math.max(1,Math.round((last.recordedAt-first.recordedAt)/60000)),miles=familyTripDistance(segment)/1609.344,origin=familyHistoryPlace(first)?.name||'Ubicación de salida',destination=familyHistoryPlace(last)?.name||'Ubicación de llegada',speeds=segment.map(point=>point.speed).filter(speed=>Number.isFinite(speed)&&speed>=0),peak=speeds.length?Math.round(Math.max(...speeds)*2.23694):null,row=document.createElement('article');
     row.className='family-history-trip-card';row.innerHTML=`<div class="family-history-route-icon"><span class="material-symbols-rounded" aria-hidden="true">directions_car</span></div><div class="family-history-trip-copy"><strong>${escapeHtml(origin===destination?`Recorrido desde ${origin}`:`${origin} → ${destination}`)}</strong><small>${escapeHtml(familyClock(started))}–${escapeHtml(familyClock(ended))} · ${minutes} min · ${miles.toFixed(1)} mi</small>${peak===null?'':`<em>Pico GPS ${peak} mph</em>`}</div>`;const button=document.createElement('button');button.type='button';button.textContent='Ver recorrido';button.addEventListener('click',()=>showFamilyTripOnMap(segment));row.append(button);return row;
   }
+  function cancelFamilyHistory({close=false}={}){
+    familyHistoryGeneration++;familyHistoryRequest?.controller.abort();familyHistoryRequest=null;familyHistoryPoints=[];familyHistoryScope='';
+    if(close)familyHistoryOpen=false;
+    const panel=$('familyHistoryPanel'),list=$('familyHistoryList'),summary=$('familyHistorySummary');
+    list?.replaceChildren();if(summary)summary.textContent='';if(panel)panel.hidden=!familyHistoryOpen;
+    $('familyHistoryButton')?.setAttribute('aria-expanded',String(familyHistoryOpen));
+  }
   async function loadFamilyHistoryPanel(open=true){
-    familyHistoryOpen=open;const member=familySelectedMember();if(!member){familyHistoryPoints=[];renderFamilyHistoryPanel([]);return}
-    if(open){$('familyHistoryPanel').hidden=false;$('familyHistoryList').innerHTML='<div class="family-history-empty">Cargando recorridos reales…</div>'}
-    try{const history=await api(`/v1/home-family/members/${encodeURIComponent(member.id)}/history?limit=1000`);familyHistoryPoints=history.points||[]}catch(error){familyHistoryPoints=[];if(open)announce(error.message)}renderFamilyHistoryPanel(familyHistoryPoints);
+    cancelFamilyHistory({close:!open});if(!open)return;
+    const owner=user,identity=collectionIdentity(),member=familySelectedMember();
+    if(account.mode!=='member'||activePanel!=='family'||document.hidden||$('app')?.hidden||!member?.sharing_enabled||!member.location){cancelFamilyHistory({close:true});return}
+    familyHistoryOpen=true;familyHistoryScope=familyBaseMapScope();const memberId=String(member.id),controller=new AbortController();
+    const request={generation:familyHistoryGeneration,controller};familyHistoryRequest=request;
+    const isCurrent=()=>{
+      const selected=familySelectedMember(),latest=(homeFamily.members||[]).find(row=>String(row.id)===memberId);
+      return familyHistoryRequest===request&&familyHistoryGeneration===request.generation&&owner===user&&identity===collectionIdentity()&&account.mode==='member'&&activePanel==='family'&&!document.hidden&&!$('app')?.hidden&&familyHistoryOpen&&String(selected?.id)===memberId&&Boolean(latest?.sharing_enabled&&latest.location);
+    };
+    $('familyHistoryPanel').hidden=false;$('familyHistoryButton')?.setAttribute('aria-expanded','true');$('familyHistoryList').innerHTML='<div class="family-history-empty">Cargando recorridos reales…</div>';
+    try{
+      const history=await api(`/v1/home-family/members/${encodeURIComponent(memberId)}/history?limit=1000`,{signal:controller.signal});
+      if(!isCurrent())return;familyHistoryPoints=Array.isArray(history.points)?history.points:[];renderFamilyHistoryPanel(familyHistoryPoints);
+    }catch(error){if(!isCurrent())return;familyHistoryPoints=[];renderFamilyHistoryPanel([]);if(error.name!=='AbortError')announce(error.message)}
+    finally{if(familyHistoryRequest===request)familyHistoryRequest=null}
   }
   const familyFriendlyDate=()=>new Intl.DateTimeFormat('es',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(new Date());
   const familyClock=value=>{const date=new Date(value);return Number.isNaN(date.getTime())?'':new Intl.DateTimeFormat('es',{hour:'numeric',minute:'2-digit'}).format(date)};
@@ -2095,6 +2139,49 @@
   function renderFamilyProfilePhoto(photo=''){
     familyProfilePhotoData=photo||'';const preview=$('familyProfilePhotoPreview');preview.src=familyProfilePhotoData;preview.hidden=!familyProfilePhotoData;$('familyProfileRemovePhoto').hidden=!familyProfilePhotoData;
   }
+  function resetFamilyBaseMap({preserveView=false}={}){
+    cancelFamilyHistory({close:!preserveView});
+    const center=preserveView?familyMap?.getCenter?.():null;
+    familyMapRetryView=center?{center:{lat:center.lat(),lng:center.lng()},zoom:familyMap.getZoom(),mapTypeId:familyMap.getMapTypeId()}:null;
+    familyMapRetryScope=center?familyBaseMapScope():'';
+    familyMapReadiness?.dispose();familyMapReadiness=null;familyMapReadinessScope='';
+    familyMapZoomListener?.remove?.();familyMapZoomListener=null;
+    familyMapMarkers.forEach(marker=>marker.setMap(null));familyMapMarkers=[];
+    clearFamilyRoutes();familyTrafficLayer?.setMap(null);
+    familyMap=null;familyMapViewportInitialized=false;
+    $('familyMap')?.replaceChildren();const notice=$('familyMapLoadNotice');if(notice)notice.hidden=true;
+  }
+  function familyBaseMapScope(){return JSON.stringify([user,collectionIdentity()])}
+  function syncFamilyMapReadiness(){
+    const scope=familyBaseMapScope();
+    if(familyHistoryScope&&(account.mode!=='member'||familyHistoryScope!==scope))cancelFamilyHistory({close:true});
+    if((familyMapReadinessScope&&(account.mode!=='member'||familyMapReadinessScope!==scope))||(familyMapRetryScope&&(account.mode!=='member'||familyMapRetryScope!==scope)))resetFamilyBaseMap();
+    const active=account.mode==='member'&&activePanel==='family'&&!document.hidden&&!familyWeatherGlobeActive&&!$('app')?.hidden;
+    if(!active&&familyHistoryRequest)cancelFamilyHistory({close:activePanel!=='family'||account.mode!=='member'});
+    familyMapReadiness?.setActive(active);
+    const notice=$('familyMapLoadNotice');if(notice)notice.hidden=!active||familyMapReadiness?.getState().phase!=='delayed';
+  }
+  function trackFamilyBaseMap(){
+    familyMapReadiness?.dispose();familyMapReadinessScope=familyBaseMapScope();
+    const scope=familyMapReadinessScope,map=familyMap;
+    if(window.RoxyMapReadiness)familyMapReadiness=window.RoxyMapReadiness.create({
+      isCurrent:()=>account.mode==='member'&&familyBaseMapScope()===scope&&familyMap===map,
+      onState:()=>syncFamilyMapReadiness(),timeoutMs:12000,
+    });
+    familyMapReadiness?.attach(map);syncFamilyMapReadiness();
+  }
+  function resumeFamilyBaseMap(){
+    syncFamilyMapReadiness();
+    if(!familyMap&&activePanel==='family'&&account.mode==='member'&&!document.hidden&&!$('app')?.hidden&&homeFamily.map?.provider==='GOOGLE_MAPS')void renderFamilyMap();
+  }
+  async function retryFamilyBaseMap(){
+    if(account.mode!=='member'||activePanel!=='family'||document.hidden||familyWeatherGlobeActive||$('app')?.hidden)return;
+    const scope=familyBaseMapScope();if(familyMapRetryAttempt?.scope===scope)return;
+    const attempt={scope};familyMapRetryAttempt=attempt;
+    // A deliberate retry rebuilds detached Google DOM, preserving only this
+    // in-memory view. It never requests GPS or writes the user's location.
+    try{resetFamilyBaseMap({preserveView:true});await renderFamilyMap()}finally{if(familyMapRetryAttempt===attempt)familyMapRetryAttempt=null}
+  }
   function loadFamilyGoogleMaps(){
     const key=homeFamily.map?.browser_key;if(!key)return Promise.reject(new Error('Falta configurar Google Maps para Roxy Home'));
     if(familyMapLoader)return familyMapLoader;
@@ -2148,13 +2235,23 @@
   async function renderFamilyMap(){
     if(activePanel!=='family')return;
     const root=$('familyMap');if(!root)return;
+    const owner=user,identity=collectionIdentity();syncFamilyMapReadiness();
+    if(familyMap&&(account.mode!=='member'||homeFamily.map?.provider!=='GOOGLE_MAPS'))resetFamilyBaseMap();
     if(account.mode!=='member'&&!account.requires_profile_setup){root.innerHTML='<div class="family-map-empty"><span class="material-symbols-rounded" aria-hidden="true">shield_lock</span><strong>Nexo está protegido</strong><p>Elige tu perfil personal para ver a las personas, el mapa y los recorridos de tu hogar. No necesitas configurar una API.</p><button type="button" class="primary" data-nexo-sign-in>Entrar con mi perfil</button></div>';root.querySelector('[data-nexo-sign-in]').addEventListener('click',()=>$('pairDialog').showModal());return}
     if(homeFamily.map?.provider!=='GOOGLE_MAPS'){root.innerHTML='<div class="family-map-empty"><span class="material-symbols-rounded" aria-hidden="true">map</span><strong>Mapa listo para conectar</strong><p>Configura la clave de navegador exclusiva de Roxy Home para mostrar el mapa real.</p></div>';return}
     const nexoMapStyles=[{elementType:'geometry',stylers:[{color:'#edf0e7'}]},{elementType:'labels.icon',stylers:[{visibility:'off'}]},{elementType:'labels.text.fill',stylers:[{color:'#596b5f'}]},{elementType:'labels.text.stroke',stylers:[{color:'#fbfaf5'},{weight:3}]},{featureType:'administrative.locality',elementType:'labels.text.fill',stylers:[{color:'#40594a'}]},{featureType:'poi',stylers:[{visibility:'off'}]},{featureType:'transit',stylers:[{visibility:'off'}]},{featureType:'road',elementType:'geometry',stylers:[{color:'#fffdf8'}]},{featureType:'road',elementType:'geometry.stroke',stylers:[{color:'#d9dfd5'}]},{featureType:'road',elementType:'labels.icon',stylers:[{visibility:'off'}]},{featureType:'road.highway',elementType:'geometry',stylers:[{color:'#e7ddc4'}]},{featureType:'road.highway',elementType:'geometry.stroke',stylers:[{color:'#c9b57d'}]},{featureType:'landscape.natural',elementType:'geometry',stylers:[{color:'#e5ecdf'}]},{featureType:'landscape.man_made',elementType:'geometry',stylers:[{color:'#f2f0e8'}]},{featureType:'water',elementType:'geometry',stylers:[{color:'#d8e8e5'}]},{featureType:'water',elementType:'labels.text.fill',stylers:[{color:'#688682'}]}];
-    try{await loadFamilyGoogleMaps();if(activePanel!=='family'||account.mode!=='member')return;const located=(homeFamily.members||[]).filter(row=>row.sharing_enabled&&row.location);const mapOptions={styles:familyWeatherMapStyles(nexoMapStyles),disableDefaultUI:true,keyboardShortcuts:false,streetViewControl:false,fullscreenControl:false,mapTypeControl:false,zoomControl:false,scaleControl:true,gestureHandling:'greedy',clickableIcons:false,backgroundColor:'#e7ece3'};if(!familyMap){root.replaceChildren();familyMap=new google.maps.Map(root,{center:located.length?{lat:Number(located[0].location.latitude),lng:Number(located[0].location.longitude)}:{lat:28.5383,lng:-81.3792},zoom:located.length?14:9,mapTypeId:'roadmap',...mapOptions});familyMapZoomListener=familyMap.addListener('zoom_changed',()=>{if(!familyMapTransitioning&&!familyWeatherGlobeActive&&Number(familyMap.getZoom())<=5)void activateFamilyWeatherGlobe()})}else familyMap.setOptions(mapOptions);
+    try{await loadFamilyGoogleMaps();if(activePanel!=='family'||account.mode!=='member'||user!==owner||collectionIdentity()!==identity||document.hidden||$('app')?.hidden||homeFamily.map?.provider!=='GOOGLE_MAPS')return;const located=(homeFamily.members||[]).filter(row=>row.sharing_enabled&&row.location);const mapOptions={styles:familyWeatherMapStyles(nexoMapStyles),disableDefaultUI:true,keyboardShortcuts:false,streetViewControl:false,fullscreenControl:false,mapTypeControl:false,zoomControl:false,scaleControl:true,gestureHandling:'greedy',clickableIcons:false,backgroundColor:'#e7ece3'};
+      if(!familyMap){
+        root.replaceChildren();const retryView=familyMapRetryScope===familyBaseMapScope()?familyMapRetryView:null;familyMapRetryView=null;familyMapRetryScope='';
+        familyMap=new google.maps.Map(root,{center:located.length?{lat:Number(located[0].location.latitude),lng:Number(located[0].location.longitude)}:{lat:28.5383,lng:-81.3792},zoom:located.length?14:9,mapTypeId:familyMapStyle,...mapOptions,...(retryView||{})});
+        trackFamilyBaseMap();if(retryView)familyMapViewportInitialized=true;
+        familyMapZoomListener=familyMap.addListener('zoom_changed',()=>{if(!familyMapTransitioning&&!familyWeatherGlobeActive&&Number(familyMap.getZoom())<=5)void activateFamilyWeatherGlobe()});
+      }else familyMap.setOptions(mapOptions);
       familyMapMarkers.forEach(marker=>marker.setMap(null));familyMapMarkers=[];const bounds=new google.maps.LatLngBounds();const places=(homeFamily.places||[]).filter(place=>Number.isFinite(Number(place.latitude))&&Number.isFinite(Number(place.longitude)));if(!places.some(place=>String(place.id)===familySelectedPlaceId))familySelectedPlaceId=String(places.find(place=>place.kind==='HOME')?.id||'');places.forEach(place=>{const point={lat:Number(place.latitude),lng:Number(place.longitude)};familyMapMarkers.push(createFamilyMapPlace(place,point))});located.forEach(member=>{const point={lat:Number(member.location.latitude),lng:Number(member.location.longitude)};familyMapMarkers.push(createFamilyMapPerson(member,point));const radius=Number(member.location.accuracy_m);if(String(member.id)===familySelectedMemberId&&Number.isFinite(radius)&&radius>0)familyMapMarkers.push(new google.maps.Circle({map:familyMap,center:point,radius,strokeColor:'#b18a45',strokeOpacity:.5,strokeWeight:1,fillColor:'#b18a45',fillOpacity:.12,clickable:false}));bounds.extend(point)});if(!familyMapViewportInitialized){if(located.length===1){familyMap.setCenter(bounds.getCenter());familyMap.setZoom(15)}else if(located.length>1)familyMap.fitBounds(bounds,76);else if(places.length){familyMap.setCenter({lat:Number(places[0].latitude),lng:Number(places[0].longitude)});familyMap.setZoom(14)}familyMapViewportInitialized=true}
-      syncFamilyTraffic();const selected=familySelectedMember();clearFamilyRoutes();if(familyHistoryOpen&&selected?.location){const history=await api(`/v1/home-family/members/${encodeURIComponent(selected.id)}/history?limit=1000`).catch(()=>({points:[]}));familyHistoryPoints=history.points||[];renderFamilyHistoryPanel(familyHistoryPoints)}void renderFamilyRouteCard(selected);
-    }catch(error){root.innerHTML=`<div class="family-map-empty"><span class="material-symbols-rounded" aria-hidden="true">wifi_off</span><strong>No pude abrir el mapa</strong><p>${escapeHtml(error.message)}</p></div>`}
+      syncFamilyTraffic();const selected=familySelectedMember();clearFamilyRoutes();if(familyHistoryOpen)await loadFamilyHistoryPanel(true);
+      if(user!==owner||collectionIdentity()!==identity||activePanel!=='family'||account.mode!=='member'||document.hidden||$('app')?.hidden||String(familySelectedMember()?.id)!==String(selected?.id)||(selected&&!familySelectedMember()?.sharing_enabled))return;
+      void renderFamilyRouteCard(selected);
+    }catch(error){if(user!==owner||collectionIdentity()!==identity)return;resetFamilyBaseMap();root.innerHTML=`<div class="family-map-empty"><span class="material-symbols-rounded" aria-hidden="true">wifi_off</span><strong>No pude abrir el mapa</strong><p>${escapeHtml(error.message)}</p></div>`;const retry=makeButton('Reintentar mapa','secondary',()=>void retryFamilyBaseMap());root.firstElementChild?.append(retry)}
   }
   async function refreshFamily(){const owner=user,identity=collectionIdentity(),next=await api('/v1/home-family');checkCollectionContext(owner,identity);await dbSet(collectionCacheKey('family',owner,identity),next);checkCollectionContext(owner,identity);homeFamily=next;renderFamily()}
   function renderFamily(){
@@ -2811,9 +2908,10 @@
     $('familyHomeMenu').addEventListener('click',()=>{$('familySettings').open=true;$('familySettings').scrollIntoView({behavior:'smooth',block:'start'})});
     $('familyAddConnection').addEventListener('click',()=>{$('familySettings').open=true;$('familyInviteName').focus();$('familySettings').scrollIntoView({behavior:'smooth',block:'start'})});
     $('familyHistoryButton').addEventListener('click',()=>void loadFamilyHistoryPanel(!familyHistoryOpen));
-    $('familyHistoryClose').addEventListener('click',()=>{familyHistoryOpen=false;renderFamilyHistoryPanel(familyHistoryPoints)});
+    $('familyHistoryClose').addEventListener('click',()=>cancelFamilyHistory({close:true}));
     $('familyZoomIn').addEventListener('click',()=>{if(familyMap)familyMap.setZoom(Math.min(21,Number(familyMap.getZoom())+1))});
     $('familyZoomOut').addEventListener('click',()=>{if(familyMap)familyMap.setZoom(Math.max(0,Number(familyMap.getZoom())-1))});
+    $('familyMapRetry').addEventListener('click',()=>void retryFamilyBaseMap());
     $('familyTrafficToggle').addEventListener('click',()=>{familyTrafficEnabled=!familyTrafficEnabled;syncFamilyTraffic(true)});$('familyMapLayers').addEventListener('click',()=>{if(!familyMap)return;familyMapStyle=familyMapStyle==='roadmap'?'satellite':'roadmap';familyMap.setMapTypeId(familyMapStyle);announce(familyMapStyle==='satellite'?'Vista satélite activada':'Vista de mapa activada')});
     $('familyMapLocate').addEventListener('click',()=>{const member=(homeFamily.members||[]).find(row=>row.is_viewer&&row.location);if(!familyMap||!member){announce('Activa tu ubicación para centrar el mapa.');return}familyMap.panTo({lat:Number(member.location.latitude),lng:Number(member.location.longitude)});familyMap.setZoom(16)});
     $('familyWeatherGlobeClose').addEventListener('click',()=>exitFamilyWeatherGlobe());
@@ -2830,6 +2928,9 @@
     $('familyProfileForm').querySelectorAll('[name="familyMarkerColor"]').forEach(input=>input.addEventListener('change',()=>{$('familyProfileForm').querySelector('.family-profile-preview').style.background=familyMarkerColors[input.value]}));
     $('familyInviteForm').addEventListener('submit',createFamilyInvitation);
     window.addEventListener('pageshow',()=>{if(homeFamily.members?.length)void resumeFamilyLocationIfEnabled()});
+    window.addEventListener('pagehide',()=>familyMapReadiness?.setActive(false));
+    window.addEventListener('pageshow',resumeFamilyBaseMap);
+    document.addEventListener('visibilitychange',resumeFamilyBaseMap);
     document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&homeFamily.members?.length)void resumeFamilyLocationIfEnabled()});
     $('pantryForm').addEventListener('submit',savePantry);
     $('recipeForm').addEventListener('submit',createRecipe);
@@ -2879,8 +2980,8 @@
     $('roxyVoiceEnd').addEventListener('click',endRoxyVoice);
     $('calendarAddButton').addEventListener('click',()=>openCalendarEvent());
     $('calendarVoiceButton').addEventListener('click',openRoxyVoice);
-    $('todayWeatherAction').addEventListener('click',()=>{if(homeWeather&&homeWeather.status==='READY')selectPanel('calendar');else captureCommerceLocation(true)});
-    $('calendarWeatherAsk').addEventListener('click',()=>{if(homeWeather&&homeWeather.status==='READY'){$('roxyCommand').value='Roxy, ¿cómo estará el clima esta semana?';openRoxyVoice()}else captureCommerceLocation(true)});
+    $('todayWeatherAction').addEventListener('click',()=>{if(homeWeather&&homeWeather.status==='READY')selectPanel('calendar');else if(homeWeather.status==='LOCATION_REQUIRED')captureCommerceLocation(true);else void load({quiet:true})});
+    $('calendarWeatherAsk').addEventListener('click',()=>{if(homeWeather&&homeWeather.status==='READY'){$('roxyCommand').value='Roxy, ¿cómo estará el clima esta semana?';openRoxyVoice()}else if(homeWeather.status==='LOCATION_REQUIRED')captureCommerceLocation(true);else void load({quiet:true})});
     $('calendarGoogleSync').addEventListener('click',syncGoogleCalendar);
     $('calendarGoogleDisconnect').addEventListener('click',disconnectGoogleCalendar);
     $('calendarEventForm').addEventListener('submit',submitCalendarEvent);

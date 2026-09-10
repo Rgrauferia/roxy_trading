@@ -294,7 +294,8 @@ def test_family_ui_is_wired_to_real_endpoints():
     assert "Google Maps oficial" in html
     assert "disableDefaultUI:true" in js
     assert "clickableIcons:false" in js
-    assert "mapTypeId:'roadmap'" in js
+    assert "familyMapStyle='roadmap'" in js
+    assert "mapTypeId:familyMapStyle" in js
     assert 'id="familyProfileForm"' in html
     assert 'id="familyProfilePhoto"' in html
     assert 'id="familyWeatherFx"' in html
@@ -367,7 +368,7 @@ def test_private_viewer_can_activate_location_from_own_member_card():
 def test_live_map_does_not_draw_accumulated_history_by_default():
     script = open("assets/roxy_list.js", encoding="utf-8").read()
 
-    assert "clearFamilyRoutes();if(familyHistoryOpen&&selected?.location)" in script
+    assert "clearFamilyRoutes();if(familyHistoryOpen)await loadFamilyHistoryPanel(true)" in script
     assert "renderFamilyHistory(familyHistoryPoints);renderFamilyHistoryPanel" not in script
     assert "showFamilyTripOnMap(segment)" in script
 

@@ -3,7 +3,36 @@
 Actualizado: 2026-09-10. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 
-## 184 — candidato probado; pendiente de publicación y verificación
+## 185 — candidato en validación; aún no publicado
+
+Clima: nubes suaves en capas y lluvia con profundidad; límite de píxeles/frecuencia
+y ahorro en dispositivos limitados. No rayos inventados. Datos desconocidos no
+equivalen a cero o sol; calendario conserva parciales y fallo del proveedor ofrece
+reintentar sin solicitar GPS nuevo. QA393px tormenta antes/después, lluvia ligera,
+sol, nieve y datos vencidos; controles siguen operativos. No teléfono físico/FPS.
+Mapa: detector de primera carga de teselas y reintento manual, misma vista sólo
+para el mismo miembro. Incidente184: fondo sin teselas recuperado con zoom;
+causa original no demostrada. Revisión detectó carrera de historial y la corrigió
+con generaciones, cancelación, limpieza y ámbito propio incluso sin mapa creado.
+Pohe original rev4633573 con foto de fuente/licencia revisada y traducciónES:
+9ingredientes/11pasos/2notas, rango1–2 conservado. Siete originales legibles,
+tres fotos, siete traducciones; NO guías culinarias aprobadas ni 500 cumplidas.
+Lote510 intacto. Informe nuevo home_recipe_500_scaling_gap_20260910.md identifica
+416 sin metadatos de foto y bloqueo técnico de200filas/24resultados sinpaginación.
+No volver a revisar ese lote desde cero ni confundir ausencia de alertas con calidad.
+Render mantiene Payment failed observado10/09; no cambios de facturación.
+2009Pythonpass/11PGskip,272Node+2mjs; sintaxis/diff correctos. Publicación pendiente.
+HTML/APP185,JS187,CSS130,SW184.
+Informe: reports/home_release_185_20260910.md. Prototipos/datos reales preservados.
+
+## 184 — PUBLICADO y comprobado; NO demo terminada
+
+Commit6d0394a61c0e74adc7e8e1053f5c5b05e3adfd5d,RenderLive
+dep-dahfqf67bikc73aobco0(56.4s);health200/ok y7assets públicosidénticos.
+502transitorio durantecambioinstancia, luego200. Sesión/meta184 confirmadas;
+lectorPapasAnnaESpaso2yfotofuente217px comprobados en público. Calendario abre
+sin503/noeventosparaeldíaactual;etiquetaGoogleconectado,no sync externo probado.
+QA29562apagado,tab11QA/10foto cerradas,viewportreset,prototipo8796intacto.
 
 Seis originales legibles ahora con traducciónES cotejada (33ingredientes,
 27pasos,5equipos,8notas), mismo catálogo, no seis recetas nuevas ni ensayadas.
@@ -17,6 +46,9 @@ Handlers503/429 identifican almacenamiento/límite, no502 engañoso.
 HTML/APP184,JS186,CSS129,SW183,openrecipesv3. Informehome_release_184_20260910.md.
 FotoCoconutvista;versión2013rinde12 frentea2025rinde6–7: nopromoverporfoto.
 510candidatassiguen0aprobadas;Pothosnorecuperado;no demo lista. Prototipospreservados.
+Siguiente: ampliarcontenido fuente con revisión real sin duplicarversiones, cerrar
+voz/clima/recuperación y afrontar escalabilidad del presupuesto antes de registro
+abierto. No volvera traducirestas6 ni auditarCoconut2013/2025 desdecero.
 
 ## 183 — PUBLICADO y comprobado; NO demo terminada
 

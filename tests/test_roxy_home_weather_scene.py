@@ -89,7 +89,7 @@ for(const code of [0,1]){homeWeather.current.code=code;assert.equal(familyWeathe
 for(const [mode,codes] of Object.entries({rain:[51,53,55,56,57,61,63,65,66,67,80,81,82],snow:[71,73,75,77,85,86],storm:[95,96,99],fog:[45,48],'partly-cloudy':[2],cloudy:[3]})){
  for(const code of codes){homeWeather.current.code=code;assert.equal(familyWeatherMode(),mode);}
 }
-for(const code of [null,'',-1,4,52,54,58,59,60,62,64,51.5,100,NaN]){homeWeather.current.code=code;assert.equal(familyWeatherMode(),'');}
+for(const code of [undefined,null,'',' ',true,false,[],[0],{},-1,4,52,54,58,59,60,62,64,51.5,95.9,100,NaN]){homeWeather.current.code=code;assert.equal(familyWeatherMode(),'');}
 homeWeather.current={code:0,is_day:null};assert.equal(familyWeatherMode(),'');
 """)
 

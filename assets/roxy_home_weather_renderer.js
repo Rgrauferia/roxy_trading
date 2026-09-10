@@ -6,6 +6,15 @@
   const modes = new Set(['rain', 'storm', 'snow', 'fog', 'sunny', 'clear-night', 'cloudy', 'partly-cloudy']);
   const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
   const finite = value => typeof value === 'number' && Number.isFinite(value);
+  // A DPR limit alone still allocates millions of pixels on a large display.
+  // Keep this decorative layer cheaper than the map it sits over.
+  const MAX_PIXELS = 1200000;
+  function limitedDevice() {
+    const nav = global.navigator;
+    return nav?.connection?.saveData === true ||
+      (finite(nav?.hardwareConcurrency) && nav.hardwareConcurrency <= 4) ||
+      (finite(nav?.deviceMemory) && nav.deviceMemory <= 4);
+  }
   const fresh = scene => {
     const now = Date.now();
     return scene?.fresh === true && modes.has(scene.mode) &&
@@ -57,6 +66,62 @@
     glow.addColorStop(1, 'rgba(225,238,245,0)');
     ctx.fillStyle = glow; ctx.fillRect(0, 0, 24, 24); return sprite;
   }
+  // Soft cloud volumes are painted once into a small texture, not blurred or
+  // regenerated per frame. They are an illustration of the supplied condition,
+  // never a cloud observation, lightning strike, or location-specific radar.
+  function cloudSprite(doc) {
+    const sprite = doc.createElement('canvas'); sprite.width = 512; sprite.height = 256;
+    const ctx = sprite.getContext('2d'); if (!ctx) return null;
+    const rng = random(0x636c6f75);
+    for (let i = 0; i < 26; i++) {
+      const x = rng() * 600 - 44, y = rng() * 116 - 14, radius = 46 + rng() * 93;
+      const shade = ctx.createRadialGradient(x, y, radius * .05, x, y, radius);
+      shade.addColorStop(0, 'rgba(18,37,54,.23)');
+      shade.addColorStop(.38, 'rgba(37,57,73,.17)');
+      shade.addColorStop(.72, 'rgba(70,88,102,.08)');
+      shade.addColorStop(1, 'rgba(70,88,102,0)');
+      ctx.fillStyle = shade; ctx.fillRect(0, 0, 512, 256);
+    }
+    return sprite;
+  }
+  function prepareAtmosphere(state) {
+    const storm = state.scene.mode === 'storm', snow = state.scene.mode === 'snow';
+    const clouds = finite(state.scene.clouds) ? clamp(state.scene.clouds, 0, 100) / 100 : .65;
+    // An explicitly clear model does not acquire invented cloud cover.
+    state.cloudAmount = clouds;
+    const shade = state.ctx.createLinearGradient(0, 0, 0, state.height);
+    const top = snow ? .08 : storm ? .28 : .1;
+    shade.addColorStop(0, `rgba(14,32,48,${top * clouds})`);
+    shade.addColorStop(.48, `rgba(27,52,69,${top * clouds * .27})`);
+    shade.addColorStop(1, 'rgba(27,52,69,0)');
+    state.skyShade = shade;
+    const mist = state.ctx.createLinearGradient(0, 0, 0, state.height);
+    const strength = (storm ? .075 : .035) * clouds;
+    mist.addColorStop(0, 'rgba(188,207,216,0)');
+    mist.addColorStop(.57, `rgba(188,207,216,${strength * .25})`);
+    mist.addColorStop(1, `rgba(188,207,216,${strength})`);
+    state.mistShade = mist;
+    state.cloudPattern = state.cloudTexture && state.ctx.createPattern?.(state.cloudTexture, 'no-repeat');
+  }
+  function drawAtmosphere(state, time) {
+    const ctx = state.ctx, dpr = state.dpr, storm = state.scene.mode === 'storm';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.globalAlpha = 1;
+    ctx.fillStyle = state.skyShade; ctx.fillRect(0, 0, state.width, state.height);
+    if (state.cloudPattern && state.cloudAmount > 0) {
+      const wind = finite(state.scene.wind) ? clamp(state.scene.wind, 0, 44) : 0;
+      const drift = finite(state.scene.drift) ? clamp(state.scene.drift / 132, -1, 1) : 0;
+      for (let layer = 0; layer < 2; layer++) {
+        const x = -state.width * .2 + Math.sin(time * .000018 * (1 + wind / 30) + layer * 2) * state.width * .09 + drift * state.width * .035;
+        const y = -state.height * (.055 + layer * .025);
+        const width = state.width * 1.42, height = state.height * (.62 + layer * .15);
+        ctx.setTransform(width / 512 * dpr, 0, 0, height / 256 * dpr, x * dpr, y * dpr);
+        ctx.globalAlpha = state.cloudAmount * (storm ? .8 : .42) * (layer ? .55 : 1);
+        ctx.fillStyle = state.cloudPattern; ctx.fillRect(0, 0, 512, 256);
+      }
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.globalAlpha = 1;
+    ctx.fillStyle = state.mistShade; ctx.fillRect(0, 0, state.width, state.height);
+  }
   function stop(state) {
     if (state.frame !== null) global.cancelAnimationFrame(state.frame);
     state.frame = null; state.previousTime = null;
@@ -79,16 +144,16 @@
     const snow = state.scene.mode === 'snow';
     const intensity = finite(state.scene.intensity) ? clamp(state.scene.intensity, 0, 1) : .28;
     const area = state.width * state.height;
-    const count = Math.round(snow ? clamp(area / 1800, 45, 160) * (.5 + intensity * .5) : clamp(area / 1050, 70, 320) * (.2 + intensity * .8));
+    const count = Math.round((snow ? clamp(area / 1800, 45, 160) * (.5 + intensity * .5) : clamp(area / 1050, 70, 320) * (.2 + intensity * .8)) * (state.limited ? .62 : 1));
     const rng = random(0x726f7879 + (snow ? 91 : 7));
     state.random = rng;
     state.particles = Array.from({length:count}, () => {
-      const depth = Math.pow(rng(), 1.5), variation = rng();
+      const depth = Math.pow(rng(), 1.7), variation = rng();
       return {
         x:rng() * (state.width + 100) - 50, y:rng() * (state.height + 100) - 50,
         depth, speed:snow ? 14 + depth * 39 + variation * 9 : 320 + depth * 650 + variation * 180,
-        length:7 + depth * 27 + variation * 9,
-        width:.6 + depth * 1.4, alpha:snow ? .4 + depth * .48 : .24 + depth * .48,
+        length:(4 + depth * 48 + variation * 9) * (.85 + intensity * .25),
+        width:.35 + depth * 2.1, alpha:snow ? .4 + depth * .48 : .16 + depth * .52,
         phase:rng() * Math.PI * 2, flutter:.5 + rng() * 1.5,
       };
     });
@@ -100,16 +165,18 @@
       speed:.8 + rng() * 3, alpha:.2 + rng() * .16,
     })) : [];
     state.canvas.dataset.particleCount = String(count);
+    prepareAtmosphere(state);
   }
   function resize(state) {
     if (!state.canvas) return;
     const box = state.root.getBoundingClientRect();
-    const width = Math.round(box.width), height = Math.round(box.height);
-    const dpr = clamp(global.devicePixelRatio || 1, 1, 1.5);
+    const width = Math.max(0, Math.round(box.width)), height = Math.max(0, Math.round(box.height));
+    const dpr = Math.min(clamp(global.devicePixelRatio || 1, 1, state.limited ? 1 : 1.5), Math.sqrt(MAX_PIXELS / Math.max(1, width * height)));
     if (state.width === width && state.height === height && state.dpr === dpr) return;
     state.width = width; state.height = height; state.dpr = dpr;
-    state.canvas.width = Math.max(1, Math.round(width * dpr));
-    state.canvas.height = Math.max(1, Math.round(height * dpr));
+    state.canvas.width = Math.max(1, Math.floor(width * dpr));
+    state.canvas.height = Math.max(1, Math.floor(height * dpr));
+    state.canvas.dataset.frameRate = state.limited ? '24' : '30';
     if (width && height) resetParticles(state);
   }
   function drawBeads(state, dt) {
@@ -129,10 +196,14 @@
     if (!state.root.isConnected) { destroy(state.root); return; }
     if (!fresh(state.scene)) { destroy(state.root); return; }
     if (state.paused || state.suspended || state.doc.hidden || state.motion?.matches || !state.inView) { stop(state); return; }
+    if (state.previousTime !== null && time - state.previousTime < 1000 / (state.limited ? 24 : 30) - .5) {
+      state.frame = global.requestAnimationFrame(time => frame(state, time)); return;
+    }
     const dt = state.previousTime === null ? 0 : clamp((time - state.previousTime) / 1000, 0, .05);
     state.previousTime = time;
     const ctx = state.ctx, dpr = state.dpr;
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, state.canvas.width, state.canvas.height);
+    drawAtmosphere(state, time);
     const snow = state.scene.mode === 'snow';
     const drift = finite(state.scene.drift) ? clamp(state.scene.drift, -132, 132) / 132 : 0;
     const gust = 1 + Math.sin(time * .00063) * .08 + Math.sin(time * .00117) * .04;
@@ -168,7 +239,7 @@
   function create(root) {
     const doc = root.ownerDocument;
     const state = {root, doc, scene:null, canvas:null, ctx:null, frame:null, previousTime:null,
-      particles:[], beads:[], width:0, height:0, dpr:1, paused:false, inView:insideViewport(root)};
+      particles:[], beads:[], width:0, height:0, dpr:1, paused:false, limited:limitedDevice(), inView:insideViewport(root)};
     state.sync = () => sync(state);
     state.resize = () => { resize(state); state.inView = insideViewport(root); sync(state); };
     state.onScroll = () => { state.inView = insideViewport(root); sync(state); };
@@ -200,8 +271,9 @@
     if (!fresh(scene)) { destroy(root); root.dataset.weatherMotion = 'off'; return; }
     const state = instances.get(root) || create(root);
     const oldSignature = state.signature;
+    let createdCanvas = false;
     state.scene = {...scene}; state.paused = options.paused === true;
-    state.signature = `${scene.mode}:${scene.intensity}`;
+    state.signature = `${scene.mode}:${scene.intensity}:${scene.clouds}`;
     if (wetModes.has(scene.mode) && !state.canvas) {
       const canvas = state.doc.createElement('canvas');
       canvas.className = 'family-weather-canvas'; canvas.setAttribute('aria-hidden', 'true');
@@ -210,12 +282,13 @@
       if (!ctx) { destroy(root); root.dataset.weatherMotion = 'off'; return; }
       state.rain = [rainSprite(state.doc, false), rainSprite(state.doc, true)]; state.snow = snowSprite(state.doc);
       if (!state.snow || state.rain.some(sprite => !sprite)) { destroy(root); root.dataset.weatherMotion = 'off'; return; }
-      state.canvas = canvas; state.ctx = ctx; root.replaceChildren(canvas); resize(state);
+      state.cloudTexture = cloudSprite(state.doc);
+      state.canvas = canvas; state.ctx = ctx; root.replaceChildren(canvas); resize(state); createdCanvas = true;
     } else if (!wetModes.has(scene.mode) && state.canvas) {
       stop(state); state.canvas.remove(); state.canvas = null; state.ctx = null;
       state.width = 0; state.height = 0; state.particles = []; state.beads = [];
     }
-    if (state.canvas && state.signature !== oldSignature) resetParticles(state);
+    if (state.canvas && !createdCanvas && state.signature !== oldSignature) resetParticles(state);
     global.clearTimeout(state.expiry);
     state.expiry = global.setTimeout(state.sync, Math.max(1, Math.min(scene.validAt, scene.fetchedAt) + 2700000 - Date.now()));
     sync(state);
