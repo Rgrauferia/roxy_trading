@@ -86,3 +86,13 @@ Navegador público previo: Más y Nexo responden, mapa Google visible con modelo
 mayormente despejado, no tormenta. La actualización GPS está pendiente del permiso
 del navegador; no se solicitó ni concedió permiso. No se modificaron datos del hogar.
 Esto no demuestra todavía que el teléfono del usuario use la nueva publicación.
+
+## Publicación comprobada al cerrar
+
+180 / bb81c99e5 publicado en `codex/roxy-home-nfc` y confirmado live en Render.
+HTML, JS181 y SW178 públicos HTTP200 idénticos byte a byte; health200/ok.
+Navegador meta180, sesión conservada, mapa Google y radar RainViewer cargados;
+globo con Modelo Open-Meteo y hora válida visible. Captura guardada/vista:
+`/tmp/roxy-home-audit-20260910/globe-180.png`. No prueba de tormenta ni teléfono.
+La versión corrige funcionamiento/metadatos, no entrega el rediseño meteorológico.
+El aviso de facturación de Render continúa; no bloqueó este despliegue.

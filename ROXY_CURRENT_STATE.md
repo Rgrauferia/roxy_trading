@@ -3,7 +3,7 @@
 Actualizado: 2026-09-10. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 
-## 180 — corrección de acceso y aislamiento de Compra, candidato local
+## 180 — acceso, aislamiento de Compra y metadatos del clima PUBLICADOS
 
 Login corregido: tras recibir la cookie, recarga el documento en Hoy. Antes,
 un cambio de fragmento dejaba abierto el formulario con contraseña correcta.
@@ -20,19 +20,25 @@ pesos; envases ambiguos/cantidades inválidas requieren revisión antes de red.
 El globo de Nexo reutiliza frescura meteorológica y ya no inventa 0° si falta
 temperatura ni llama actual a un dato vencido. Conserva un 0° válido y fecha/fuente.
 32 pruebas de clima aprobadas; no hay cambios de gráficos ni catálogo de Ejercicio.
-Candidato HTML/APP180, JS181, SW178.
+Publicado HTML/APP180, JS181, SW178 desde bb81c99e5 en codex/roxy-home-nfc.
 Validación global: 1.289 pruebas Python aprobadas y 41 Node. Once pruebas de
 PostgreSQL se omiten en este entorno ordinario; no se modificó esa capa y la
-evidencia local real de 179 se conserva. Despliegue aún pendiente de confirmar.
+evidencia local real de 179 se conserva. Render confirmó bb81c99e5 como último
+commit live; HTML/JS/SW públicos HTTP200 byte a byte idénticos y health200/ok.
+Navegador público meta180, sesión conservada, mapa y globo reales cargados; la
+cabecera muestra Modelo Open-Meteo/hora válida y radar RainViewer operativo.
+Captura vista: /tmp/roxy-home-audit-20260910/globe-180.png. No tormenta observada.
 
-Render accesible con sesión el 10/09; último live 762ef1ae5/179, y aviso
+Render accesible con sesión el 10/09; último live bb81c99e5/180, y aviso
 «Payment failed» comunicado al usuario. No pagos ni cambios de tarjeta.
 Los avisos históricos de sesión cerrada en 179 ya no describen el acceso actual.
 Recetario original: 6 fichas Wikibooks; TheMealDB sigue sin cuenta/clave/licencia
 comercial confirmadas. Ejercicio: 8 fichas/16 ilustraciones, 0 vídeos, cobertura
 insuficiente y sin entrenamientos activos. Clima aún no tiene el acabado pedido.
 Ver informes de acceso/Instacart del 09/09, continuados el 10/09. Datos públicos
-de mascotas y hogar preservados. `prototypes/` sin tocar.
+de mascotas y hogar preservados. `prototypes/` sin tocar. Siguiente paso: usuario
+reintenta acceso desde teléfono y atiende aviso de facturación. La evidencia
+posterior al despliegue se registra localmente, sin volver a desplegar el mismo código.
 
 ## 179 — Ejercicio educativo PUBLICADO y comprobado
 

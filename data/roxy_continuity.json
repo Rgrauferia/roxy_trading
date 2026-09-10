@@ -3,10 +3,10 @@
   "updated_on": "2026-09-10",
   "deployment_branch": "codex/roxy-home-nfc",
   "public_url": "https://roxy-home.onrender.com/lista#ejercicio",
-  "last_verified_public_version": 179,
-  "deployed_implementation_commit": "762ef1ae5",
+  "last_verified_public_version": 180,
+  "deployed_implementation_commit": "bb81c99e5",
   "candidate_version": 180,
-  "candidate_status": "180_login_commerce_weather_metadata_local_verified_public_deploy_pending",
+  "candidate_status": "180_login_commerce_weather_metadata_published_verified_not_demo_complete",
   "access_commerce_180": {
     "login": "explicit_document_reload_after_success_duplicate_submit_protection_error_retry",
     "browser_qa": "loopback_synthetic_wrong_password_rejected_then_correct_password_opens_Hoy_1280x720",
@@ -23,7 +23,10 @@
     "render_session": "signed_in_dashboard_verified_2026_09_10",
     "render_notice": "Payment_failed_user_notified_no_payment_or_billing_changes",
     "production_account_pet_or_shopping_data_modified": false,
-    "public_deploy_verified": false
+    "public_deploy_verified": true,
+    "public_assets": "HTML_JS_SW_HTTP200_byte_identical_health200_ok",
+    "public_browser": "meta180_session_retained_map_and_RainViewer_globe_loaded_model_valid_time_visible",
+    "public_screenshot": "/tmp/roxy-home-audit-20260910/globe-180.png"
   },
   "exercise_candidate_178": {
     "requested_objective": "integrated_private_member_exercise_module_following_user_specification",
@@ -131,21 +134,22 @@
     "other_services_changed": false
   },
   "verification": {
-    "python_home_shopping_provider_passed": 1242,
+    "python_home_shopping_provider_passed": 1289,
     "node_fitness_ui_passed": 33,
+    "node_login_ui_passed": 8,
     "postgres_local_real_passed": 11,
     "public_health": "ok",
     "public_versions": {
-      "html": 179,
-      "app": 179,
-      "js": 180,
+      "html": 180,
+      "app": 180,
+      "js": 181,
       "css": 127,
-      "service_worker": 177,
+      "service_worker": 178,
       "fitness_js": 4,
       "fitness_css": 4,
       "fitness_catalogue_js": 1
     },
-    "eight_public_assets_byte_identical": true,
+    "three_modified_public_assets_byte_identical": true,
     "public_user_data_modified": false,
     "fitness_public_storage": false,
     "training_active": false
@@ -164,7 +168,7 @@
     "Aderezo César photo showed a salad; quarantine until an exact replacement is visually reviewed",
     "Only five manufacturer ingredient panels screened; restrictions fail closed, not clinical allergy clearance"
   ],
-  "next_step": "Finish full regression suite and publish login/commerce candidate180; verify public assets and ask user to retry phone login without sharing password. Render session is now open but Payment_failed warning requires user billing action. Recipe originals only6, TheMealDB key/license absent; exercise catalogue8 unbalanced/no active training; weather target not achieved. Dedicated Home PostgreSQL still requires cost approval, provisioning and isolation verification; professional screening/templates remain gated. No demo-ready claim.",
+  "next_step": "180 published verified. User should retry phone login without sharing password; exact error needed if failure persists. Render Payment_failed warning requires user billing action. Recipe originals only6, TheMealDB key/license absent; exercise catalogue8 unbalanced/no active training; weather visual target not achieved. Dedicated Home PostgreSQL still requires cost approval, provisioning and isolation verification; professional screening/templates remain gated. No demo-ready claim.",
   "launch": {
     "five_day_web_beta": "requested_not_scheduled",
     "app_store": "target_next_month_not_guaranteed",
@@ -174,9 +178,9 @@
     "trial_days": 5
   },
   "candidate_verification": {
-    "version": 179,
-    "python_tests": 1242,
-    "node_tests": 33,
+    "version": 180,
+    "python_tests": 1289,
+    "node_tests": 41,
     "postgres_real_tests": 11,
     "public_verified": true,
     "production_data_mutated": false

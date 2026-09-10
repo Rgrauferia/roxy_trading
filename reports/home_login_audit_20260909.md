@@ -15,6 +15,11 @@ Render tiene sesión abierta y muestra «Payment failed»: es un aviso de riesgo
 de servicio comunicado al usuario, no evidencia de que cause el fallo de login.
 No se abrió el formulario de tarjeta ni se efectuaron pagos.
 
+Al cerrar el bloque, corrección publicada en 180 / bb81c99e5. Render confirma
+el commit live; HTML, JS181 y SW178 públicos son byte a byte los del worktree,
+health200/ok. Navegador público meta180 conserva la sesión existente. Esto no
+sustituye el reintento del usuario en su teléfono, que se ha solicitado.
+
 ## Hallazgo confirmado antes de corregir
 
 El handler `login` de `assets/roxy_list.js` acepta la respuesta de autenticación,
