@@ -3,7 +3,38 @@
 Actualizado: 2026-09-10. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 
-## Incidente de persistencia — 182 probado, publicación pendiente; NO demo terminada
+## 183 — candidato verificado; publicación pendiente
+
+Despensa: corregida pérdida de decimales/unidades con coma. Entrada semicolon,
+compatibilidad legacy de tres campos, error por línea y ninguna sustitución
+parcial ante entradas inválidas. API valida lista completa antes de mutar.
+Nexo/Comercio: JSON corrupto o ausente tras inicializar ya no se trata como vacío;
+lecturas que actualizan estado fallan con503 y conservan bytes. Marcador,
+escritura atómica, bloqueo y permisos0600; campos desconocidos/legacy válidos retenidos.
+Nexo radar: liberar mapa, timers y peticiones al ocultarse/salir; reanudar sólo
+misma identidad/permisos. Clima descarta respuestas obsoletas y limita espera10s.
+No modificación del acabado gráfico de lluvia ni falsas condiciones meteorológicas.
+Extractor de recetasv5 recupera notas/fotos referenciadas sin cambiar ingredientes,
+pasos ni hashes de510 candidatas: siguen0 aprobadas, manifiesto/runtime sin cambios.
+
+Pruebas183:1653 Python aprobadas,11 PostgreSQL omitidas;211 Node y2mjs aprobados.
+Revisión independiente encontró coerción true→1.0 en API; rechazada antes de
+convertir con dos pruebas nuevas422 e inventario previo intacto.
+HTML/APP183, JS185, CSS129, SW182. QA navegador1280x720 y393x852:
+reproduce1,5litros→1/unidad5 antes del arreglo; ahora error visible y posterior
+1.5litros conservado tras recarga. AliasAlex QA/Olivo/textogrande persisten.
+Sin desbordamiento horizontal393px. Datos sólo sintéticos en8768; no teléfono
+físico ni todos los módulos verificados. Evidencia /tmp/roxy-home-qa-183/.
+Detalle: reports/home_release_183_20260910.md. NO afirmar demo terminada.
+
+## Incidente de persistencia — 182 PUBLICADO y comprobado; NO demo terminada
+
+182 publicado desde 6c19d6170cdc57e1e978b18ca552e83bddfaf356; Render Live
+dep-dahe0ctckfvc73bpk2h0. Health200/ok y seis archivos públicos HTTP200 idénticos
+al commit (HTML/JS/CSS/SW/guía Jardín/catálogo Ejercicio). Web Shell de la nueva
+instancia confirma las cuatro rutas PLANTS/DESIGN en /var/data/roxy_home,
+padre escribible y /var/data en montaje distinto de /app. No recuperar por
+inferencia el contenido perdido: Pothos real sigue pendiente.
 
 181 se publicó desde 87dc13ead6ba2de5323625c16a22c2b172b2237a.
 Render Live, health200/ok y nueve assets públicos idénticos al commit.
@@ -14,7 +45,7 @@ ninguna copia de plantas/Renueva en /var/data. No se han recuperado los datos;
 no recrear plantas ni restaurar pruebas sintéticas. Evitar recargar teléfonos
 que conserven la copia previa. Fotos originales no garantizadas en caché.
 
-182 local probado: HTML/APP182, JS184, CSS129, SW181. Rutas persistentes de Jardín/Renueva, JSON fail-closed con marcador,
+182 publicado: HTML/APP182, JS184, CSS129, SW181. Rutas persistentes de Jardín/Renueva, JSON fail-closed con marcador,
 escrituras atómicas/fotos únicas, 503 sin revelar rutas; protección de copia
 anterior en cliente y aislamiento de Renueva por miembro (no asumir dueño de
 caché legacy de hogar). 1503 Python aprobadas,11 PG omitidas;139 Node y2 mjs.
@@ -23,14 +54,20 @@ sintéticos conserva copia descargable y aviso legible; luego se restauró archi
 QA original. Cero errores/warnings de consola. No planta real recuperada.
 Load protege carreras entre miembros/hogares y oculta DOM viejo al cambiar;
 cachés Commerce/Calendar/Daily/Nexo/Weather también se separan por identidad.
-Publicación182 y comprobación pública aún pendientes.
+Navegador público conserva sesión, meta182/JS184; Ejercicio junto a Recetas,
+21 fichas educativas y seis fotos de Desayunos cargadas (480px). Sin scripts
+de Google Maps fuera de Nexo ni errores/warnings observados. No representa
+comprobación de todas las fotos ni del teléfono físico. Capturas10/11 públicas
+765×454; QA responsive393×852 aislado. Pothos sigue ausente en la vista pública.
 No aplicar Blueprint: su disco declarado1GB difiere del real10GB; no pagos.
 Render mantiene aviso Payment failed. Usuario debe resolver facturación.
 
 Heartbeat activo `roxy-home-jornada-de-mejoras`: cada hora hasta el 10/09/2026
 23:59 America/New_York (20260911T035900Z). Sólo Home, no pagos/contratos sin
 autoridad concreta; avisar sólo avances relevantes, fallo o acción necesaria.
-Prototipo8796 preservado, QA sintético en8768. Impact requiere login.
+Prototipo8796 preservado; servidor QA8768 detenido y pestaña cerrada. Su carpeta
+temporal sintética permanece para evidencia; no restaurar sus datos en producción.
+Impact requiere login. No se han confirmado marcas precalificadas en la cuenta.
 Recetas500 NO logrado: 510 candidatas,0 aprobadas; segunda auditoría20ES
 detectó defectos materiales y fotos ilustrativas, no se publican por cantidad.
 
@@ -66,7 +103,8 @@ TheMealDB sigue sin cuenta/clave/tier comercial confirmado; opciones y conflicto
 de precio/licencia documentados en reports/home_recipe_provider_options_20260910.md.
 Impact requiere iniciar sesión al10/09; no se comprobaron precalificados de cuenta.
 No pagos, contratos, claves, plantas reales, mascotas ni compras modificados.
-Siguiente: publicar/verificar181, continuar auditoría integral y catálogo500,
+Siguiente: recuperar copia real del Pothos si el teléfono aún la conserva,
+continuar auditoría integral y catálogo500,
 resolver proveedor/licencia; revisar voz real, plantas conversacionales, clima,
 persistencia fitness y condiciones del demo antes de anunciar lanzamiento.
 

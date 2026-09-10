@@ -89,6 +89,29 @@ def _string_list(values: Any, *, limit: int = 50) -> list[str]:
     return result
 
 
+def _pantry_rows(items: Any, *, limit: int) -> list[dict[str, Any]]:
+    """Validate the complete edit before replacing any household inventory."""
+    if not isinstance(items, list) or len(items) > limit:
+        raise ValueError(f"La despensa debe ser una lista de como máximo {limit} productos; no se recortó ningún dato.")
+    rows = []
+    for index, raw in enumerate(items, 1):
+        if not isinstance(raw, dict):
+            raise ValueError(f"Producto {index}: falta nombre, cantidad o unidad.")
+        name, unit = raw.get("name"), raw.get("unit", "unidad")
+        if not isinstance(name, str) or not name.strip() or len(name) > 120:
+            raise ValueError(f"Producto {index}: el nombre debe tener entre 1 y 120 caracteres.")
+        if not isinstance(unit, str) or not unit.strip() or len(unit) > 32 or not any(char.isalpha() for char in unit):
+            raise ValueError(f"Producto {index}: indica una unidad válida, por ejemplo g, litros o unidades.")
+        value = raw.get("quantity", 1)
+        if isinstance(value, bool):
+            raise ValueError(f"Producto {index}: la cantidad debe ser numérica.")
+        quantity = _positive_number(value)
+        if quantity <= 0:
+            raise ValueError(f"Producto {index}: la cantidad es demasiado pequeña para guardarla con precisión.")
+        rows.append({"name": _text(name, 120), "identity": _identity(name), "quantity": quantity, "unit": _text(unit, 32)})
+    return rows
+
+
 class HomeFoodStorageError(RuntimeError):
     """Fail closed instead of replacing an unreadable household with an empty one."""
 
@@ -346,20 +369,7 @@ class HomeFoodStore:
         return self._mutate(apply)
 
     def replace_pantry(self, user_id: Any, items: Any) -> list[dict[str, Any]]:
-        if not isinstance(items, list):
-            raise ValueError("La despensa debe ser una lista.")
-        pantry: list[dict[str, Any]] = []
-        for raw in items[:500]:
-            if not isinstance(raw, dict) or not _text(raw.get("name")):
-                continue
-            pantry.append(
-                {
-                    "name": _text(raw.get("name"), 120),
-                    "identity": _identity(raw.get("name")),
-                    "quantity": _positive_number(raw.get("quantity") or 1),
-                    "unit": _text(raw.get("unit") or "unidad", 32) or "unidad",
-                }
-            )
+        pantry = _pantry_rows(items, limit=500)
 
         def apply(payload: dict[str, Any]) -> list[dict[str, Any]]:
             record = self._user(payload, user_id)
@@ -584,20 +594,13 @@ class HomeFoodStore:
         return self._mutate(apply)
 
     def upsert_pantry(self, user_id: Any, items: Any) -> list[dict[str, Any]]:
-        if not isinstance(items, list):
-            raise ValueError("La despensa debe ser una lista.")
-        additions = items
+        additions = _pantry_rows(items, limit=100)
 
         def apply(payload: dict[str, Any]) -> list[dict[str, Any]]:
             record = self._user(payload, user_id)
             pantry = record.setdefault("pantry", [])
-            for raw in additions[:100]:
-                if not isinstance(raw, dict) or not _text(raw.get("name")):
-                    continue
-                name = _text(raw.get("name"), 120)
-                identity = _identity(name)
-                quantity = _positive_number(raw.get("quantity") or 1)
-                unit = _text(raw.get("unit") or "unidad", 32) or "unidad"
+            for raw in additions:
+                name, identity, quantity, unit = raw["name"], raw["identity"], raw["quantity"], raw["unit"]
                 existing = next(
                     (row for row in pantry if row.get("identity") == identity and _identity(row.get("unit")) == _identity(unit)),
                     None,

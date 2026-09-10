@@ -13,7 +13,8 @@ function between(startText, endText) {
   assert.ok(start >= 0 && end > start, 'Execute the actual shipped function');
   return main.slice(start, end);
 }
-const functions = between('  async function activateFamilyWeatherGlobe()', '  function familyWeatherMapStyles(')
+const functions = between('  const familyGlobeLifecycle=', '  async function loadFamilyRadarMetadata(')
+  + between('  async function activateFamilyWeatherGlobe()', '  function familyWeatherMapStyles(')
   + between('  function selectPanel(', '  const calendarCategories=')
   + between('  async function renderFamilyMap()', '  async function refreshFamily(');
 const flush = async () => { for (let i = 0; i < 16; i++) await Promise.resolve(); };
@@ -36,16 +37,17 @@ function fixture(options = {}) {
     };
   }
   const $ = id => { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); };
-  const map = { jumpTo: position => calls.jump.push(position), resize: () => calls.resize++, getCenter: () => ({ lng: -80, lat: 25 }) };
+  const map = { jumpTo: position => calls.jump.push(position), resize: () => calls.resize++, getCenter: () => ({ lng: -80, lat: 25 }), getZoom: () => 2 };
   const context = {
     activePanel: 'family', familyWeatherGlobeActive: false, familyMapTransitioning: false,
     familyWeatherGlobeLoadId: 0, familyWeatherGlobeFrames: [], familyWeatherGlobeFrameIndex: 0,
     familyWeatherGlobePlaying: false, familyWeatherGlobeMap: null,
     homeWeather: { status: 'READY', current: { temperature: 0, condition: 'Nublado' } },
     homeFamily: { map: { provider: 'GOOGLE_MAPS' }, members: [], places: [] },
-    account: { mode: 'member' }, location: { hash: '' }, $, console: { warn() {} },
-    document: { body: element(), querySelectorAll: () => [] },
-    window: { scrollTo() {}, RoxyMapLibre: { load() { calls.loader++; return options.loader ? options.loader(calls.loader) : Promise.resolve({}); } } },
+    user: 'synthetic-house', commerce: { profile: { location_enabled: true } },
+    account: { mode: 'member', id: 'synthetic-A' }, location: { hash: '' }, $, console: { warn() {} },
+    document: { body: element(), querySelectorAll: () => [], addEventListener() {}, removeEventListener() {} },
+    window: { scrollTo() {}, addEventListener() {}, removeEventListener() {}, RoxyMapLibre: { load() { calls.loader++; return options.loader ? options.loader(calls.loader) : Promise.resolve({}); } } },
     familyWeatherAtmosphere: () => ({ fresh: true, location: 'Lugar de prueba', validAt: '2026-09-10T12:00:00Z' }),
     familyClock: value => value,
     familyWeatherGlobeCenter: () => [-81, 28],
@@ -57,6 +59,7 @@ function fixture(options = {}) {
     stopFamilyWeatherGlobePlayback: () => calls.stop++,
     renderFamilyWeatherFx: () => calls.weather++,
     requestAnimationFrame: callback => animationFrames.push(callback),
+    cancelAnimationFrame() {},
     setTimeout(callback, ms) { const id = ++sequence; timers.set(id, { callback, ms }); return id; },
     clearTimeout: id => timers.delete(id),
     renderRecipes() {}, mountFitness() {},
@@ -78,7 +81,7 @@ test('success waits for the renderer before map construction and real radar meta
   assert.equal(f.$('familyWeatherGlobePanel').attributes.get('aria-hidden'), 'false');
   loader.resolve({}); await flush();
   assert.equal(f.calls.ensure, 1); assert.equal(f.calls.radar, 1); assert.equal(f.calls.install, 0);
-  assert.equal(f.calls.jump[0].center[0], -81.5); assert.equal(f.calls.jump[0].center[1], 28.5);
+  assert.equal(f.calls.jump[0].center[0], -81); assert.equal(f.calls.jump[0].center[1], 28, 'Use current authorized center, not a previous Google viewport');
   radar.resolve({ frames }); await pending; f.flushAnimations();
   assert.equal(f.calls.resize, 1); assert.equal(f.calls.install, 1); assert.equal(f.calls.playback, 1);
   assert.equal(f.context.familyWeatherGlobeFrames, frames);

@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '182';
+  const APP_VERSION = '183';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -1753,16 +1753,30 @@
     const clouds=number(current.cloud_cover_percent);
     return {fresh,mode,validAt,fetchedAt,intensity,drift,night:current.is_day===false,clouds:clouds===null?null:Math.max(0,Math.min(100,clouds)),wind:wind===null?null:Math.max(0,wind),location:String(weather.location?.label||'Ubicación guardada'),ageMinutes:Number.isFinite(validAt)?Math.max(0,Math.floor((now-validAt)/60000)):null};
   }
-  let familyWeatherRefreshTimer=null,familyWeatherRefreshPending=false,familyWeatherRefreshAt=0,familyWeatherBaseMapStyles=null;
+  let familyWeatherRefreshTimer=null,familyWeatherRefreshPending=false,familyWeatherRefreshAt=0,familyWeatherBaseMapStyles=null,familyWeatherRefreshScope='',familyWeatherRefreshRequest=null;
+  function familyWeatherRequestScope(){const profile=commerce.profile||{};return JSON.stringify([user,collectionIdentity(),Boolean(profile.location_enabled),profile.latitude??null,profile.longitude??null])}
+  function cancelObsoleteFamilyWeatherRefresh(){
+    const request=familyWeatherRefreshRequest;if(!request||request.isCurrent())return;
+    familyWeatherRefreshRequest=null;familyWeatherRefreshPending=false;familyWeatherRefreshAt=0;request.controller.abort();
+  }
   async function refreshFamilyWeatherIfNeeded(){
-    if(activePanel!=='family'||document.hidden||account.mode!=='member'||familyWeatherRefreshPending||Date.now()-familyWeatherRefreshAt<300000)return;
+    cancelObsoleteFamilyWeatherRefresh();
+    if(activePanel!=='family'||document.hidden||account.mode!=='member'||$('app')?.hidden)return;
     if(!commerce.profile?.location_enabled)return;
-    familyWeatherRefreshPending=true;familyWeatherRefreshAt=Date.now();const requestedUser=user;
-    try{const weather=await api(`/v1/home-weather/${encodeURIComponent(requestedUser)}`);if(user!==requestedUser)return;homeWeather=weather;renderWeather();renderFamilyWeatherFx();if(familyMap&&familyWeatherBaseMapStyles)familyMap.setOptions({styles:familyWeatherMapStyles(familyWeatherBaseMapStyles)})}
-    catch(_error){renderFamilyWeatherFx()}
-    finally{familyWeatherRefreshPending=false}
+    const requestedUser=user,identity=collectionIdentity(),scope=familyWeatherRequestScope();
+    if(scope!==familyWeatherRefreshScope){familyWeatherRefreshScope=scope;familyWeatherRefreshAt=0;familyWeatherRefreshPending=false}
+    if(familyWeatherRefreshPending||Date.now()-familyWeatherRefreshAt<300000)return;
+    const controller=new AbortController(),request={scope,controller};familyWeatherRefreshRequest=request;familyWeatherRefreshPending=true;familyWeatherRefreshAt=Date.now();
+    const isCurrent=()=>familyWeatherRefreshRequest===request&&user===requestedUser&&collectionIdentity()===identity&&familyWeatherRequestScope()===scope&&Boolean(commerce.profile?.location_enabled)&&activePanel==='family'&&!document.hidden&&!$('app')?.hidden;request.isCurrent=isCurrent;
+    let onAbort;const aborted=new Promise((_resolve,reject)=>{onAbort=()=>reject(new DOMException('Clima cancelado','AbortError'));controller.signal.addEventListener('abort',onAbort,{once:true})});
+    const timeout=setTimeout(()=>controller.abort(),10000);
+    try{const weather=await Promise.race([api(`/v1/home-weather/${encodeURIComponent(requestedUser)}`,{signal:controller.signal}),aborted]);if(!isCurrent())return;homeWeather=weather;renderWeather();renderFamilyWeatherFx();if(familyMap&&familyWeatherBaseMapStyles)familyMap.setOptions({styles:familyWeatherMapStyles(familyWeatherBaseMapStyles)})}
+    catch(_error){if(isCurrent())renderFamilyWeatherFx()}
+    finally{clearTimeout(timeout);controller.signal.removeEventListener('abort',onAbort);if(familyWeatherRefreshRequest===request){const current=isCurrent();familyWeatherRefreshRequest=null;familyWeatherRefreshPending=false;if(!current)familyWeatherRefreshAt=0}}
   }
   function renderFamilyWeatherFx(){
+    cancelObsoleteFamilyWeatherRefresh();
+    syncFamilyWeatherGlobeLifecycle();
     const root=$('familyWeatherFx'),note=$('familyWeatherFxNote');if(!root)return;
     const scene=familyWeatherAtmosphere(),mode=scene.mode,paused=document.hidden||activePanel!=='family'||familyWeatherGlobeActive;
     if(root.dataset.weatherMode!==mode&&familyMap&&familyWeatherBaseMapStyles)familyMap.setOptions({styles:familyWeatherMapStyles(familyWeatherBaseMapStyles)});
@@ -1776,13 +1790,62 @@
     if(note){note.hidden=familyWeatherGlobeActive||homeWeather.status==='LOCATION_REQUIRED';note.textContent=scene.fresh?`Clima estimado · ${scene.location} · ${familyClock(scene.validAt)}\nVisualización según Open-Meteo; no es radar.`:'Sin clima reciente: ambiente pausado. El mapa sigue disponible.';note.title=scene.fresh?`Condiciones de un modelo meteorológico, no observaciones exactas de tu teléfono. Válido hace ${scene.ageMinutes} min. El radar RainViewer muestra precipitación observada por separado.`:''}
     if(!familyWeatherRefreshTimer){familyWeatherRefreshTimer=setInterval(()=>{renderFamilyWeatherFx();void refreshFamilyWeatherIfNeeded()},30000);document.addEventListener('visibilitychange',()=>{renderFamilyWeatherFx();if(!document.hidden)void refreshFamilyWeatherIfNeeded()});window.addEventListener('resize',renderFamilyWeatherFx)}
   }
+  const familyGlobeLifecycle={scope:null,suspended:false,view:null,frameTime:null,request:null,transition:null,resize:null,observer:null,listening:false};
+  function familyGlobeScope(){
+    // Consent flags, not coordinates: normal GPS updates must not reset the visor.
+    return JSON.stringify([user,account.mode,account.id||'',Boolean(commerce.profile?.location_enabled),(homeFamily.members||[]).map(row=>[String(row.id),Boolean(row.is_viewer),Boolean(row.sharing_enabled)]).sort((a,b)=>a[0].localeCompare(b[0]))]);
+  }
+  function familyGlobeContextCurrent(){return familyWeatherGlobeActive&&activePanel==='family'&&account.mode==='member'&&familyGlobeLifecycle.scope===familyGlobeScope()}
+  function familyGlobeCanRender(){return familyGlobeContextCurrent()&&!document.hidden&&!$('app')?.hidden&&!familyGlobeLifecycle.suspended}
+  function cancelFamilyGlobeWork(){
+    stopFamilyWeatherGlobePlayback();familyWeatherGlobeLoadId++;
+    if(familyGlobeLifecycle.transition!==null)clearTimeout(familyGlobeLifecycle.transition);familyGlobeLifecycle.transition=null;
+    if(familyGlobeLifecycle.resize!==null)cancelAnimationFrame(familyGlobeLifecycle.resize);familyGlobeLifecycle.resize=null;
+    const request=familyGlobeLifecycle.request;familyGlobeLifecycle.request=null;request?.controller.abort();
+    const map=familyWeatherGlobeMap;familyWeatherGlobeMap=null;map?.stop?.();map?.remove?.();
+    familyWeatherGlobeFrames=[];familyMapTransitioning=false;
+  }
+  function suspendFamilyWeatherGlobe(){
+    if(!familyWeatherGlobeActive||familyGlobeLifecycle.suspended)return;
+    if(familyGlobeContextCurrent()&&familyWeatherGlobeMap){const center=familyWeatherGlobeMap.getCenter();familyGlobeLifecycle.view={center:[center.lng,center.lat],zoom:familyWeatherGlobeMap.getZoom()};familyGlobeLifecycle.frameTime=familyWeatherGlobeFrames[familyWeatherGlobeFrameIndex]?.time??null}
+    familyGlobeLifecycle.suspended=true;cancelFamilyGlobeWork();
+    $('familyWeatherGlobeTimeline').disabled=true;$('familyWeatherGlobePlay').disabled=true;
+    $('familyWeatherGlobeStatus').textContent='Radar pausado mientras no estás viendo Nexo';
+  }
+  function syncFamilyWeatherGlobeLifecycle(){
+    if(!familyWeatherGlobeActive)return;
+    if(!familyGlobeContextCurrent()){exitFamilyWeatherGlobe();return}
+    if(document.hidden||$('app')?.hidden){suspendFamilyWeatherGlobe();return}
+    if(!familyGlobeLifecycle.suspended&&familyWeatherGlobeFrames.length&&Date.now()-familyWeatherGlobeFrames.at(-1).time*1000>1800000)suspendFamilyWeatherGlobe();
+    if(familyGlobeLifecycle.suspended)void activateFamilyWeatherGlobe();
+  }
+  function bindFamilyGlobeLifecycle(){
+    if(familyGlobeLifecycle.listening)return;familyGlobeLifecycle.listening=true;
+    document.addEventListener('visibilitychange',syncFamilyWeatherGlobeLifecycle);
+    window.addEventListener('pagehide',suspendFamilyWeatherGlobe);window.addEventListener('pageshow',syncFamilyWeatherGlobeLifecycle);
+    if(typeof MutationObserver!=='undefined'){
+      familyGlobeLifecycle.observer=new MutationObserver(syncFamilyWeatherGlobeLifecycle);
+      for(const id of ['app','familyPanel']){const node=$(id);if(node)familyGlobeLifecycle.observer.observe(node,{attributes:true,attributeFilter:['hidden']})}
+    }
+  }
+  function unbindFamilyGlobeLifecycle(){
+    if(!familyGlobeLifecycle.listening)return;familyGlobeLifecycle.listening=false;
+    document.removeEventListener('visibilitychange',syncFamilyWeatherGlobeLifecycle);
+    window.removeEventListener('pagehide',suspendFamilyWeatherGlobe);window.removeEventListener('pageshow',syncFamilyWeatherGlobeLifecycle);
+    familyGlobeLifecycle.observer?.disconnect();familyGlobeLifecycle.observer=null;
+  }
   async function loadFamilyRadarMetadata(force=false){
-    if(!force&&familyRadarMetadata&&Date.now()-familyRadarFetchedAt<300000)return familyRadarMetadata;
-    const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),10000);
+    if(!force&&familyRadarMetadata&&Date.now()-familyRadarFetchedAt<300000){try{return validatedFamilyRadarMetadata({host:familyRadarMetadata.host,radar:{past:familyRadarMetadata.frames}})}catch(_error){familyRadarMetadata=null}}
+    const controller=new AbortController(),request={controller};familyGlobeLifecycle.request?.controller.abort();familyGlobeLifecycle.request=request;
+    const loadId=familyWeatherGlobeLoadId,isCurrent=()=>familyGlobeLifecycle.request===request&&!controller.signal.aborted&&loadId===familyWeatherGlobeLoadId&&familyGlobeCanRender();
+    const cancelled=()=>new DOMException('Radar cancelado','AbortError');
+    let onAbort;const aborted=new Promise((_resolve,reject)=>{onAbort=()=>reject(cancelled());controller.signal.addEventListener('abort',onAbort,{once:true})});
+    const timeout=setTimeout(()=>controller.abort(),10000);
     try{
-      const response=await fetch('https://api.rainviewer.com/public/weather-maps.json',{cache:'no-store',signal:controller.signal});if(!response.ok)throw new Error(`RainViewer HTTP ${response.status}`);
-      familyRadarMetadata=validatedFamilyRadarMetadata(await response.json());familyRadarFetchedAt=Date.now();return familyRadarMetadata;
-    }finally{clearTimeout(timeout)}
+      const response=await Promise.race([fetch('https://api.rainviewer.com/public/weather-maps.json',{cache:'no-store',signal:controller.signal}),aborted]);if(!isCurrent())throw cancelled();if(!response.ok)throw new Error(`RainViewer HTTP ${response.status}`);
+      const body=await Promise.race([response.json(),aborted]);if(!isCurrent())throw cancelled();
+      const metadata=validatedFamilyRadarMetadata(body);familyRadarMetadata=metadata;familyRadarFetchedAt=Date.now();return metadata;
+    }finally{clearTimeout(timeout);controller.signal.removeEventListener('abort',onAbort);if(familyGlobeLifecycle.request===request)familyGlobeLifecycle.request=null}
   }
   function validatedFamilyRadarMetadata(metadata,now=Date.now()){
     if(metadata?.host!=='https://tilecache.rainviewer.com')throw new Error('Servidor de radar no reconocido');
@@ -1793,52 +1856,63 @@
     return {host:metadata.host,frames};
   }
   function familyWeatherGlobeCenter(){
-    const viewer=(homeFamily.members||[]).find(row=>row.is_viewer&&row.location),weather=homeWeather.location||{},source=viewer?.location||weather;
-    const lat=Number(source.latitude),lng=Number(source.longitude);return Number.isFinite(lat)&&Number.isFinite(lng)?[lng,lat]:[-81.3792,28.5383];
+    const viewer=(homeFamily.members||[]).find(row=>row.is_viewer&&row.sharing_enabled&&row.location),weather=commerce.profile?.location_enabled?homeWeather.location||{}:{},source=viewer?.location||weather;
+    const valid=value=>value!==null&&value!==undefined&&value!==''&&typeof value!=='boolean'&&Number.isFinite(Number(value));
+    const lat=Number(source.latitude),lng=Number(source.longitude);return valid(source.latitude)&&valid(source.longitude)&&Math.abs(lat)<=90&&Math.abs(lng)<=180?[lng,lat]:[-81.3792,28.5383];
   }
   function familyWeatherGlobeStyle(){return{version:8,projection:{type:'globe'},sources:{osm:{type:'raster',tiles:['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],tileSize:256,attribution:'© OpenStreetMap contributors'}},layers:[{id:'space',type:'background',paint:{'background-color':'#020a0f'}},{id:'osm-dark',type:'raster',source:'osm',paint:{'raster-opacity':.94,'raster-saturation':-.82,'raster-contrast':.3,'raster-brightness-min':0,'raster-brightness-max':.22}}]}}
   function setFamilyWeatherGlobeFrame(index){
-    if(!familyWeatherGlobeFrames.length)return;familyWeatherGlobeFrameIndex=Math.max(0,Math.min(Number(index)||0,familyWeatherGlobeFrames.length-1));const frame=familyWeatherGlobeFrames[familyWeatherGlobeFrameIndex],source=familyWeatherGlobeMap?.getSource('rainviewer-radar');
+    if(!familyGlobeCanRender()){syncFamilyWeatherGlobeLifecycle();return}
+    if(!familyWeatherGlobeFrames.length)return;
+    if(Date.now()-familyWeatherGlobeFrames.at(-1).time*1000>1800000){suspendFamilyWeatherGlobe();syncFamilyWeatherGlobeLifecycle();return}
+    familyWeatherGlobeFrameIndex=Math.max(0,Math.min(Number(index)||0,familyWeatherGlobeFrames.length-1));const frame=familyWeatherGlobeFrames[familyWeatherGlobeFrameIndex],source=familyWeatherGlobeMap?.getSource('rainviewer-radar');
     if(source?.setTiles)source.setTiles([`${familyRadarMetadata.host}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`]);
     $('familyWeatherGlobeTimeline').value=String(familyWeatherGlobeFrameIndex);$('familyWeatherGlobeTime').textContent=new Intl.DateTimeFormat('es-US',{hour:'numeric',minute:'2-digit'}).format(new Date(frame.time*1000));
   }
   function stopFamilyWeatherGlobePlayback(){if(familyWeatherGlobeTimer){clearInterval(familyWeatherGlobeTimer);familyWeatherGlobeTimer=null}}
   function syncFamilyWeatherGlobePlayback(){
     stopFamilyWeatherGlobePlayback();const button=$('familyWeatherGlobePlay'),icon=button.querySelector('.material-symbols-rounded'),label=button.querySelector('b');icon.textContent=familyWeatherGlobePlaying?'pause':'play_arrow';label.textContent=familyWeatherGlobePlaying?'Pausar':'Reproducir';button.setAttribute('aria-label',label.textContent+' animación');
-    if(familyWeatherGlobePlaying&&familyWeatherGlobeFrames.length>1)familyWeatherGlobeTimer=setInterval(()=>setFamilyWeatherGlobeFrame((familyWeatherGlobeFrameIndex+1)%familyWeatherGlobeFrames.length),850);
+    if(familyGlobeCanRender()&&familyWeatherGlobePlaying&&familyWeatherGlobeFrames.length>1){const loadId=familyWeatherGlobeLoadId;familyWeatherGlobeTimer=setInterval(()=>{if(loadId!==familyWeatherGlobeLoadId)return;setFamilyWeatherGlobeFrame((familyWeatherGlobeFrameIndex+1)%familyWeatherGlobeFrames.length)},850)}
   }
   function ensureFamilyWeatherGlobe(){
+    if(!familyGlobeCanRender())throw new DOMException('Visor cancelado','AbortError');
     if(familyWeatherGlobeMap)return familyWeatherGlobeMap;if(!window.maplibregl)throw new Error('El visor 3D no pudo cargarse');
     familyWeatherGlobeMap=new maplibregl.Map({container:'familyWeatherGlobe',style:familyWeatherGlobeStyle(),center:familyWeatherGlobeCenter(),zoom:1.35,minZoom:0,maxZoom:10,pitch:0,bearing:0,renderWorldCopies:false,attributionControl:false,dragRotate:true,touchZoomRotate:true});
     familyWeatherGlobeMap.addControl(new maplibregl.NavigationControl({showCompass:true,showZoom:true,visualizePitch:true}),'bottom-right');familyWeatherGlobeMap.addControl(new maplibregl.AttributionControl({compact:true}),'bottom-left');
-    familyWeatherGlobeMap.on('load',()=>{familyWeatherGlobeMap.setProjection?.({type:'globe'});if(familyRadarMetadata&&familyWeatherGlobeFrames.length)installFamilyWeatherGlobeRadar()});
-    familyWeatherGlobeMap.on('zoomend',()=>{if(familyWeatherGlobeActive&&!familyMapTransitioning&&familyWeatherGlobeMap.getZoom()>=5.35)exitFamilyWeatherGlobe({useGlobeCenter:true})});
-    familyWeatherGlobeMap.on('error',event=>{if(String(event?.error?.message||'').includes('openstreetmap')){$('familyWeatherGlobeNotice').textContent='El mapa base está degradado, pero el globo y los controles siguen disponibles. El radar solo se muestra cuando RainViewer entrega datos reales.'}});return familyWeatherGlobeMap;
+    const map=familyWeatherGlobeMap,isCurrent=()=>familyWeatherGlobeMap===map&&familyGlobeCanRender();
+    map.on('load',()=>{if(!isCurrent())return;map.setProjection?.({type:'globe'});if(familyRadarMetadata&&familyWeatherGlobeFrames.length)installFamilyWeatherGlobeRadar()});
+    map.on('zoomend',()=>{if(isCurrent()&&!familyMapTransitioning&&map.getZoom()>=5.35)exitFamilyWeatherGlobe({useGlobeCenter:true})});
+    map.on('error',event=>{if(isCurrent()&&String(event?.error?.message||'').includes('openstreetmap')){$('familyWeatherGlobeNotice').textContent='El mapa base está degradado, pero el globo y los controles siguen disponibles. El radar solo se muestra cuando RainViewer entrega datos reales.'}});return map;
   }
   function installFamilyWeatherGlobeRadar(){
-    if(!familyWeatherGlobeMap?.isStyleLoaded()||!familyWeatherGlobeFrames.length)return;const frame=familyWeatherGlobeFrames[familyWeatherGlobeFrameIndex]||familyWeatherGlobeFrames.at(-1),tiles=[`${familyRadarMetadata.host}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`];
+    if(!familyGlobeCanRender()||!familyWeatherGlobeMap?.isStyleLoaded()||!familyWeatherGlobeFrames.length)return;const frame=familyWeatherGlobeFrames[familyWeatherGlobeFrameIndex]||familyWeatherGlobeFrames.at(-1),tiles=[`${familyRadarMetadata.host}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`];
     if(!familyWeatherGlobeMap.getSource('rainviewer-radar')){familyWeatherGlobeMap.addSource('rainviewer-radar',{type:'raster',tiles,tileSize:256,minzoom:0,maxzoom:7,attribution:'Radar © RainViewer'});familyWeatherGlobeMap.addLayer({id:'rainviewer-radar',type:'raster',source:'rainviewer-radar',paint:{'raster-opacity':.78,'raster-fade-duration':180,'raster-saturation':.18,'raster-contrast':.12}})}else familyWeatherGlobeMap.getSource('rainviewer-radar').setTiles?.(tiles);setFamilyWeatherGlobeFrame(familyWeatherGlobeFrameIndex);
   }
   async function activateFamilyWeatherGlobe(){
-    if(familyWeatherGlobeActive||activePanel!=='family')return;familyWeatherGlobeActive=true;familyMapTransitioning=true;const panel=$('familyWeatherGlobePanel');panel.classList.add('is-active');panel.setAttribute('aria-hidden','false');document.body.classList.add('family-globe-active');$('familyWeatherFxNote').hidden=true;
+    if(activePanel!=='family'||account.mode!=='member'||document.hidden||$('app')?.hidden)return;
+    const resuming=familyWeatherGlobeActive&&familyGlobeLifecycle.suspended;
+    if(familyWeatherGlobeActive&&!resuming)return;if(resuming&&!familyGlobeContextCurrent()){exitFamilyWeatherGlobe();return}
+    if(!resuming){familyGlobeLifecycle.scope=familyGlobeScope();familyWeatherGlobePlaying=true;familyGlobeLifecycle.view=null;familyGlobeLifecycle.frameTime=null}
+    if(familyGlobeLifecycle.transition!==null)clearTimeout(familyGlobeLifecycle.transition);familyGlobeLifecycle.transition=null;
+    familyGlobeLifecycle.suspended=false;familyWeatherGlobeActive=true;familyMapTransitioning=true;bindFamilyGlobeLifecycle();const panel=$('familyWeatherGlobePanel');panel.classList.add('is-active');panel.setAttribute('aria-hidden','false');document.body.classList.add('family-globe-active');$('familyWeatherFxNote').hidden=true;
     const loadId=++familyWeatherGlobeLoadId;
-    const isCurrent=()=>loadId===familyWeatherGlobeLoadId&&familyWeatherGlobeActive&&activePanel==='family';
+    const isCurrent=()=>loadId===familyWeatherGlobeLoadId&&familyGlobeCanRender();
     let viewerReady=false;
     $('familyWeatherGlobeNotice').textContent='El radar muestra precipitación observada; no mide el tiempo exacto de tu teléfono.';
     $('familyWeatherGlobeTime').textContent='Preparando el visor…';
-    const scene=familyWeatherAtmosphere(),current=homeWeather.current||{};
+    const scene=commerce.profile?.location_enabled?familyWeatherAtmosphere():{fresh:false},current=homeWeather.current||{};
     const temperature=typeof current.temperature==='number'&&Number.isFinite(current.temperature)?`${Math.round(current.temperature)}° · `:'';
     $('familyWeatherGlobeCurrent').textContent=scene.fresh?`${current.emoji||''} ${temperature}${current.condition||'Clima estimado'} · ${scene.location} · Modelo Open-Meteo · ${familyClock(scene.validAt)}`.trim():homeWeather.status==='LOCATION_REQUIRED'?'Clima sin activar · el radar global puede explorarse sin compartir ubicación':'Clima pendiente de actualizar · el radar global puede explorarse por separado';
     try{
       $('familyWeatherGlobeStatus').textContent='Abriendo el visor…';
-      await window.RoxyMapLibre.load();if(!isCurrent())return;
-      const map=ensureFamilyWeatherGlobe(),googleCenter=familyMap?.getCenter?.(),center=googleCenter?[googleCenter.lng(),googleCenter.lat()]:familyWeatherGlobeCenter();
-      viewerReady=true;map.jumpTo({center,zoom:1.65});requestAnimationFrame(()=>{if(isCurrent())map.resize()});setTimeout(()=>{if(isCurrent())familyMapTransitioning=false},520);
+      await window.RoxyMapLibre.load();if(!isCurrent()){if(loadId===familyWeatherGlobeLoadId)syncFamilyWeatherGlobeLifecycle();return}
+      const map=ensureFamilyWeatherGlobe(),view=familyGlobeLifecycle.view||{center:familyWeatherGlobeCenter(),zoom:1.65};
+      viewerReady=true;map.jumpTo(view);familyGlobeLifecycle.resize=requestAnimationFrame(()=>{if(!isCurrent())return;familyGlobeLifecycle.resize=null;map.resize()});familyGlobeLifecycle.transition=setTimeout(()=>{if(!isCurrent())return;familyGlobeLifecycle.transition=null;familyMapTransitioning=false},520);
       $('familyWeatherGlobeStatus').textContent='Conectando con RainViewer…';
-      const metadata=await loadFamilyRadarMetadata();if(!isCurrent())return;
-      familyWeatherGlobeFrames=metadata.frames;familyWeatherGlobeFrameIndex=familyWeatherGlobeFrames.length-1;const timeline=$('familyWeatherGlobeTimeline');timeline.max=String(familyWeatherGlobeFrames.length-1);timeline.disabled=false;$('familyWeatherGlobePlay').disabled=familyWeatherGlobeFrames.length<2;installFamilyWeatherGlobeRadar();$('familyWeatherGlobeStatus').textContent='Radar real · últimas 2 horas';familyWeatherGlobePlaying=true;syncFamilyWeatherGlobePlayback();
+      const metadata=await loadFamilyRadarMetadata();if(!isCurrent()){if(loadId===familyWeatherGlobeLoadId)syncFamilyWeatherGlobeLifecycle();return}
+      familyWeatherGlobeFrames=metadata.frames;const previousFrame=familyWeatherGlobeFrames.findIndex(frame=>frame.time===familyGlobeLifecycle.frameTime);familyWeatherGlobeFrameIndex=previousFrame>=0?previousFrame:familyWeatherGlobeFrames.length-1;const timeline=$('familyWeatherGlobeTimeline');timeline.max=String(familyWeatherGlobeFrames.length-1);timeline.disabled=false;$('familyWeatherGlobePlay').disabled=familyWeatherGlobeFrames.length<2;installFamilyWeatherGlobeRadar();$('familyWeatherGlobeStatus').textContent='Radar real · últimas 2 horas';syncFamilyWeatherGlobePlayback();
     }catch(error){
-      if(!isCurrent())return;familyMapTransitioning=false;stopFamilyWeatherGlobePlayback();familyWeatherGlobeFrames=[];$('familyWeatherGlobeTimeline').disabled=true;$('familyWeatherGlobePlay').disabled=true;
+      if(!isCurrent()){if(loadId===familyWeatherGlobeLoadId)syncFamilyWeatherGlobeLifecycle();return}familyMapTransitioning=false;stopFamilyWeatherGlobePlayback();familyWeatherGlobeFrames=[];$('familyWeatherGlobeTimeline').disabled=true;$('familyWeatherGlobePlay').disabled=true;
       $('familyWeatherGlobeStatus').textContent=viewerReady?'Radar temporalmente no disponible':'No pude cargar el visor';
       $('familyWeatherGlobeTime').textContent=viewerReady?'Globo interactivo activo':'Vuelve al mapa para reintentar';
       $('familyWeatherGlobeNotice').textContent=viewerReady?`RainViewer no respondió (${error.message}). No se muestran datos de radar simulados.`:'Comprueba la conexión. El mapa de Nexo sigue disponible; no se ha cargado un globo ni radar simulado.';
@@ -1846,8 +1920,11 @@
     }
   }
   function exitFamilyWeatherGlobe({useGlobeCenter=false}={}){
-    if(!familyWeatherGlobeActive)return;familyWeatherGlobeActive=false;familyMapTransitioning=true;stopFamilyWeatherGlobePlayback();familyWeatherGlobeLoadId+=1;const panel=$('familyWeatherGlobePanel');panel.classList.remove('is-active');panel.setAttribute('aria-hidden','true');document.body.classList.remove('family-globe-active');renderFamilyWeatherFx();
-    if(familyMap){if(useGlobeCenter&&familyWeatherGlobeMap){const center=familyWeatherGlobeMap.getCenter();familyMap.setCenter({lat:center.lat,lng:center.lng})}familyMap.setZoom(7)}setTimeout(()=>{familyMapTransitioning=false},520);
+    if(!familyWeatherGlobeActive)return;const current=familyGlobeContextCurrent(),center=current&&useGlobeCenter?familyWeatherGlobeMap?.getCenter():null;
+    familyWeatherGlobeActive=false;cancelFamilyGlobeWork();unbindFamilyGlobeLifecycle();familyGlobeLifecycle.scope=null;familyGlobeLifecycle.suspended=false;familyGlobeLifecycle.view=null;familyGlobeLifecycle.frameTime=null;
+    const panel=$('familyWeatherGlobePanel');panel.classList.remove('is-active');panel.setAttribute('aria-hidden','true');document.body.classList.remove('family-globe-active');
+    $('familyWeatherGlobeCurrent').textContent='';$('familyWeatherGlobeTime').textContent='';$('familyWeatherGlobeTimeline').disabled=true;$('familyWeatherGlobePlay').disabled=true;
+    if(current&&familyMap){familyMapTransitioning=true;if(center)familyMap.setCenter({lat:center.lat,lng:center.lng});familyMap.setZoom(7);const loadId=familyWeatherGlobeLoadId;familyGlobeLifecycle.transition=setTimeout(()=>{if(loadId!==familyWeatherGlobeLoadId)return;familyGlobeLifecycle.transition=null;familyMapTransitioning=false},520)}renderFamilyWeatherFx();
   }
   function familyWeatherMapStyles(baseStyles){
     familyWeatherBaseMapStyles=baseStyles;const mode=familyWeatherAtmosphere().mode;
@@ -2432,7 +2509,7 @@
     $('homeAllergies').value=(profile.allergies||[]).join(', ');
     $('homeDislikes').value=(profile.dislikes||[]).join(', ');
     $('homeHousehold').value=profile.household_size||1;
-    $('pantryItems').value=(homeFood.pantry||[]).map(row=>`${row.name}, ${row.quantity}, ${row.unit}`).join('\n');
+    $('pantryItems').value=formatPantryText(homeFood.pantry||[]);
     const shoppingProfile=commerce.profile||{};
     $('commerceObjective').value=shoppingProfile.objective||'balanced';
     $('commerceOrganic').value=shoppingProfile.organic_preference||'no_preference';
@@ -2455,7 +2532,63 @@
   function clearCommerceLocation(){commerceLocation={enabled:false,latitude:null,longitude:null,accuracy:null};renderCommerceLocation();announce('La ubicación se borrará cuando guardes el perfil')}
   async function saveHomeProfile(event){event.preventDefault();try{await api(`/v1/home-food/${encodeURIComponent(user)}/profile`,{method:'PUT',body:JSON.stringify({preferences:commaList($('homePreferences').value),allergies:commaList($('homeAllergies').value),dislikes:commaList($('homeDislikes').value),household_size:Number($('homeHousehold').value||1)})});announce('Preferencias guardadas en Roxy Home');await load({quiet:true});}catch(error){announce(error.message)}}
   async function saveCommerceProfile(event){event.preventDefault();try{await persistCommerceProfile()}catch(error){announce(error.message)}}
-  async function savePantry(event){event.preventDefault();const items=$('pantryItems').value.split('\n').map(line=>{const [name,quantity='1',unit='unidad']=line.split(',').map(value=>value.trim());return{name,quantity:Number(quantity)||1,unit:unit||'unidad'}}).filter(row=>row.name);try{await api(`/v1/home-food/${encodeURIComponent(user)}/pantry`,{method:'PUT',body:JSON.stringify({items})});announce('Despensa actualizada');await load({quiet:true});}catch(error){announce(error.message)}}
+  function pantryFields(line,separator){
+    const fields=[];let value='',quoted=false,closed=false;
+    for(let i=0;i<line.length;i++){
+      const char=line[i];
+      if(quoted){if(char==='"'&&line[i+1]==='"'){value+='"';i++;}else if(char==='"'){quoted=false;closed=true;}else value+=char;continue;}
+      if(char===separator){fields.push(value.trim());value='';closed=false;continue;}
+      if(char==='"'){if(value.trim()||closed)throw new Error('Las comillas deben rodear un campo completo.');value='';quoted=true;continue;}
+      if(closed&&char.trim())throw new Error('Hay texto fuera de las comillas.');
+      value+=char;
+    }
+    if(quoted)throw new Error('Falta cerrar unas comillas.');
+    fields.push(value.trim());return fields;
+  }
+  function parsePantryText(text){
+    const rows=[];
+    String(text).split(/\r?\n/).forEach((line,index)=>{
+      if(!line.trim())return;
+      try{
+        // Semicolons make decimal commas unambiguous. Keep old three-column
+        // comma input readable, but never discard a fourth field or guess units.
+        let quoted=false,separator=',';
+        for(let i=0;i<line.length;i++){
+          if(line[i]==='"'){if(quoted&&line[i+1]==='"'){i++;continue;}quoted=!quoted;}
+          else if(line[i]===';'&&!quoted){separator=';';break;}
+        }
+        const fields=pantryFields(line,separator);
+        if(fields.length!==3)throw new Error('Usa nombre; cantidad; unidad (por ejemplo: Leche; 1,5; litros).');
+        const [name,rawQuantity,unit]=fields;
+        if(!name||name.length>120)throw new Error('El nombre debe tener entre 1 y 120 caracteres.');
+        if(!/^\d+(?:[.,]\d{1,4})?$/.test(rawQuantity))throw new Error('Escribe una cantidad positiva con hasta cuatro decimales.');
+        const quantity=Number(rawQuantity.replace(',','.'));
+        if(!Number.isFinite(quantity)||quantity<=0||quantity>100000)throw new Error('La cantidad debe ser mayor que cero y como máximo 100000.');
+        if(!unit||unit.length>32||!/[\p{L}]/u.test(unit))throw new Error('Indica una unidad, por ejemplo g, litros o unidades.');
+        rows.push({name,quantity,unit});
+      }catch(error){throw new Error(`Línea ${index+1}: ${error.message}`);}
+    });
+    if(rows.length>500)throw new Error('Puedes guardar como máximo 500 productos. No se ha recortado la lista.');
+    return rows;
+  }
+  function formatPantryText(rows){
+    const field=value=>{const text=String(value??'');return /[;"\r\n]/.test(text)?`"${text.replace(/"/g,'""')}"`:text;};
+    return rows.map(row=>[row.name,row.quantity,row.unit].map(field).join('; ')).join('\n');
+  }
+  async function savePantry(event){
+    event.preventDefault();const input=$('pantryItems'),message=$('pantryError'),button=$('pantryForm').querySelector('button[type="submit"]');
+    if(button.disabled)return;
+    message.hidden=true;message.textContent='';input.removeAttribute('aria-invalid');
+    let items;
+    try{items=parsePantryText(input.value);}catch(error){message.textContent=error.message;message.hidden=false;input.setAttribute('aria-invalid','true');input.focus();return;}
+    const owner=user,identity=collectionIdentity();button.disabled=true;input.readOnly=true;
+    try{
+      await api(`/v1/home-food/${encodeURIComponent(owner)}/pantry`,{method:'PUT',body:JSON.stringify({items})});
+      if(user!==owner||collectionIdentity()!==identity)return;
+      announce('Despensa actualizada');await load({quiet:true});
+    }catch(error){if(user===owner&&collectionIdentity()===identity){message.textContent=error.message;message.hidden=false;announce(error.message);}}
+    finally{button.disabled=false;input.readOnly=false;}
+  }
   async function createRecipe(event){
     event.preventDefault();const button=$('recipeSubmit');button.disabled=true;button.textContent='Roxy está creando…';
     try{const data=await api(`/v1/home-food/${encodeURIComponent(user)}/recipes`,{method:'POST',body:JSON.stringify({prompt:$('recipePrompt').value,mode:$('recipeMode').value})});$('recipePrompt').value='';await load({quiet:true});renderRecipes();openRecipe(data.recipe);announce(data.generation_mode==='local_recipe_catalog'?'Receta común creada desde el recetario local, sin gastar una consulta de OpenAI':'Receta especial creada con OpenAI y guardada en Mis recetas');}

@@ -19,7 +19,7 @@ import requests
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from roxy_os.home_ai import (
     HomeAIBudgetExceeded,
@@ -66,6 +66,7 @@ from roxy_os.home_conversation import HomeConversationStore
 from roxy_os.home_daily import build_home_daily_brief
 from roxy_os.home_design import HomeDesignGenerator, HomeDesignStore, HomeDesignStorageError, public_project
 from roxy_os.home_family import HomeFamilyStore
+from roxy_os.home_private_storage import HomePrivateStorageError
 from roxy_os.home_plants import HomePlantIdentifier, HomePlantStore, HomePlantStorageError, PLANT_CATALOG, public_plant
 from roxy_os.home_product_intelligence import HomeProductIntelligence, ProductIntelligenceConfig
 from roxy_os.home_food import HomeFoodStore, HomeFoodStorageError, HomePermissionPolicy, RecipeReviewRequired
@@ -155,6 +156,7 @@ async def recipe_review_required(_request: Request, exc: RecipeReviewRequired) -
 
 @app.exception_handler(HomePlantStorageError)
 @app.exception_handler(HomeDesignStorageError)
+@app.exception_handler(HomePrivateStorageError)
 async def home_collection_storage_error(_request: Request, exc: RuntimeError) -> JSONResponse:
     return JSONResponse(status_code=503, content={"detail": str(exc), "code": "HOME_STORAGE_UNAVAILABLE"},
                         headers={"Retry-After": "30"})
@@ -355,6 +357,14 @@ class PantryItemRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     quantity: float = Field(default=1, gt=0, le=100_000)
     unit: str = Field(default="unidad", min_length=1, max_length=32)
+
+    @field_validator("quantity", mode="before")
+    @classmethod
+    def reject_boolean_quantity(cls, value: Any) -> Any:
+        # Pydantic otherwise coerces true to 1.0 before store validation.
+        if isinstance(value, bool):
+            raise ValueError("La cantidad debe ser numérica, no un valor sí/no.")
+        return value
 
 
 class PantryRequest(BaseModel):

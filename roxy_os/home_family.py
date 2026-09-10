@@ -8,7 +8,6 @@ platform's background-location permission.
 
 from __future__ import annotations
 
-import json
 import hashlib
 import math
 import secrets
@@ -18,7 +17,9 @@ from pathlib import Path
 from typing import Any, Callable
 from uuid import uuid4
 
-from roxy_os.atomic_json import write_compact_json
+from roxy_os.home_private_storage import (
+    HomePrivateStorageError, read_private_json, storage_io, write_private_json,
+)
 
 try:
     import fcntl
@@ -69,38 +70,90 @@ def _distance_m(a_lat: float, a_lon: float, b_lat: float, b_lon: float) -> float
     return radius * 2 * math.atan2(math.sqrt(value), math.sqrt(1 - value))
 
 
+class HomeFamilyStorageError(HomePrivateStorageError):
+    """Nexo state is unavailable, not an empty or newly private household."""
+
+
+def _valid_family_state(value: Any) -> bool:
+    # Preserve unknown fields and older records with optional fields absent.
+    # Never normalize a malformed collection into an empty one.
+    if not isinstance(value, dict) or not isinstance(value.get("households"), dict):
+        return False
+    version = value.get("schema_version", 3)
+    if type(version) is not int or version != 3:
+        return False
+    links = value.get("links", {})
+    if not isinstance(links, dict) or any(not isinstance(link, str) for link in links.values()):
+        return False
+    for household in value["households"].values():
+        if not isinstance(household, dict):
+            return False
+        for key in ("members", "directory", "external_members", "invitations", "places"):
+            rows = household.get(key, {})
+            if not isinstance(rows, dict) or any(not isinstance(row, dict) for row in rows.values()):
+                return False
+            if key != "members" and any("id" in row and row["id"] != row_id for row_id, row in rows.items()):
+                return False
+        alerts = household.get("alerts", [])
+        if not isinstance(alerts, list) or any(not isinstance(row, dict) for row in alerts):
+            return False
+        for member in household.get("members", {}).values():
+            if "sharing_enabled" in member and not isinstance(member["sharing_enabled"], bool):
+                return False
+            if "profile" in member and not isinstance(member["profile"], dict):
+                return False
+            if member.get("location") is not None and not isinstance(member["location"], dict):
+                return False
+            history = member.get("history", [])
+            if not isinstance(history, list) or any(not isinstance(row, dict) for row in history):
+                return False
+    return True
+
+
 class HomeFamilyStore:
     def __init__(self, path: str | Path = "data/roxy_home_family.json") -> None:
         self.path = Path(path)
         self.lock_path = self.path.with_suffix(self.path.suffix + ".lock")
+        self._storage_status = "NEW"
 
     @staticmethod
     def _empty() -> dict[str, Any]:
         return {"schema_version": 3, "households": {}, "links": {}}
 
     def _read(self) -> dict[str, Any]:
-        try:
-            value = json.loads(self.path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return self._empty()
-        return value if isinstance(value, dict) else self._empty()
+        value, self._storage_status = read_private_json(self.path, self._empty, _valid_family_state, HomeFamilyStorageError)
+        return value
+
+    def storage_status(self) -> str:
+        self._read()
+        return self._storage_status
 
     def _write(self, value: dict[str, Any]) -> None:
-        write_compact_json(self.path, value)
+        write_private_json(self.path, value, _valid_family_state, HomeFamilyStorageError)
+        self._storage_status = "READY"
 
     def _locked(self, callback: Callable[[dict[str, Any]], Any]) -> Any:
-        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
-        with self.lock_path.open("a+", encoding="utf-8") as lock:
-            if fcntl is not None:
-                fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
-            try:
-                value = self._read()
-                result = callback(value)
-                self._write(value)
-                return result
-            finally:
-                if fcntl is not None:
-                    fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+        committed = False
+        try:
+            with storage_io(HomeFamilyStorageError):
+                self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+                with self.lock_path.open("a+", encoding="utf-8") as lock:
+                    self.lock_path.chmod(0o600)
+                    if fcntl is not None:
+                        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+                    try:
+                        value = self._read()
+                        result = callback(value)
+                        self._write(value)
+                        committed = True
+                        return result
+                    finally:
+                        if fcntl is not None:
+                            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+        except HomeFamilyStorageError as exc:
+            if committed:
+                exc.committed = True
+            raise
 
     @staticmethod
     def _household(value: dict[str, Any], household_id: str) -> dict[str, Any]:

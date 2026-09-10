@@ -16,6 +16,7 @@ import json
 from pathlib import Path
 import re
 import time
+import unicodedata
 from urllib.parse import quote, urlencode
 
 import requests
@@ -23,7 +24,11 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 LICENSE_URL = "https://creativecommons.org/licenses/by-sa/4.0/"
 POLICY_URL = "https://en.wikibooks.org/w/index.php?title=Wikibooks:Copyrights&oldid=4622060"
-VERSION = "wikibooks-candidate-import-4"
+VERSION = "wikibooks-candidate-import-5"
+MAX_SOURCE_CHARS = 250_000
+MAX_MEDIA_REFERENCES = 128
+MAX_EDITORIAL_BLOCKS = 64
+MAX_FILE_NAME_BYTES = 255
 
 
 def digest(value):
@@ -115,6 +120,159 @@ def section(wiki, heading_pattern):
                      if re.search(heading_pattern, parts[i].strip(), re.I))
 
 
+def _discovery_text(wiki):
+    """Mask non-rendering examples/comments, retaining source character offsets.
+
+    This is not an HTML renderer or sanitizer. Raw source is always untrusted;
+    discovered context is for editorial inspection, never safe HTML or AI rules.
+    """
+    if len(wiki) > MAX_SOURCE_CHARS:
+        raise ValueError("Source exceeds bounded parser size; no partial recipe produced")
+    pattern = (r"<!--.*?(?:-->|\Z)|<nowiki\b[^>]*/\s*>|"
+               r"<(nowiki|pre|code|source|syntaxhighlight|script|style)"
+               r"\b(?![^>]*?/\s*>)[^>]*>.*?(?:</\1\s*>|\Z)")
+    return re.sub(pattern, lambda m: re.sub(r"[^\n]", " ", m[0]), wiki, flags=re.I | re.S)
+
+
+def _recipe_fields_with_spans(wiki, *, primary_only=False):
+    """Yield fields without evaluating templates; spans point to original text."""
+    masked = _discovery_text(wiki)
+    for start, _, raw in templates(masked):
+        parts = top_split(raw)
+        if parts[0].strip().casefold() not in {"recipesummary", "artes culinarias/datos de receta"}:
+            continue
+        offset = len(parts[0]) + 1
+        for part in parts[1:]:
+            if "=" in part:
+                key, _ = part.split("=", 1)
+                left = start + 2 + offset + part.index("=") + 1
+                right = start + 2 + offset + len(part)
+                yield key.strip().casefold(), left, right
+            offset += len(part) + 1
+        if primary_only: return
+
+
+def _original_section(wiki, heading_pattern):
+    """Locate real section boundaries in masked text, copy unaltered source body."""
+    headings = list(re.finditer(r"(?m)^==([^=\n].*?)==\s*$", _discovery_text(wiki)))
+    return "\n".join(wiki[heading.end():headings[index + 1].start() if index + 1 < len(headings) else len(wiki)]
+                     for index, heading in enumerate(headings)
+                     if re.search(heading_pattern, heading[1].strip(), re.I))
+
+
+def _media_name(raw):
+    """Accept a file title, not a URL/path/API parameter. Never guess a filename."""
+    name = html.unescape(raw).strip()
+    if (not name or len(name.encode("utf-8")) > MAX_FILE_NAME_BYTES
+            or name.startswith(".") or re.search(r"[/:\\#<>\[\]|{}%]", name)
+            or any(unicodedata.category(char).startswith("C") for char in name)
+            or not re.search(r"\.(?:jpe?g|png|webp|gif|svg|tiff?)$", name, re.I)):
+        return None
+    return name
+
+
+def source_media_references(wiki, issues):
+    """Find source-associated files in fields, body links and gallery lines.
+
+    A reference does not prove its licence, media type, or exact recipe match.
+    Invalid/over-limit input never becomes a provider request or silent success.
+    """
+    masked = _discovery_text(wiki)
+    references = []
+    fields_with_spans = list(_recipe_fields_with_spans(wiki))
+
+    def add(raw_name, kind, start, end):
+        name = _media_name(raw_name)
+        if not name:
+            issues.add("invalid_source_media_reference")
+            return
+        if len(references) >= MAX_MEDIA_REFERENCES:
+            raise ValueError("Too many source media references; no partial recipe produced")
+        references.append({"name": name, "kind": kind, "source_start": start,
+                           "source_end": end, "source_wikitext": wiki[start:end],
+                           "display_enabled": False, "exact_recipe_match": "not_reviewed"})
+
+    link_pattern = r"\[\[\s*:?\s*(?:Image|File|Archivo|Imagen):([^\]|\r\n]+)(?:\|[^\n]*?)?\]\]"
+    for match in re.finditer(link_pattern, masked, re.I):
+        kind = "template_field" if any(a <= match.start() < b and key in {"image", "imagen"}
+                                       for key, a, b in fields_with_spans) else "body_link"
+        add(match[1], kind, match.start(), match.end())
+    for key, start, end in fields_with_spans:
+        value = masked[start:end].strip()
+        if key in {"image", "imagen"} and value and "[[" not in value:
+            # Bare MediaWiki file values are supported; external URLs are not.
+            value = re.sub(r"^(?:Image|File|Archivo|Imagen):", "", value, flags=re.I)
+            add(value, "template_field", start, end)
+    for gallery in re.finditer(r"<gallery\b[^>]*>(.*?)</gallery\s*>", masked, re.I | re.S):
+        offset = gallery.start(1)
+        for line in gallery[1].splitlines(keepends=True):
+            if line.strip():
+                name = re.sub(r"^\s*(?:Image|File|Archivo|Imagen):", "", line.split("|", 1)[0], flags=re.I)
+                add(name, "gallery_line", offset, offset + len(line))
+            offset += len(line)
+    references.sort(key=lambda ref: (ref["source_start"], ref["source_end"]))
+    names, seen = [], set()
+    for ref in references:
+        key = ref["name"].replace("_", " ")
+        key = key[:1].upper() + key[1:]
+        if key not in seen:
+            names.append(ref["name"]); seen.add(key)
+    return names, references
+
+
+def editorial_context_blocks(wiki, issues):
+    """Keep notes and alternative sections separate from the main recipe steps.
+
+    Every block is an exact source slice. Supplemental headings are deliberately
+    broad: an unknown method must be reviewed, not silently lost or merged.
+    """
+    masked = _discovery_text(wiki)
+    blocks = []
+
+    def add(kind, label, start, end):
+        if not wiki[start:end].strip(): return
+        if len(blocks) >= MAX_EDITORIAL_BLOCKS:
+            raise ValueError("Too many editorial context blocks; no partial recipe produced")
+        blocks.append({"kind": kind, "label": label, "source_start": start,
+                       "source_end": end, "source_wikitext": wiki[start:end],
+                       "source_sha256": digest(wiki[start:end]), "untrusted_source": True,
+                       "review_status": "not_reviewed"})
+
+    context_keys = {"notes", "notas", "tips", "trucos", "variations", "variantes", "advertencias"}
+    for key, start, end in _recipe_fields_with_spans(wiki):
+        if key in context_keys:
+            add("notes_field", key, start, end)
+    recipe_templates_seen = 0
+    for start, end, raw in templates(masked):
+        name = top_split(raw)[0].strip()
+        if name.casefold() in {"artes culinarias/" + key for key in context_keys}:
+            add("notes_template", name, start, end)
+        if name.casefold() in {"recipesummary", "artes culinarias/datos de receta"}:
+            recipe_templates_seen += 1
+            if recipe_templates_seen > 1:
+                add("alternative_recipe_template", name, start, end)
+
+    headings = list(re.finditer(r"(?m)^(={1,6})[ \t]*([^=\n].*?)[ \t]*\1[ \t]*$", masked))
+    core = r"^(?:ingredients?|ingredientes?|procedure|preparation|directions|method|instructions|procedimiento|preparación|elaboración)$"
+    for index, heading in enumerate(headings):
+        title, depth = heading[2].strip(), len(heading[1])
+        if re.fullmatch(core, title, re.I): continue
+        # Already retained by its supplemental parent, including nested methods.
+        if any(a["source_start"] <= heading.start() < a["source_end"] for a in blocks): continue
+        end = next((h.start() for h in headings[index + 1:] if len(h[1]) <= depth), len(wiki))
+        kind = ("alternative_section" if re.search(r"variaci|variant|alternativ|otro\s+m[eé]todo|another\s+method", title, re.I)
+                else "notes_section" if re.search(r"not[ae]s?|tips|trucos|consejos|advertencias", title, re.I)
+                else "supplemental_section")
+        # A heading can contain markup: keep it plain text only, with review flags.
+        add(kind, plain(title, issues), heading.start(), end)
+    kept = []
+    for block in sorted(blocks, key=lambda item: (item["source_start"], -item["source_end"])):
+        if not any(old["source_start"] <= block["source_start"] and block["source_end"] <= old["source_end"]
+                   for old in kept):
+            kept.append(block)
+    return kept
+
+
 def source_lines(raw, marker, issues):
     lines = []
     for line in raw.splitlines():
@@ -148,7 +306,7 @@ def editorial_flags(ingredients, steps, notes):
     flags = set()
     ingredient_text = " ".join(ingredients).casefold()
     procedure_text = " ".join(steps).casefold()
-    combined = ingredient_text + " " + procedure_text
+    combined = ingredient_text + " " + procedure_text + " " + plain(notes, set()).casefold()
     if re.search(r"\b(?:egg|eggs|yolk|yolks|huevo|huevos|yemas?)\b", ingredient_text):
         flags.add("egg_cooking_or_pasteurization_review")
     if re.search(r"\b(?:chicken|turkey|duck|poultry|pollo|gallina|pavo|pato)\b", ingredient_text):
@@ -181,9 +339,11 @@ def candidate(page, language, retrieved_at):
     revision = revisions[0]
     wiki = revision.get("slots", {}).get("main", {}).get("*", "")
     if not wiki or re.match(r"\s*#(?:redirect|redirección)", wiki, re.I): return None
-    info, issues = fields(wiki), set()
-    ingredient_raw = info.get("ingredientes") or section(wiki, r"^ingredients?$")
-    step_raw = info.get("procedimiento") or section(wiki, r"^(?:procedure|preparation|directions|method|instructions)$")
+    _discovery_text(wiki)  # Explicit size gate before parsing any source content.
+    issues = set()
+    info = {key: wiki[start:end].strip() for key, start, end in _recipe_fields_with_spans(wiki, primary_only=True)}
+    ingredient_raw = info.get("ingredientes") or _original_section(wiki, r"^ingredients?$")
+    step_raw = info.get("procedimiento") or _original_section(wiki, r"^(?:procedure|preparation|directions|method|instructions)$")
     ingredients = source_lines(ingredient_raw, "*", issues)
     steps = source_lines(step_raw, "#", issues)
     if len(ingredients) < 2: issues.add("missing_ingredient_list")
@@ -200,12 +360,19 @@ def candidate(page, language, retrieved_at):
         issues.add("special_food_safety_review_required")
     if re.search(r"\b(?:source|adapted|copyright|copied|reprinted|reproduc|fuente|autor)\b\s*[:=]", wiki, re.I):
         issues.add("additional_attribution_review_required")
+    if re.search(r"<\s*(?:script|iframe|object|embed|svg)\b|\bon\w+\s*=", html.unescape(wiki), re.I):
+        issues.add("active_markup_requires_review")
     title = page["title"]
     base = f"https://{language}.wikibooks.org"
     source_url = base + "/wiki/" + quote(title.replace(" ", "_"), safe=":/")
     categories = re.findall(r"\[\[(?:Category|Categoría):([^\]|]+)", wiki, re.I)
-    images = re.findall(r"\[\[(?:Image|File|Archivo|Imagen):([^\]|]+)", info.get("image") or info.get("imagen") or "", re.I)
-    notes_raw = info.get("notas") or section(wiki, r"^(?:notes?|tips|variations|notas?)")
+    images, media_references = source_media_references(wiki, issues)
+    context_blocks = editorial_context_blocks(wiki, issues)
+    notes_raw = "\n\n".join(block["source_wikitext"] for block in context_blocks)
+    triage = editorial_flags(ingredients, steps, notes_raw)
+    if context_blocks: triage.append("supplemental_context_requires_editorial_review")
+    if any(block["kind"].startswith("alternative_") for block in context_blocks):
+        triage.append("alternative_method_not_merged")
     status = "source_structure_complete_pending_editorial_review" if not issues else "needs_source_review"
     return {"id": f"wikibooks-{language}-{page['pageid']}", "provider": "wikibooks", "language": language,
             "title": title.rsplit("/", 1)[-1].removeprefix("Cookbook:"), "audience": "human",
@@ -216,8 +383,11 @@ def candidate(page, language, retrieved_at):
             "retrieved_at": retrieved_at, "source_sha256": digest(wiki), "original_wikitext": wiki,
             "ingredients_original": ingredients, "steps_original": steps,
             "notes_source_wikitext": notes_raw,
+            "editorial_context_source": context_blocks,
+            "editorial_context_scope": "Untrusted source slices for review only; not HTML, approved advice, or additional recipe steps.",
             "servings_original": portions, "time_original": plain(info.get("time") or info.get("tiempo") or "", set()),
             "origin_categories_original": categories, "source_image_names": images,
+            "source_image_references": media_references,
             "image_status": "individual_rights_and_visual_review_required" if images else "source_image_not_identified",
             "rights": {"license": "CC BY-SA 4.0", "license_url": LICENSE_URL,
                        "attribution": f"Wikibooks contributors — {title}", "attribution_url": source_url,
@@ -226,7 +396,7 @@ def candidate(page, language, retrieved_at):
             "content_fingerprint": digest(json.dumps([ingredients, steps], ensure_ascii=False)),
             "audit": {"parser_version": VERSION, "status": status, "issues": sorted(issues),
                       "unmeasured_ingredient_indexes": unmeasured, "culinary_review": "not_performed",
-                      "editorial_triage_flags": editorial_flags(ingredients, steps, notes_raw),
+                      "editorial_triage_flags": sorted(set(triage)),
                       "triage_scope": "Heuristic review priorities only; not exhaustive and never safety clearance.",
                       "allergy_review": "not_performed", "visual_review": "not_performed",
                       "translation_review": "not_applicable_original_language", "publishable": False,
@@ -299,7 +469,10 @@ def inspect_source_media(rows, cache_dir):
     """Fetch metadata only. Never grant visual approval or copy pixels."""
     client = WikiClient("en", cache_dir)
     client.url = "https://commons.wikimedia.org/w/api.php"
-    names = sorted({"File:" + name.strip() for row in rows for name in row["source_image_names"]})
+    raw_names = [name for row in rows for name in row["source_image_names"]]
+    if any(not isinstance(name, str) or _media_name(name) != name for name in raw_names):
+        raise ValueError("Invalid source file title; no metadata requests made")
+    names = sorted({"File:" + name for name in raw_names})
     metadata = {}
     for start in range(0, len(names), 25):
         response = client.get(action="query", titles="|".join(names[start:start + 25]),

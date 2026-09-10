@@ -121,7 +121,8 @@ def test_scene_accessibility_source_and_refresh_contract():
     assert "activePanel!=='family'||document.hidden" in refresh
     assert "!commerce.profile?.location_enabled" in refresh
     assert "300000" in refresh
-    assert "requestedUser=user" in refresh and "user!==requestedUser" in refresh
+    assert "requestedUser=user" in refresh and "user===requestedUser" in refresh
+    assert "collectionIdentity()===identity" in refresh and "familyWeatherRefreshRequest===request" in refresh
     assert "method:'POST'" not in refresh and "getCurrentPosition" not in refresh
 
 
@@ -134,6 +135,9 @@ const assert=require('node:assert/strict'),now=Date.parse('2026-09-08T16:30:00Z'
 Date.now=()=>now;
 let homeWeather,familyWeatherGlobeActive=false,familyMapTransitioning=false,familyWeatherGlobeFrames=[];
 let familyWeatherGlobeLoadId=0,activePanel='family';
+let familyWeatherGlobePlaying=true;
+const account={mode:'member'},commerce={profile:{location_enabled:true}};
+const familyGlobeLifecycle={suspended:false},familyGlobeScope=()=>'',familyGlobeCanRender=()=>true,bindFamilyGlobeLifecycle=()=>{};
 const window={RoxyMapLibre:{load:async()=>{}}};
 const elements=new Map();
 const $=id=>{if(!elements.has(id))elements.set(id,{classList:{add(){}},setAttribute(){}});return elements.get(id)};

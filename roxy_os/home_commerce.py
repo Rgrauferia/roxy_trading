@@ -5,7 +5,6 @@ import json
 import math
 import os
 import re
-import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -16,6 +15,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 from uuid import uuid4
+
+from roxy_os.home_private_storage import (
+    HomePrivateStorageError, read_private_json, storage_io, write_private_json,
+)
 
 try:
     import fcntl
@@ -662,12 +665,51 @@ def _amazon_search_query(row: dict[str, Any]) -> str:
     return " ".join(part for part in parts if part)
 
 
+class HomeCommerceStorageError(HomePrivateStorageError):
+    """Private commerce preferences/history require review, never reset."""
+
+
+def _valid_commerce_state(value: Any) -> bool:
+    if not isinstance(value, dict):
+        return False
+    version = value.get("schema_version", COMMERCE_STORE_VERSION)
+    if type(version) is not int or version not in (2, COMMERCE_STORE_VERSION):
+        return False
+    # Version 2 predates price observations; retain its original records while
+    # allowing only genuinely absent optional collections to be initialized.
+    for key in ("profiles", "preparations", "handoffs"):
+        rows = value.get(key)
+        if not isinstance(rows, dict) or any(not isinstance(row, dict) for row in rows.values()):
+            return False
+        if key != "profiles" and any("id" in row and row["id"] != row_id for row_id, row in rows.items()):
+            return False
+    for key in ("price_history", "price_alerts"):
+        owners = value.get(key, {})
+        if not isinstance(owners, dict):
+            return False
+        if any(not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows) for rows in owners.values()):
+            return False
+    for profile in value["profiles"].values():
+        for key in ("favorite_retailers", "favorite_brands", "avoided_brands", "dietary_labels"):
+            if key in profile and (not isinstance(profile[key], list) or any(not isinstance(item, str) for item in profile[key])):
+                return False
+        if any(key in profile and not isinstance(profile[key], bool) for key in ("allow_substitutions", "price_alerts_enabled", "location_enabled")):
+            return False
+    for row in value["preparations"].values():
+        if "items" in row and (not isinstance(row["items"], list) or any(not isinstance(item, dict) for item in row["items"])):
+            return False
+        if "providers" in row and (not isinstance(row["providers"], list) or any(not isinstance(provider, str) for provider in row["providers"])):
+            return False
+    return True
+
+
 class HomeCommerceStore:
     """Durable preferences and purchase preparations, isolated from Trading."""
 
     def __init__(self, path: str | Path = "data/roxy_home_commerce.json") -> None:
         self.path = Path(path)
         self.lock_path = self.path.with_suffix(self.path.suffix + ".lock")
+        self._storage_status = "NEW"
 
     @staticmethod
     def _empty() -> dict[str, Any]:
@@ -681,12 +723,7 @@ class HomeCommerceStore:
         }
 
     def _read_unlocked(self) -> dict[str, Any]:
-        try:
-            payload = json.loads(self.path.read_text(encoding="utf-8"))
-        except (OSError, TypeError, ValueError):
-            return self._empty()
-        if not isinstance(payload, dict):
-            return self._empty()
+        payload, self._storage_status = read_private_json(self.path, self._empty, _valid_commerce_state, HomeCommerceStorageError)
         payload["schema_version"] = COMMERCE_STORE_VERSION
         payload.setdefault("profiles", {})
         payload.setdefault("preparations", {})
@@ -695,40 +732,37 @@ class HomeCommerceStore:
         payload.setdefault("price_alerts", {})
         return payload
 
+    def storage_status(self) -> str:
+        self._read_unlocked()
+        return self._storage_status
+
     def _write_unlocked(self, payload: dict[str, Any]) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
         payload["schema_version"] = COMMERCE_STORE_VERSION
-        handle, temp_name = tempfile.mkstemp(prefix=f".{self.path.name}.", suffix=".tmp", dir=str(self.path.parent))
-        try:
-            with os.fdopen(handle, "w", encoding="utf-8") as stream:
-                json.dump(payload, stream, ensure_ascii=False, indent=2, sort_keys=True)
-                stream.flush()
-                os.fsync(stream.fileno())
-            os.chmod(temp_name, 0o600)
-            os.replace(temp_name, self.path)
-        finally:
-            try:
-                os.unlink(temp_name)
-            except FileNotFoundError:
-                pass
+        write_private_json(self.path, payload, _valid_commerce_state, HomeCommerceStorageError)
+        self._storage_status = "READY"
 
     def _mutate(self, callback: Callable[[dict[str, Any]], Any]) -> Any:
-        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
-        with self.lock_path.open("a+", encoding="utf-8") as lock:
-            try:
-                self.lock_path.chmod(0o600)
-            except OSError:
-                pass
-            if fcntl is not None:
-                fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
-            try:
-                payload = self._read_unlocked()
-                result = callback(payload)
-                self._write_unlocked(payload)
-                return result
-            finally:
-                if fcntl is not None:
-                    fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+        committed = False
+        try:
+            with storage_io(HomeCommerceStorageError):
+                self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+                with self.lock_path.open("a+", encoding="utf-8") as lock:
+                    self.lock_path.chmod(0o600)
+                    if fcntl is not None:
+                        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+                    try:
+                        payload = self._read_unlocked()
+                        result = callback(payload)
+                        self._write_unlocked(payload)
+                        committed = True
+                        return result
+                    finally:
+                        if fcntl is not None:
+                            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+        except HomeCommerceStorageError as exc:
+            if committed:
+                exc.committed = True
+            raise
 
     @staticmethod
     def default_profile() -> dict[str, Any]:

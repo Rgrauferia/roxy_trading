@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="182" />
+  <meta name="roxy-home-version" content="183" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
@@ -24,7 +24,7 @@
   <script src="/assets/roxy_fitness_catalog.js?v=2" defer></script>
   <script src="/assets/roxy_fitness.js?v=4" defer></script>
   <script src="/assets/roxy_garden_guide.js?v=1" defer></script>
-  <script src="/assets/roxy_list.js?v=184" defer></script>
+  <script src="/assets/roxy_list.js?v=185" defer></script>
   <script src="/assets/roxy_home_registration.js?v=1" defer></script>
 </head>
 <body>
@@ -479,8 +479,9 @@
       <p class="lead">Roxy descuenta lo que ya tienes y respeta tus alergias al preparar cada receta.</p>
       <form id="pantryForm" class="card kitchen-form">
         <h3>Mi despensa</h3>
-        <label><span>Productos disponibles</span><textarea id="pantryItems" rows="6" placeholder="Arroz, 2, tazas&#10;Tomate, 4, unidades"></textarea></label>
-        <small>Un producto por línea: nombre, cantidad y unidad separados por comas.</small>
+        <label><span>Productos disponibles</span><textarea id="pantryItems" rows="6" aria-describedby="pantryHelp pantryError" placeholder="Arroz; 2; tazas&#10;Leche; 1,5; litros"></textarea></label>
+        <small id="pantryHelp">Un producto por línea: nombre; cantidad; unidad. Usa punto y coma para separar los campos y coma o punto para decimales. Guardar reemplaza la despensa compartida del hogar.</small>
+        <p id="pantryError" role="alert" hidden></p>
         <button class="primary full" type="submit">Guardar despensa</button>
       </form>
       <form id="homeProfileForm" class="card kitchen-form">

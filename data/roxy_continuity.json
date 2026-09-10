@@ -3,10 +3,30 @@
   "updated_on": "2026-09-10",
   "deployment_branch": "codex/roxy-home-nfc",
   "public_url": "https://roxy-home.onrender.com/lista#ejercicio",
-  "last_verified_public_version": 180,
-  "deployed_implementation_commit": "87dc13ead6ba2de5323625c16a22c2b172b2237a",
-  "candidate_version": 182,
-  "candidate_status": "182_storage_incident_fix_tested_pending_publish",
+  "last_verified_public_version": 182,
+  "deployed_implementation_commit": "6c19d6170cdc57e1e978b18ca552e83bddfaf356",
+  "candidate_version": 183,
+  "candidate_status": "183_local_verified_awaiting_publication_not_demo_ready",
+  "candidate_183": {
+    "scope": "pantry_lossless_validation_family_commerce_failclosed_weather_radar_lifecycle_source_context_extractor",
+    "published": false,
+    "tests_python": 1653,
+    "postgres_skipped": 11,
+    "tests_node": 211,
+    "mjs_suites": 2,
+    "version": "HTML_APP183_JS185_CSS129_SW182",
+    "browser_qa": "synthetic_pantry_invalid_decimal_rejected_1_5_liters_persist_after_reload_settings_alias_theme_font_retained_393px_no_horizontal_overflow",
+    "browser_backend_limit": "running_preview_previous_python_modules_new_API_validated_by_TestClient",
+    "screenshots": "/tmp/roxy-home-qa-183/",
+    "recipe_candidates": 510,
+    "recipe_candidates_approved": 0,
+    "source_context": "extractor_v5_112_image_references_not_verified_photos_no_runtime_or_manifest_change",
+    "weather_graphics_changed": false,
+    "independent_review": "boolean_quantity_coercion_fixed_before_Pydantic_conversion_API422_preserves_prior_inventory",
+    "real_data_recovered": false,
+    "production_user_data_modified": false,
+    "remaining_storage_risks": ["calendar", "shopping_Home_wrapper_needed_shared_core_do_not_edit_Trading", "calendar_sync", "photo_video_manifests", "AI_budget", "conversation"]
+  },
   "candidate_182": {
     "tests_python": 1503,
     "postgres_skipped": 11,
@@ -16,7 +36,11 @@
     "qa": "synthetic_mango_create_specific_care_empty_server_device_recovery_notice_393px_no_console_errors",
     "identity_scoping": "design_commerce_calendar_daily_family_weather_cache_member_scoped_load_race_guard",
     "legacy_clients": "empty_collection_503_until_cache_preserving_protocol2",
-    "published": false,
+    "published": true,
+    "render_deploy": "dep-dahe0ctckfvc73bpk2h0",
+    "public_proof": "health200_six_assets_byte_identical_meta182_session_retained_exercise21_breakfast_six_images480px_loaded_no_console_errors",
+    "public_viewport": "765x454_not_physical_phone",
+    "runtime_storage": "four_PLANTS_DESIGN_paths_in_var_data_parent_writable_separate_mount_verified",
     "real_plant_recovered": false
   },
   "storage_incident_20260910": {
@@ -26,7 +50,10 @@
     "confirmed": "PLANTS_and_DESIGN_paths_unset_ephemeral_defaults_no_plants_file_no_matching_persistent_backup",
     "recovered": false,
     "real_data_recreated": false,
-    "fix": "persistent_paths_failclosed_marker_atomic_media_device_recovery_identity_scoping_in_progress",
+    "fix": "persistent_paths_failclosed_marker_atomic_media_device_recovery_identity_scoping_published182",
+    "corrected_in_version": 182,
+    "runtime_persistent_paths_verified": true,
+    "phone_cache_recovery_question": "asked_awaiting_user_no_duplicate_prompt",
     "avoid": "reload_old_phone_copy_or_restore_synthetic_QA_or_resync_Blueprint_disk",
     "release_ready": false
   },
@@ -66,7 +93,7 @@
     "user_data_modified": false,
     "payments_or_contracts_changed": false,
     "graphics_weather_changed": false,
-    "followups": ["verify_public181", "source500_editorial_quality_and_specific_images", "provider_commercial_rights", "all_module_browser_QA", "fitness_private_storage_professional_protocols", "weather_graphics_and_background_radar_pause", "Impact_account_login"]
+    "followups": ["recover_real_Pothos_if_phone_copy_survives", "source500_editorial_quality_and_specific_images", "provider_commercial_rights", "all_module_browser_QA", "fitness_private_storage_professional_protocols", "weather_graphics_and_background_radar_pause", "Impact_account_login"]
   },
   "access_commerce_180": {
     "login": "explicit_document_reload_after_success_duplicate_submit_protection_error_retry",
@@ -195,22 +222,25 @@
     "other_services_changed": false
   },
   "verification": {
-    "python_home_shopping_provider_passed": 1289,
+    "python_home_shopping_provider_passed": 1503,
+    "python_postgres_skipped_latest_suite": 11,
+    "node_total_latest": 139,
+    "mjs_suites_latest": 2,
     "node_fitness_ui_passed": 33,
     "node_login_ui_passed": 8,
     "postgres_local_real_passed": 11,
     "public_health": "ok",
     "public_versions": {
-      "html": 180,
-      "app": 180,
-      "js": 181,
-      "css": 127,
-      "service_worker": 178,
+      "html": 182,
+      "app": 182,
+      "js": 184,
+      "css": 129,
+      "service_worker": 181,
       "fitness_js": 4,
-      "fitness_css": 4,
-      "fitness_catalogue_js": 1
+      "fitness_css": 5,
+      "fitness_catalogue_js": 2
     },
-    "three_modified_public_assets_byte_identical": true,
+    "six_checked_public_assets_byte_identical_182": true,
     "public_user_data_modified": false,
     "fitness_public_storage": false,
     "training_active": false
@@ -229,19 +259,20 @@
     "Aderezo César photo showed a salad; quarantine until an exact replacement is visually reviewed",
     "Only five manufacturer ingredient panels screened; restrictions fail closed, not clinical allergy clearance"
   ],
-  "next_step": "180 published verified. User should retry phone login without sharing password; exact error needed if failure persists. Render Payment_failed warning requires user billing action. Recipe originals only6, TheMealDB key/license absent; exercise catalogue8 unbalanced/no active training; weather visual target not achieved. Dedicated Home PostgreSQL still requires cost approval, provisioning and isolation verification; professional screening/templates remain gated. No demo-ready claim.",
+  "next_step": "182 published verified: paths persistent, cache recovery and identity guards, guided Garden, six breakfast images loaded, educational exercise21. Real Pothos absent; await phone-copy reply without reloading old screen or recreating data. Continue source500 editorial/source-license work:510 candidates0approved,20ES audited with defects,6 readable originals only. Audit remaining modules and weather graphics. Render Payment_failed and Impact login require user action; TheMealDB key/commercial license absent. Fitness private PostgreSQL and professional protocols remain gated. Hourly Home continuation active today until23:59ET. No demo-ready claim.",
   "launch": {
     "five_day_web_beta": "requested_not_scheduled",
     "app_store": "target_next_month_not_guaranteed",
-    "exercise_section": "179_published_educational_catalogue_and_preferences_preview_training_and_public_storage_pending",
+    "exercise_section": "182_published_adjacent_recipes_21_educational_entries44_illustrations_training_and_public_storage_pending",
     "database_and_media_migration": "recommended_not_performed",
     "registration": "public_open_approved_implemented_167_disabled_pending_real_verification",
     "trial_days": 5
   },
   "candidate_verification": {
-    "version": 180,
-    "python_tests": 1289,
-    "node_tests": 41,
+    "version": 182,
+    "python_tests": 1503,
+    "node_tests": 139,
+    "mjs_suites": 2,
     "postgres_real_tests": 11,
     "public_verified": true,
     "production_data_mutated": false
