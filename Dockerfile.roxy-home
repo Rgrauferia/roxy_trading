@@ -30,6 +30,8 @@ COPY assets/roxy_home_recipe_provider.js ./assets/roxy_home_recipe_provider.js
 COPY assets/roxy_home_weather_renderer.js ./assets/roxy_home_weather_renderer.js
 COPY assets/roxy_home_open_recipes.js ./assets/roxy_home_open_recipes.js
 COPY assets/roxy_fitness.js assets/roxy_fitness.css assets/roxy_fitness_catalog.js ./assets/
+COPY assets/roxy_garden_guide.js assets/roxy_garden_guide.css ./assets/
+COPY assets/roxy_maplibre_loader.js ./assets/
 COPY data/home_fitness_catalog.json ./data/home_fitness_catalog.json
 COPY assets/roxy_home/fitness ./assets/roxy_home/fitness
 COPY migrations/fitness ./migrations/fitness

@@ -4,7 +4,7 @@
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const safeLink=v=>/^https:\/\/(?:wger\.de|creativecommons\.org)(?:\/|$)/.test(String(v||''))?String(v):'';
   const safeImage=v=>/^https:\/\/wger\.de\/media\/[A-Za-z0-9_./%-]+\.(?:png|jpg|jpeg|webp)$/i.test(String(v||''))?String(v):'';
-  const display=v=>({Arms:'Brazos',Chest:'Pecho',Legs:'Piernas',Shoulders:'Hombros',Barbell:'Barra',Dumbbell:'Mancuerna','Cable machine':'Máquina de poleas'}[v]||v);
+  const display=v=>({Arms:'Brazos',Chest:'Pecho',Legs:'Piernas',Back:'Espalda',Abs:'Abdominales',Shoulders:'Hombros',Barbell:'Barra',Dumbbell:'Mancuerna',Bench:'Banco','Incline bench':'Banco inclinado','Pull-up bar':'Barra de dominadas','SZ-Bar':'Barra EZ','Cable machine':'Máquina de poleas'}[v]||v);
   const fold=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
   const icon=v=>`<span class="material-symbols-rounded" aria-hidden="true">${v}</span>`;
   const link=(url,text)=>safeLink(url)?`<a href="${esc(safeLink(url))}" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">${esc(text)} ${icon('arrow_outward')}</a>`:esc(text);

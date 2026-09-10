@@ -1,6 +1,7 @@
 """Actual fixed catalogue integrity and trust boundaries, without provider calls."""
 
 from copy import deepcopy
+from collections import Counter
 from hashlib import sha256
 import json
 
@@ -24,10 +25,11 @@ def replace_snapshot(monkeypatch, tmp_path, snapshot):
 def test_real_selection_has_individual_rights_provenance_and_honest_coverage():
     response = catalog.fitness_catalog()
     assert response["status"] == catalog.STATUS
-    assert response["count"] == 8
-    assert sum(e["language"] == "es" for e in response["entries"]) == 7
-    assert sum(e["language"] == "en" for e in response["entries"]) == 1
-    assert sum(len(e["images"]) for e in response["entries"]) == 16
+    assert response["count"] == 21
+    assert sum(e["language"] == "es" for e in response["entries"]) == 19
+    assert sum(e["language"] == "en" for e in response["entries"]) == 2
+    assert sum(len(e["images"]) for e in response["entries"]) == 44
+    assert sum(len(e["instructions"]) for e in response["entries"]) == 67
     for entry in response["entries"]:
         assert not entry["clinical_approval"] and not entry["can_activate_training"]
         assert entry["attribution"]["authors"]
@@ -51,6 +53,48 @@ def test_fixed_language_and_variant_never_silently_translated_or_filled():
     assert catalog.fitness_catalog_entry("wger-365")["source_translation_id"] == 4317
     assert catalog.fitness_catalog_entry("wger-366")["source_translation_id"] == 2637
     assert catalog.fitness_catalog_entry("wger-203") is None  # Disc/dumbbell mismatch was excluded.
+
+
+def test_expansion_preserves_previous_entries_and_adds_missing_groups(snapshot):
+    entries = catalog.fitness_catalog()["entries"]
+    assert [entry["id"] for entry in entries[:8]] == [
+        "wger-91", "wger-92", "wger-95", "wger-135", "wger-272", "wger-365", "wger-366", "wger-572",
+    ]
+    counts = Counter(entry["category"] for entry in entries)
+    assert counts == {"Abs": 1, "Arms": 6, "Back": 3, "Chest": 4, "Legs": 4, "Shoulders": 3}
+    assert snapshot["coverage"]["categories"] == counts
+    assert snapshot["coverage"]["exercises"] == len(entries)
+    assert snapshot["coverage"]["illustrations"] == 44
+    assert len({m["url"] for e in entries for m in e["images"]}) == 44
+    assert len({m["sha256"] for e in entries for m in e["images"]}) == 44
+
+
+def test_expansion_keeps_exact_translation_and_media_variants():
+    selected = {
+        75: (2626, [113, 114]), 84: (3689, [91, 92]), 152: (2708, [73, 75]),
+        171: (2699, [135, 136]), 185: (100, [115, 116]), 197: (2726, [35, 36]),
+        206: (2720, [121, 122, 123, 124]), 246: (2738, [60, 61]),
+        257: (2731, [149, 150]), 513: (2936, [77, 79]), 537: (4379, [105, 106]),
+        566: (4353, [171, 172]), 567: (2611, [173, 174]),
+    }
+    for identifier, (translation, images) in selected.items():
+        entry = catalog.fitness_catalog_entry(f"wger-{identifier}")
+        assert entry["source_translation_id"] == translation
+        assert [image["source_id"] for image in entry["images"]] == images
+        assert entry["checked_on"] == "2026-09-10"
+    assert catalog.fitness_catalog_entry("wger-185")["language"] == "en"
+    # Source text describes a floor-standing variation or a different support,
+    # grip or load than its image. Quantity never overrides this review.
+    for identifier in [83, 167, 301, 377, 394, 576, 1392]:
+        assert catalog.fitness_catalog_entry(f"wger-{identifier}") is None
+
+
+def test_cc0_base_metadata_does_not_relicense_text_or_media():
+    chin_up = catalog.fitness_catalog_entry("wger-152")
+    assert chin_up["base_attribution"]["license"] == "CC0-1.0"
+    assert chin_up["base_attribution"]["source_license_id"] == 3
+    assert chin_up["attribution"]["license"] == "CC-BY-SA-4.0"
+    assert all(image["license"] == "CC-BY-SA-3.0" for image in chin_up["images"])
 
 
 def test_catalogue_cannot_be_used_as_approved_training_input():

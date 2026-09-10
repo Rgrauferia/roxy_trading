@@ -21,9 +21,21 @@ def _key(value):
 
 
 def _publishable(row):
-    """Missing content or license evidence cannot acquire a blanket CC label."""
+    """Source integrity and a license never override an editorial hold.
+
+    Legacy editorial selections may omit these optional flags. When present,
+    only a real boolean True is affirmative: strings, null and numbers must not
+    accidentally promote a candidate. Shopping eligibility is independent.
+    """
     if not isinstance(row, dict):
         return False
+    audit = row.get("audit", {})
+    if not isinstance(audit, dict):
+        return False
+    for scope in (row, audit):
+        for flag in ("publishable", "cook_allowed"):
+            if flag in scope and scope[flag] is not True:
+                return False
     if row.get("language") != "en" or row.get("audience") != "human":
         return False
     if not all(isinstance(row.get(key), str) and row[key].strip()
@@ -73,8 +85,8 @@ def open_recipe_catalog(query="", cuisine="", *, limit=24):
         text = " ".join([str(row.get("title") or ""), str(row.get("cuisine") or ""), *row.get("ingredients_original", [])])
         if query and _key(query) not in _key(text):
             continue
-        # Runtime admission checks presence, source integrity and license; content review
-        # is documented with the pinned revision in the source manifest/report.
+        # Runtime admission respects editorial holds as well as presence,
+        # integrity and license. A readable original is not a tested Roxy guide.
         row.pop("original_wikitext", None)  # Evidence stays in the source manifest, not a UI markup blob.
         selected.append({**row, "attribution": row["rights"]["attribution"], "provider": "wikibooks", "audience": "human",
                          "can_read_original": True, "can_add_to_shopping": False,

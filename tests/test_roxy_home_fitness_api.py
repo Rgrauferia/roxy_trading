@@ -131,16 +131,16 @@ def test_status_reports_identity_and_pending_capabilities_without_private_reads(
     assert "never-real" not in response.text
 
 
-def test_catalog_api_returns_eight_originals_and_sixteen_attributed_images_without_private_storage(api, monkeypatch):
+def test_catalog_api_returns_fixed_originals_and_attributed_images_without_private_storage(api, monkeypatch):
     monkeypatch.setattr(router, "repository", lambda: pytest.fail("Educational catalogue accessed private storage"))
     original = json.loads(catalog.CATALOG_PATH.read_text(encoding="utf-8"))
     expected = {entry["id"]: entry for entry in original["entries"]}
     response = api.client.get(PREFIX + "/exercises")  # No consent, profile or member assertion required.
     assert response.status_code == 200
     value = response.json()
-    assert value["count"] == len(value["entries"]) == 8
+    assert value["count"] == len(value["entries"]) == 21
     assert {entry["id"] for entry in value["entries"]} == set(expected)
-    assert sum(len(entry["images"]) for entry in value["entries"]) == 16
+    assert sum(len(entry["images"]) for entry in value["entries"]) == 44
     assert value["status"] == "education_only_professional_review_pending"
     assert value["review_status"] == "pending_professional_review"
     assert value["clinical_approval"] is False and value["can_activate_training"] is False

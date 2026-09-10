@@ -2,7 +2,9 @@
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 import hashlib
+import html
 import json
+import re
 
 import pytest
 from fastapi.testclient import TestClient
@@ -21,7 +23,20 @@ EXPECTED = {
     "wikibooks-219286": ("Pan-Fried White Brined Cheese (Saganaki)", "Greek", 1, 5, 6, 4613881),
     "wikibooks-167989": ("Indian Chai", "Indian", 1, 5, 3, 4522385),
     "wikibooks-108144": ("Risotto II", "Italian", 6, 8, 9, 4525538),
+    "wikibooks-105063": ("Pancakes (North American)", "North American", 3, 6, 6, 4585403),
+    "wikibooks-17844": ("Oat Porridge", "", 1, 3, 5, 4606890),
+    "wikibooks-9014": ("Red Lentil Soup", "", 4, 7, 4, 4518501),
+    "wikibooks-50089": ("Lentil Rice Loaf", "", 4, 8, 6, 4515107),
+    "wikibooks-8542": ("Chili (Vegan)", "Tex-Mex", 8, 17, 7, 4599150),
+    "wikibooks-4034": ("Tomato Pasta", "", 3, 8, 4, 4516489),
+    "wikibooks-85651": ("Chicken Cacciatore", "Italian", 4, 14, 5, 4540895),
+    "wikibooks-252225": ("Baked Lemon Thyme Halibut", "Native American", 5, 6, 3, 4511873),
 }
+READABLE_IDS = {
+    "wikibooks-150880", "wikibooks-128617", "wikibooks-219286", "wikibooks-167989",
+    "wikibooks-9014", "wikibooks-4034",
+}
+HELD_IDS = set(EXPECTED) - READABLE_IDS
 
 
 @pytest.fixture(autouse=True)
@@ -35,14 +50,24 @@ def source_rows():
     return json.loads(catalog.CATALOG_PATH.read_text(encoding="utf-8"))["recipes"]
 
 
-def test_six_fixed_originals_preserve_english_measures_steps_and_attribution(monkeypatch):
+def valid_source_row():
+    return deepcopy(next(row for row in source_rows() if row["id"] == "wikibooks-150880"))
+
+
+def test_fourteen_fixed_originals_preserve_english_measures_steps_and_attribution(monkeypatch):
     monkeypatch.setattr("requests.get", lambda *a, **k: pytest.fail("Bundled catalog cannot call a provider"))
     original = {row["id"]: row for row in source_rows()}
     result = catalog.open_recipe_catalog()
     assert result["status"] == "READY" and result["count"] == result["total"] == 6
     assert result["cost"] == "free_local_catalog" and not result["live_provider_request"]
     assert result["language"] == "en" and result["license"] == "CC BY-SA 4.0"
-    assert set(EXPECTED) == set(original) == {row["id"] for row in result["recipes"]}
+    assert set(EXPECTED) == set(original)
+    assert READABLE_IDS == {row["id"] for row in result["recipes"]}
+    for source in original.values():
+        title, cuisine, servings, ingredients, steps, revision = EXPECTED[source["id"]]
+        assert (source["title"], source["cuisine"], source["servings"], len(source["ingredients_original"]),
+                len(source["steps_original"]), source["revid"]) == (title, cuisine, servings, ingredients, steps, revision)
+        assert source["source_sha256"] == hashlib.sha256(source["original_wikitext"].encode()).hexdigest()
     for row in result["recipes"]:
         title, cuisine, servings, ingredients, steps, revision = EXPECTED[row["id"]]
         assert (row["title"], row["cuisine"], row["servings"], len(row["ingredients_original"]),
@@ -66,9 +91,25 @@ def test_six_fixed_originals_preserve_english_measures_steps_and_attribution(mon
             assert row["image_source_url"].startswith("https://commons.wikimedia.org/wiki/File:")
             assert row["image_commercial_use_permitted"]
             assert row["image_author"] and row["image_license"].startswith("CC BY-SA ")
-    assert sum(bool(row["image_url"]) for row in result["recipes"]) == 3
-    assert sum(len(row["ingredients_original"]) for row in result["recipes"]) == 31
-    assert sum(len(row["steps_original"]) for row in result["recipes"]) == 36
+    assert sum(bool(row["image_url"]) for row in result["recipes"]) == 2
+    assert sum(bool(row["image_url"]) for row in original.values()) == 5
+    assert sum(len(row["ingredients_original"]) for row in original.values()) == 100
+    assert sum(len(row["steps_original"]) for row in original.values()) == 76
+
+
+def test_editorial_holds_preserve_original_evidence_but_never_appear_in_readable_results():
+    rows = {row["id"]: row for row in source_rows()}
+    held = {row["id"] for row in rows.values() if row.get("audit", {}).get("publishable") is False}
+    assert held == HELD_IDS
+    for recipe_id in HELD_IDS:
+        row = rows[recipe_id]
+        assert row["cook_allowed"] is False
+        assert row["audit"]["source_fidelity_checked"] is True
+        assert row["audit"]["source_revision_reviewed"] == row["revid"]
+        assert row["audit"]["reason_codes"] and row["audit"]["reason"]
+        assert row["audit"]["report"] == "reports/home_recipe_14_publication_audit_20260910.md"
+        assert not catalog._publishable(row)
+        assert not catalog.open_recipe_catalog(query=row["title"])["recipes"]
 
 
 def test_original_qualitative_measure_and_approximate_conversion_are_not_rewritten():
@@ -82,6 +123,68 @@ def test_original_qualitative_measure_and_approximate_conversion_are_not_rewritt
     assert french["steps_original"][0] == "Preheat the oven to 250 °C."
 
 
+def test_expanded_originals_keep_every_source_ingredient_step_and_note_in_order():
+    expanded_ids = {"wikibooks-105063", "wikibooks-17844", "wikibooks-9014", "wikibooks-50089",
+                    "wikibooks-8542", "wikibooks-4034", "wikibooks-85651", "wikibooks-252225"}
+    for row in source_rows():
+        if row["id"] not in expanded_ids:
+            continue
+        sections, current = {}, None
+        for line in row["original_wikitext"].splitlines():
+            heading = re.fullmatch(r"==([^=]+)==\s*", line)
+            if heading:
+                current = heading[1].strip().lower()
+                sections[current] = []
+            elif current and re.match(r"^[*#](?![*#])", line):
+                text = re.sub(r"^[*#]\s*", "", line)
+                text = re.sub(r"\[\[(?:File|Image):.*?\]\]", "", text, flags=re.I)
+                text = re.sub(r"\[\[[^|\]]+\|([^\]]+)\]\]", r"\1", text)
+                text = re.sub(r"\[\[(?:[^:\]]+:)?([^\]]+)\]\]", r"\1", text)
+                sections[current].append(html.unescape(text.replace("'''", "").replace("''", "")).strip())
+        assert row["ingredients_original"] == sections["ingredients"]
+        assert row["steps_original"] == sections["procedure"]
+        assert row["notes_original"] == sections.get("notes, tips, and variations", [])
+    # The embedded soup photograph has a caption, not an additional cooking step.
+    soup = next(row for row in source_rows() if row["id"] == "wikibooks-9014")
+    assert soup["steps_original"][0] == "Pick over the lentils to remove any debris if needed. Rinse well."
+    assert soup["image_url"] == "" and soup["image_status"] == "not_included_source_image_has_unlisted_variation"
+
+
+def test_all_fourteen_originals_preserve_every_source_section_after_display_markup_removal():
+    from tools.roxy_home_recipe_import_wikibooks import section, source_lines
+    headings = {
+        "ingredients_original": (r"^ingredients$", "*"),
+        "steps_original": (r"^procedure$", "#"),
+        "notes_original": (r"^notes, tips, and variations$", "*"),
+        "equipment_original": (r"^equipment$", "*"),
+    }
+    normalized = lambda values: [re.sub(r"\s+", " ", value).strip() for value in values]
+    for row in source_rows():
+        for field, (heading, marker) in headings.items():
+            extracted = source_lines(section(row["original_wikitext"], heading), marker, set())
+            assert normalized(row[field]) == normalized(extracted), (row["id"], field)
+
+
+def test_expansion_keeps_source_servings_cuisine_and_individual_image_licenses():
+    rows = {row["id"]: row for row in source_rows()}
+    assert rows["wikibooks-252225"]["servings_original"] == "16 ounces (5 servings)"
+    assert rows["wikibooks-252225"]["servings"] == 5
+    for recipe_id in ("wikibooks-17844", "wikibooks-9014", "wikibooks-50089", "wikibooks-4034"):
+        assert rows[recipe_id]["cuisine"] == ""  # A source title/category is not an invented country.
+    for recipe_id, filename, license_name, revision in (
+        ("wikibooks-105063", "Banana on pancake.jpg", "CC BY-SA 2.0", 1131890279),
+        ("wikibooks-17844", "Oatmealraisins2.jpg", "CC BY-SA 3.0", 1228249094),
+    ):
+        row = rows[recipe_id]
+        assert filename in row["original_wikitext"]
+        assert row["image_source_revision"] == revision
+        assert row["image_license"] == license_name
+        assert row["image_original_wikitext"] and row["image_author"]
+        assert row["image_commercial_use_permitted"] and "opcional" in row["photo_scope"]
+        assert len(row["image_sha1"]) == 40
+        assert "?" not in row["image_url"]  # No image API campaign/tracking parameters.
+
+
 @pytest.mark.parametrize("query,cuisine,expected", [
     ("", "french", ["wikibooks-150880"]), ("", "Frénch", ["wikibooks-150880"]),
     ("soy sauce", "Japanese", ["wikibooks-128617"]), ("SAGANAKI", "", ["wikibooks-219286"]),
@@ -92,7 +195,7 @@ def test_filters_use_exact_cuisine_and_source_title_or_ingredients(query, cuisin
     assert [row["id"] for row in result["recipes"]] == expected
     assert result["count"] == len(expected)
     assert result["total"] == 6 and result["status"] == "READY"
-    assert result["cuisines"] == ["French", "Greek", "Indian", "Italian", "Japanese", "Spanish"]
+    assert result["cuisines"] == ["French", "Greek", "Indian", "Japanese"]
 
 
 def test_reading_and_modifying_returned_catalog_never_changes_original_file_or_cache():
@@ -123,7 +226,7 @@ def test_malformed_rows_are_not_labeled_ready_or_raise_500(tmp_path, monkeypatch
     ("ingredients_original", [None]), ("source_sha256", "changed"), ("servings", 0),
 ])
 def test_invalid_source_or_rights_metadata_is_not_republished(tmp_path, monkeypatch, field, value):
-    row = deepcopy(source_rows()[0])
+    row = valid_source_row()
     row[field] = value
     path = tmp_path / "sources.json"
     path.write_text(json.dumps({"recipes": [row]}))
@@ -137,12 +240,63 @@ def test_invalid_source_or_rights_metadata_is_not_republished(tmp_path, monkeypa
     ("commercial_use_permitted", False), ("attribution_required", False), ("share_alike_required", False),
 ])
 def test_incompatible_rights_never_gain_automatic_cc_license(tmp_path, monkeypatch, field, value):
-    row = deepcopy(source_rows()[0])
+    row = valid_source_row()
     row["rights"][field] = value
     path = tmp_path / "sources.json"
     path.write_text(json.dumps({"recipes": [row]}))
     monkeypatch.setattr(catalog, "CATALOG_PATH", path)
     assert catalog.open_recipe_catalog()["count"] == 0
+
+
+@pytest.mark.parametrize("scope", ["row", "audit"])
+@pytest.mark.parametrize("flag", ["publishable", "cook_allowed"])
+@pytest.mark.parametrize("value", [False, None, 0, 1, "false", "true", [], {}])
+def test_explicit_non_true_editorial_flag_cannot_promote_source_complete_candidate(scope, flag, value):
+    row = valid_source_row()
+    target = row if scope == "row" else row.setdefault("audit", {})
+    target[flag] = value
+    assert not catalog._publishable(row)
+
+
+@pytest.mark.parametrize("audit", [None, False, [], "approved"])
+def test_malformed_audit_cannot_bypass_publication_hold(audit):
+    row = valid_source_row()
+    row["audit"] = audit
+    assert not catalog._publishable(row)
+
+
+def test_editorial_true_is_not_an_override_for_license_or_source_integrity():
+    row = valid_source_row()
+    row.update(publishable=True, cook_allowed=True, audit={"publishable": True, "cook_allowed": True})
+    assert catalog._publishable(row)
+    row["source_sha256"] = "tampered"
+    assert not catalog._publishable(row)
+    row = valid_source_row()
+    row["audit"] = {"publishable": True}
+    row["rights"]["commercial_use_permitted"] = False
+    assert not catalog._publishable(row)
+
+
+def test_a_nested_hold_wins_over_top_level_approval_and_shopping_remains_independent():
+    row = valid_source_row()
+    row.update(publishable=True, cook_allowed=True, audit={"publishable": False})
+    assert not catalog._publishable(row)
+    row = valid_source_row()
+    row["can_add_to_shopping"] = False
+    assert catalog._publishable(row)
+
+
+def test_runtime_omits_held_candidate_even_when_every_source_and_license_field_is_valid(tmp_path, monkeypatch):
+    approved = valid_source_row()
+    candidate = valid_source_row()
+    candidate["id"] = "candidate-must-not-be-promoted"
+    candidate["audit"] = {"publishable": False, "cook_allowed": False, "source_structure_complete": True}
+    path = tmp_path / "sources.json"
+    path.write_text(json.dumps({"recipes": [approved, candidate]}))
+    monkeypatch.setattr(catalog, "CATALOG_PATH", path)
+    result = catalog.open_recipe_catalog()
+    assert result["count"] == result["total"] == 1
+    assert [row["id"] for row in result["recipes"]] == [approved["id"]]
 
 
 @pytest.fixture

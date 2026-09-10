@@ -3,6 +3,42 @@
 Actualizado: 2026-09-10. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 
+## 181 — candidato probado: Jardín guiado, fotos y navegación
+
+Pendiente de publicación al escribir este bloque. HTML/APP181, JS182, CSS128,
+SW179, FitnessCSS5/catalogJS2, GardenGuide1 y MapLibreLoader1. No tocar prototypes/.
+Jardín: guía de cuatro pasos con saludo del miembro, voz del dispositivo
+opcional, tierra/agua/desconocido, drenaje nullable, diario de texto sin foto
+obligatoria y elección explícita CHECKED/WATERED. No identifica fotos por IA
+desde la guía. Mango y romero tienen fichas/fuentes específicas y límites de
+espacio/maceta. No sensores, vigilancia autónoma ni notificaciones implícitas.
+Eliminados anuncio genérico y alertas interiores basadas sólo en calor exterior.
+QA navegador 393x852: login sintético, añadir Monstera, registrar revisión sin
+foto y editar ubicación/medio conservando foto y diario. No datos reales escritos.
+Ejercicio junto a Recetas en barra fija de seis accesos; resto en Más.
+Biblioteca educativa 21 fichas (19 ES/2 EN), 44 ilustraciones, 0 videos;
+buscador/detalle probados. Entrenamientos y almacenamiento privado público no activados.
+Fotos: tarjetas WebP de fuente existente (480px, máximo100KB), carga visible,
+timeout/reintentos acotados y protección A/B para no sustituir imágenes nuevas.
+SW deja de precargar biblioteca fotográfica; GoogleMaps sólo en Nexo y
+MapLibre bajo demanda al abrir globo. Rutas descartan respuestas tardías tras
+revocación/cambio de persona; no se ha mejorado el acabado gráfico del clima.
+Pruebas: 1454 Python aprobadas, 11 PostgreSQL omitidas; 97 Node aprobadas y
+dos baterías mjs aprobadas. Evidencia /tmp/roxy-home-day-20260910/.
+
+Recetas: 4868 páginas fuente examinadas, 510 CANDIDATAS (121 ES/389 EN),
+ninguna aprobada ni publicada; data/home_recipe_candidates_20260910.json es
+evidencia editorial fuera del runtime/Docker. 14 originales archivados en
+home_open_recipes; 8 retenidos por problemas reales, 6 legibles con2 fotos/27pasos,
+NO recetas ensayadas ni guía culinaria aprobada. No modificar las recetas guardadas.
+TheMealDB sigue sin cuenta/clave/tier comercial confirmado; opciones y conflictos
+de precio/licencia documentados en reports/home_recipe_provider_options_20260910.md.
+Impact requiere iniciar sesión al10/09; no se comprobaron precalificados de cuenta.
+No pagos, contratos, claves, plantas reales, mascotas ni compras modificados.
+Siguiente: publicar/verificar181, continuar auditoría integral y catálogo500,
+resolver proveedor/licencia; revisar voz real, plantas conversacionales, clima,
+persistencia fitness y condiciones del demo antes de anunciar lanzamiento.
+
 ## 180 — acceso, aislamiento de Compra y metadatos del clima PUBLICADOS
 
 Login corregido: tras recibir la cookie, recarga el documento en Hoy. Antes,

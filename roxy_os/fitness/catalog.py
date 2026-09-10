@@ -17,11 +17,13 @@ from urllib.parse import urlsplit
 
 
 CATALOG_PATH = Path(__file__).resolve().parents[2] / "data" / "home_fitness_catalog.json"
-CATALOG_VERSION = "fitness-open-catalog-20260908-v1"
+CATALOG_VERSION = "fitness-open-catalog-20260910-v2"
 LICENSES = {
     "CC-BY-SA-3.0": "https://creativecommons.org/licenses/by-sa/3.0/",
     "CC-BY-SA-4.0": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "CC0-1.0": "https://creativecommons.org/publicdomain/zero/1.0/",
 }
+SOURCE_LICENSE_IDS = {"CC-BY-SA-3.0": 1, "CC-BY-SA-4.0": 2, "CC0-1.0": 3}
 STATUS = "education_only_professional_review_pending"
 REVIEW_STATUS = "pending_professional_review"
 
@@ -102,7 +104,7 @@ def _license(attribution):
     identifier = attribution.get("license")
     if identifier not in LICENSES or attribution.get("license_url") != LICENSES[identifier]:
         raise CatalogValidationError("Unreviewed resource licence")
-    expected_source_id = {"CC-BY-SA-3.0": 1, "CC-BY-SA-4.0": 2}[identifier]
+    expected_source_id = SOURCE_LICENSE_IDS[identifier]
     if attribution.get("source_license_id") != expected_source_id:
         raise CatalogValidationError("Mismatched source licence identifier")
     return identifier
@@ -225,7 +227,7 @@ def fitness_catalog() -> dict:
     """Read the fixed selection; corrupt/unreviewed content fails closed."""
     result = {
         "version": CATALOG_VERSION,
-        "checked_on": "2026-09-08",
+        "checked_on": "2026-09-10",
         "status": STATUS,
         "clinical_approval": False,
         "can_activate_training": False,

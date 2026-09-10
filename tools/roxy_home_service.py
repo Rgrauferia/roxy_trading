@@ -286,12 +286,14 @@ class HomeFamilyInvitationRedeemRequest(BaseModel):
 
 
 class HomePlantCreateRequest(BaseModel):
+    identify_photo: bool = True
     display_name: str = Field(default="", max_length=60)
     species_key: str = Field(default="unknown", max_length=40)
     room: str = Field(default="", max_length=60)
     placement: str = Field(default="indoor", pattern="^(indoor|outdoor)$")
     pot_type: str = Field(default="unknown", max_length=30)
-    drainage: bool = False
+    drainage: bool | None = None
+    growing_medium: str = Field(default="unknown", pattern="^(unknown|soil|water)$")
     light_exposure: str = Field(default="unknown", pattern="^(unknown|low|indirect|bright_indirect|direct_morning|direct_afternoon)$")
     notes: str = Field(default="", max_length=800)
     photo_data_url: str = Field(min_length=32, max_length=8_100_000)
@@ -304,6 +306,7 @@ class HomePlantUpdateRequest(BaseModel):
     placement: str | None = Field(default=None, pattern="^(indoor|outdoor)$")
     pot_type: str | None = Field(default=None, max_length=30)
     drainage: bool | None = None
+    growing_medium: str | None = Field(default=None, pattern="^(unknown|soil|water)$")
     light_exposure: str | None = Field(default=None, pattern="^(unknown|low|indirect|bright_indirect|direct_morning|direct_afternoon)$")
     notes: str | None = Field(default=None, max_length=800)
 
@@ -316,6 +319,7 @@ class HomePlantTaskCompleteRequest(BaseModel):
 class HomePlantJournalRequest(BaseModel):
     notes: str = Field(default="", max_length=600)
     photo_data_url: str = Field(default="", max_length=16_100_000)
+    result: str | None = Field(default=None, pattern="^(CHECKED|WATERED)$")
 
 
 class HomePlantVacationRequest(BaseModel):
@@ -1702,16 +1706,19 @@ def shopping_service_worker() -> Response:
 
 
 @app.get("/v1/home-food/recipe-photo")
-def recipe_photo(title: str, request: Request) -> Response:
+def recipe_photo(title: str, request: Request, variant: str = "full") -> Response:
     _rate_limit(request, bucket="recipe-media")
     clean_title = re.sub(r"\s+", " ", str(title or "")).strip()
     if not clean_title or len(clean_title) > 160:
         raise HTTPException(status_code=422, detail="Nombre de receta inválido")
+    if variant not in {"full", "card"}:
+        raise HTTPException(status_code=422, detail="Tamaño de foto inválido")
     recipe, auth = _visible_photo_recipe(clean_title, request)
     if recipe is None:
         raise HTTPException(status_code=404, detail="Imagen no disponible")
     try:
-        resolved = _recipe_photo_store().resolve(clean_title)
+        store = _recipe_photo_store()
+        resolved = store.resolve_card(clean_title) if variant == "card" else store.resolve(clean_title)
     except (OSError, ValueError):
         resolved = None
     if resolved is None:
@@ -2749,7 +2756,8 @@ def read_home_plants(
     result = _plant_store().snapshot(user, user)
     result["identification_configured"] = HomePlantIdentifier.from_env().configured
     result["species"] = [
-        {"key": key, "common_name": value["common_name"], "scientific_name": value["scientific_name"]}
+        {"key": key, **{field: value.get(field, "") for field in
+                       ("common_name", "scientific_name", "light", "soil_rule", "toxicity", "fertilizer")}}
         for key, value in PLANT_CATALOG.items()
     ]
     return result
@@ -2784,7 +2792,8 @@ def create_home_plant(
     user = _authorize_user(user_id, auth)
     values = payload.model_dump()
     identification: dict[str, Any] | None = None
-    if values.get("species_key") == "unknown":
+    identify_photo = values.pop("identify_photo", True)
+    if values.get("species_key") == "unknown" and identify_photo:
         try:
             identification = HomePlantIdentifier.from_env().identify(values["photo_data_url"])
         except Exception:
@@ -2807,7 +2816,9 @@ def update_home_plant(
     _rate_limit(request)
     user = _authorize_user(user_id, auth)
     try:
-        row = _plant_store().update(user, plant_id, payload.model_dump(exclude_none=True))
+        changes = {key: value for key, value in payload.model_dump(exclude_unset=True).items()
+                   if value is not None or key == "drainage"}
+        row = _plant_store().update(user, plant_id, changes)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Planta no encontrada.") from exc
     return {"status": "UPDATED", "plant": public_plant(row, user)}
@@ -2879,7 +2890,7 @@ def add_home_plant_journal(
     _rate_limit(request)
     user = _authorize_user(user_id, auth)
     try:
-        entry = _plant_store().add_journal(user, plant_id, user, payload.notes, payload.photo_data_url)
+        entry = _plant_store().add_journal(user, plant_id, user, payload.notes, payload.photo_data_url, result=payload.result)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Planta no encontrada.") from exc
     except ValueError as exc:
@@ -2933,7 +2944,7 @@ def create_home_plant_reminder(
     _rate_limit(request)
     user = _authorize_user(user_id, auth)
     try:
-        plant = _plant_store().plant(user, plant_id)
+        plant = public_plant(_plant_store().plant(user, plant_id), user)
         task = next(item for item in plant.get("care_tasks", []) if item.get("id") == payload.task_id)
     except (KeyError, StopIteration) as exc:
         raise HTTPException(status_code=404, detail="Tarea o planta no encontrada.") from exc

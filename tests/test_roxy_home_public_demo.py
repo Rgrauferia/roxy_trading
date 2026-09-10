@@ -134,8 +134,8 @@ def test_trial_can_read_original_exercise_catalogue_without_profile_storage_or_a
     catalogue = tester.get("/api/fitness/v1/exercises")
     assert catalogue.status_code == 200
     value = catalogue.json()
-    assert value["count"] == len(value["entries"]) == 8
-    assert sum(len(entry["images"]) for entry in value["entries"]) == 16
+    assert value["count"] == len(value["entries"]) == 21
+    assert sum(len(entry["images"]) for entry in value["entries"]) == 44
     assert value["clinical_approval"] is False and value["can_activate_training"] is False
     detail = tester.get("/api/fitness/v1/exercises/wger-91")
     assert detail.status_code == 200

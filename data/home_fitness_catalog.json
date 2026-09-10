@@ -1,16 +1,24 @@
 {
-  "version": "fitness-open-catalog-20260908-v1",
+  "version": "fitness-open-catalog-20260910-v2",
   "product": "roxy-home",
-  "checked_on": "2026-09-08",
+  "checked_on": "2026-09-10",
   "source": "https://wger.de/api/v2/exerciseinfo/",
-  "data_license_notice": "Los textos y metadatos conservan la licencia CC BY-SA 3.0 o 4.0 indicada en cada recurso; las ilustraciones Everkinetic conservan CC BY-SA 3.0 según wger. La normalización y selección de datos de Roxy se distribuyen bajo CC BY-SA 4.0. Esta atribución se refiere a datos del catálogo, no cambia la licencia del código de la aplicación. Sin respaldo ni aprobación profesional de los autores.",
+  "data_license_notice": "Los textos conservan CC BY-SA 3.0 o 4.0, y los metadatos CC BY-SA 3.0 o CC0 1.0, según cada recurso; las ilustraciones Everkinetic conservan CC BY-SA 3.0 según wger. La normalización y selección de datos de Roxy se distribuyen bajo CC BY-SA 4.0. Esta atribución se refiere a datos del catálogo, no cambia la licencia del código de la aplicación. Sin respaldo ni aprobación profesional de los autores.",
   "coverage": {
-    "exercises": 8,
-    "spanish": 7,
-    "english": 1,
-    "illustrations": 16,
+    "exercises": 21,
+    "spanish": 19,
+    "english": 2,
+    "illustrations": 44,
     "photographs": 0,
-    "workout_templates": 0
+    "workout_templates": 0,
+    "categories": {
+      "Abs": 1,
+      "Arms": 6,
+      "Back": 3,
+      "Chest": 4,
+      "Legs": 4,
+      "Shoulders": 3
+    }
   },
   "entries": [
     {
@@ -781,6 +789,1373 @@
           "visual_review": "exact_variant_verified",
           "is_ai_generated": false,
           "sha256": "7d4582f8f8e0573cbbf40527d461a9a67337bc147e00cf097147bab753026b10",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        }
+      ],
+      "review_status": "pending_professional_review",
+      "clinical_approval": false,
+      "can_activate_training": false
+    },
+    {
+      "id": "wger-75",
+      "name": "Press de banca con mancuernas",
+      "language": "es",
+      "category": "Chest",
+      "category_source_id": 11,
+      "metadata_language": "en",
+      "equipment": [
+        {
+          "id": 8,
+          "name": "Bench"
+        },
+        {
+          "id": 3,
+          "name": "Dumbbell"
+        }
+      ],
+      "equipment_metadata_complete": true,
+      "instructions": [
+        "Es un ejercicio multiarticular de fuerza y de hipertrofia destinado al desarrollo del tren superior, específicamente el pecho. Al usar mancuernas en lugar de barra, se corrige el desequilibrio de fuerza entre ambos lados del cuerpo y se permite un movimiento más natural y amigable para las articulaciones del hombro.",
+        "Preparación y Posición Inicial: Siéntate en el extremo de un banco plano con una mancuerna apoyada verticalmente en cada muslo. Túmbate hacia atrás con cuidado mientras impulsas las mancuernas con las rodillas hacia tu pecho.",
+        "El \"Leg Drive\" y Postura: Apoya los pies firmemente en el suelo. Retrae las escápulas (junta los omóplatos contra el banco) y mantén un ligero arco lumbar natural.",
+        "Posición de Salida: Empuja las mancuernas hacia el techo. Tus muñecas deben estar alineadas con los codos. Gira ligeramente las mancuernas hacia adentro (unos 45 grados) para que los codos no se abran en exceso hacia los lados, protegiendo así tus hombros.",
+        "Fase Excéntrica (Bajada): Baja las mancuernas de forma controlada hacia los lados de tu pecho. Los codos deben bajar formando un ángulo de unos 45-60 grados respecto a tu cuerpo. Siente el estiramiento en el pectoral en la parte baja.",
+        "Fase Concéntrica (Subida): Empuja el peso hacia arriba siguiendo una ligera trayectoria en arco (hacia el centro), sin llegar a chocar las mancuernas arriba ni bloquear los codos por completo para mantener la tensión muscular. Expulsa el aire al subir."
+      ],
+      "source_url": "https://wger.de/en/exercise/75/view",
+      "source_api_url": "https://wger.de/api/v2/exerciseinfo/75/",
+      "source_exercise_id": 75,
+      "source_exercise_uuid": "28321cf3-70e6-48a4-ade1-d11382180cb3",
+      "source_translation_id": 2626,
+      "source_translation_uuid": "5231e38e-7a5f-4c90-ad89-7bdf5d6dd21c",
+      "source_language_id": 4,
+      "source_last_update": "2026-07-02T16:44:41.508287+02:00",
+      "checked_on": "2026-09-10",
+      "instructions_sha256": "0ca6c0e396bb6826a1ea3a86e61606efb8612613492217fb2c7351eb02d540b4",
+      "source_description_sha256": "d8b1be607848de9b8e0fda5de493dfae6d1c312f8438a29dbc44831faa9499b5",
+      "attribution": {
+        "authors": [
+          "admin"
+        ],
+        "license": "CC-BY-SA-4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "source_license_id": 2,
+        "source_license_url": "https://wger.de/api/v2/license/2/",
+        "source_author_history": [
+          "admin"
+        ],
+        "changes": "Se retiró el formato HTML y se normalizaron espacios; palabras originales, sin traducción ni instrucciones añadidas."
+      },
+      "base_attribution": {
+        "author": "wger.de",
+        "license": "CC-BY-SA-3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+        "source_license_id": 1,
+        "source_author_history": [
+          "wger.de"
+        ]
+      },
+      "images": [
+        {
+          "source_id": 113,
+          "source_uuid": "87a312b7-d01e-4f69-9bda-1ed2f1fcd9ab",
+          "source_exercise_id": 75,
+          "url": "https://wger.de/media/exercise-images/97/Dumbbell-bench-press-1.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/113/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "2d8aa760a9c81b98f79937c936c4819b5686a04a1c376a072061a5493da0a5d4",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        },
+        {
+          "source_id": 114,
+          "source_uuid": "3c765b1e-eab9-4b61-8e2e-7d7591cb6ccb",
+          "source_exercise_id": 75,
+          "url": "https://wger.de/media/exercise-images/97/Dumbbell-bench-press-2.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/114/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "e80a5a428f4a0f0535b16968d7ac4f45aa00a5067181b225e4967a10d87d3aa3",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        }
+      ],
+      "review_status": "pending_professional_review",
+      "clinical_approval": false,
+      "can_activate_training": false
+    },
+    {
+      "id": "wger-84",
+      "name": "Remo inclinado con agarre invertido",
+      "language": "es",
+      "category": "Back",
+      "category_source_id": 12,
+      "metadata_language": "en",
+      "equipment": [
+        {
+          "id": 1,
+          "name": "Barbell"
+        }
+      ],
+      "equipment_metadata_complete": true,
+      "instructions": [
+        "Igual que el remo normal, pero con un agarre invertido (las palmas apuntando hacia delante):",
+        "Agarra la barra con un agarre amplio (algo más que la anchura de los hombros) e inclínate hacia delante. Tu tronco no queda del todo paralelo al suelo, sino que forma un ligero ángulo. El pecho permanece hacia fuera durante todo el ejercicio.",
+        "Ahora tira de la barra con un movimiento rápido hacia el ombligo, no más arriba. Baja lentamente a la posición inicial. No te balancees con el cuerpo y mantén los brazos pegados al cuerpo."
+      ],
+      "source_url": "https://wger.de/en/exercise/84/view",
+      "source_api_url": "https://wger.de/api/v2/exerciseinfo/84/",
+      "source_exercise_id": 84,
+      "source_exercise_uuid": "2f0ddf9a-f520-4c55-8883-f0d4a789f481",
+      "source_translation_id": 3689,
+      "source_translation_uuid": "1295499e-f438-475e-89c1-cb1dc03611c7",
+      "source_language_id": 4,
+      "source_last_update": "2026-06-19T18:49:45.219028+02:00",
+      "checked_on": "2026-09-10",
+      "instructions_sha256": "bcd181e1e3fadeae9ba2e9af4b0719264c8e3d4714cece9fac042db3eb79ce70",
+      "source_description_sha256": "1f7ff94c816ebafc07c2e24d6bbd51aabb8f1755c7a8a4860ffb1cfa7bd8234c",
+      "attribution": {
+        "authors": [
+          "wger.de"
+        ],
+        "license": "CC-BY-SA-4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "source_license_id": 2,
+        "source_license_url": "https://wger.de/api/v2/license/2/",
+        "source_author_history": [
+          "wger.de"
+        ],
+        "changes": "Se retiró el formato HTML y se normalizaron espacios; palabras originales, sin traducción ni instrucciones añadidas."
+      },
+      "base_attribution": {
+        "author": "wger.de",
+        "license": "CC-BY-SA-3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+        "source_license_id": 1,
+        "source_author_history": [
+          "wger.de"
+        ]
+      },
+      "images": [
+        {
+          "source_id": 91,
+          "source_uuid": "c74c43a5-da29-443d-895c-2900b5591cd2",
+          "source_exercise_id": 84,
+          "url": "https://wger.de/media/exercise-images/110/Reverse-grip-bent-over-rows-1.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/91/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "a215b8f46d09363cfb67c36b81a80f947e1ac2c877a8ceb3ad545bfa38d8773f",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        },
+        {
+          "source_id": 92,
+          "source_uuid": "3c774680-b68c-4b1c-a150-4858783661c7",
+          "source_exercise_id": 84,
+          "url": "https://wger.de/media/exercise-images/110/Reverse-grip-bent-over-rows-2.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/92/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "304e3c8fe1073c69559e79848f5cf86fde55230b9908e1fba9f6ba437c1ced4c",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        }
+      ],
+      "review_status": "pending_professional_review",
+      "clinical_approval": false,
+      "can_activate_training": false
+    },
+    {
+      "id": "wger-152",
+      "name": "Dominadas con Agarre Supino",
+      "language": "es",
+      "category": "Back",
+      "category_source_id": 12,
+      "metadata_language": "en",
+      "equipment": [
+        {
+          "id": 6,
+          "name": "Pull-up bar"
+        }
+      ],
+      "equipment_metadata_complete": true,
+      "instructions": [
+        "Esta es una variante de la dominada que se caracteriza por el tipo de agarre, lo cual involucra de forma muy activa a los bíceps junto con los músculos de la espalda (dorsales). A menudo resulta más accesible que la dominada con agarre prono (pull-up).",
+        "Instrucciones:",
+        "Sujeta la barra con las palmas de las manos mirando hacia ti (agarre supino), con una separación similar al ancho de tus hombros.",
+        "Desde una posición colgado con los brazos extendidos, jala tu cuerpo hacia arriba hasta que tu mentón o barbilla sobrepase la barra. Baja de forma controlada hasta la extensión completa para terminar la repetición."
+      ],
+      "source_url": "https://wger.de/en/exercise/152/view",
+      "source_api_url": "https://wger.de/api/v2/exerciseinfo/152/",
+      "source_exercise_id": 152,
+      "source_exercise_uuid": "87e6abc5-a701-442a-b4fb-bb2a7598a754",
+      "source_translation_id": 2708,
+      "source_translation_uuid": "f8aa4c49-c227-4621-8411-f1521f171df5",
+      "source_language_id": 4,
+      "source_last_update": "2026-07-23T12:24:55.130199+02:00",
+      "checked_on": "2026-09-10",
+      "instructions_sha256": "b86ca82ea6cda18a5a762039389563e187b9c1a7489d8642f8d3f8c1b9e9d225",
+      "source_description_sha256": "e69ced2987dcb3737676a3e663f68e072c1c649867e0a43ea927688433c2d1aa",
+      "attribution": {
+        "authors": [
+          "wgerjhn"
+        ],
+        "license": "CC-BY-SA-4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "source_license_id": 2,
+        "source_license_url": "https://wger.de/api/v2/license/2/",
+        "source_author_history": [
+          "wgerjhn"
+        ],
+        "changes": "Se retiró el formato HTML y se normalizaron espacios; palabras originales, sin traducción ni instrucciones añadidas."
+      },
+      "base_attribution": {
+        "author": "BFad07",
+        "license": "CC0-1.0",
+        "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "source_license_id": 3,
+        "source_author_history": [
+          "BFad07"
+        ]
+      },
+      "images": [
+        {
+          "source_id": 73,
+          "source_uuid": "6c1a7459-266d-491a-bd50-7cbaea2bc771",
+          "source_exercise_id": 152,
+          "url": "https://wger.de/media/exercise-images/152/6c1a7459-266d-491a-bd50-7cbaea2bc771.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/73/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "82f66c212e0ab069d45c77771f4310a8b9b851c895d02b82375bb006d4d99977",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        },
+        {
+          "source_id": 75,
+          "source_uuid": "b2c5a9f9-8beb-41f7-841c-9664d22a427e",
+          "source_exercise_id": 152,
+          "url": "https://wger.de/media/exercise-images/152/b2c5a9f9-8beb-41f7-841c-9664d22a427e.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/75/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "b0dae95e977eac46ecef539f79d4b114e4b41f61ab5f70be5c2a487875532cc0",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        }
+      ],
+      "review_status": "pending_professional_review",
+      "clinical_approval": false,
+      "can_activate_training": false
+    },
+    {
+      "id": "wger-171",
+      "name": "Abdominales en Banco Inclinado",
+      "language": "es",
+      "category": "Abs",
+      "category_source_id": 10,
+      "metadata_language": "en",
+      "equipment": [
+        {
+          "id": 9,
+          "name": "Incline bench"
+        }
+      ],
+      "equipment_metadata_complete": true,
+      "instructions": [
+        "Este ejercicio aumenta la intensidad del trabajo abdominal y de los flexores de cadera gracias al ángulo del banco.",
+        "Instrucciones:",
+        "Acuéstate en un banco inclinado, asegurando firmemente tus pies en los soportes de la parte superior. Coloca las manos a los lados de la cabeza (sin jalar el cuello) o cruzadas sobre el pecho.",
+        "Contrae el abdomen y levanta tu torso \"enrollando\" la espalda, hasta que tus codos se acerquen a las rodillas. Baja de forma lenta y controlada a la posición inicial, sin dejarte caer.",
+        "(Nota: Para un crunch inclinado, solo se levantan los hombros y la parte alta de la espalda del banco, es un movimiento mucho más corto)."
+      ],
+      "source_url": "https://wger.de/en/exercise/171/view",
+      "source_api_url": "https://wger.de/api/v2/exerciseinfo/171/",
+      "source_exercise_id": 171,
+      "source_exercise_uuid": "7de7b8a8-313d-465f-bb22-8527ae45110a",
+      "source_translation_id": 2699,
+      "source_translation_uuid": "78dc00c0-d21e-4e60-bdcc-cf29df02daf6",
+      "source_language_id": 4,
+      "source_last_update": "2026-06-19T18:46:28.995282+02:00",
+      "checked_on": "2026-09-10",
+      "instructions_sha256": "4fa1f7d10a8b5086492c259fcc909c4462993ad1ce722d2843e242541e7a38a9",
+      "source_description_sha256": "8d27fc1029e24eb9dd1eb0aa55ba1d2030f4618f101161ceb9e5485f38cfdfa1",
+      "attribution": {
+        "authors": [
+          "wgerjhn"
+        ],
+        "license": "CC-BY-SA-4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "source_license_id": 2,
+        "source_license_url": "https://wger.de/api/v2/license/2/",
+        "source_author_history": [
+          "wgerjhn"
+        ],
+        "changes": "Se retiró el formato HTML y se normalizaron espacios; palabras originales, sin traducción ni instrucciones añadidas."
+      },
+      "base_attribution": {
+        "author": "wger.de",
+        "license": "CC-BY-SA-3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+        "source_license_id": 1,
+        "source_author_history": [
+          "wger.de"
+        ]
+      },
+      "images": [
+        {
+          "source_id": 135,
+          "source_uuid": "70761be3-c07e-4dac-a0a6-b62b4e3c0ab6",
+          "source_exercise_id": 171,
+          "url": "https://wger.de/media/exercise-images/56/Decline-crunch-1.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/135/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "78a07c06e40b5e42181bdd04187d387f100f83837ddef61f59e8d52820000c20",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        },
+        {
+          "source_id": 136,
+          "source_uuid": "081d1f56-c664-4493-9846-b6d6613e0ef7",
+          "source_exercise_id": 171,
+          "url": "https://wger.de/media/exercise-images/56/Decline-crunch-2.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/136/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "b7d0c44ebc34ed61d25b7f0a78e27cc18c408ec3d9dee02bef1f3bcabf66c4b9",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        }
+      ],
+      "review_status": "pending_professional_review",
+      "clinical_approval": false,
+      "can_activate_training": false
+    },
+    {
+      "id": "wger-185",
+      "name": "Decline Bench Press Barbell",
+      "language": "en",
+      "category": "Chest",
+      "category_source_id": 11,
+      "metadata_language": "en",
+      "equipment": [
+        {
+          "id": 1,
+          "name": "Barbell"
+        },
+        {
+          "id": 8,
+          "name": "Bench"
+        }
+      ],
+      "equipment_metadata_complete": true,
+      "instructions": [
+        "Lay down on a decline bench, the bar should be directly above your eyes, the knees are somewhat angled and the feet are firmly on the floor. Concentrate, breath deeply and grab the bar more than shoulder wide. Bring it slowly down till it briefly touches your chest at the height of your nipples. Push the bar up."
+      ],
+      "source_url": "https://wger.de/en/exercise/185/view",
+      "source_api_url": "https://wger.de/api/v2/exerciseinfo/185/",
+      "source_exercise_id": 185,
+      "source_exercise_uuid": "bcd801f0-9a38-4615-a91c-900153c8c234",
+      "source_translation_id": 100,
+      "source_translation_uuid": "b72ae8d4-ede6-4480-8fc5-7b80e369f7ed",
+      "source_language_id": 2,
+      "source_last_update": "2026-07-23T12:08:35.224422+02:00",
+      "checked_on": "2026-09-10",
+      "instructions_sha256": "c0be937769413519d5f46e4315ee3a4456ebd8ceb960ab4b6adabdc1f606f7fc",
+      "source_description_sha256": "7259cd2ca4f5c8afc57c7b462df5768b0e4d6af996dce9ea55359e706193cb3a",
+      "attribution": {
+        "authors": [
+          "wger.de"
+        ],
+        "license": "CC-BY-SA-3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+        "source_license_id": 1,
+        "source_license_url": "https://wger.de/api/v2/license/1/",
+        "source_author_history": [
+          "wger.de"
+        ],
+        "changes": "Se retiró el formato HTML y se normalizaron espacios; palabras originales, sin traducción ni instrucciones añadidas."
+      },
+      "base_attribution": {
+        "author": "wger.de",
+        "license": "CC-BY-SA-3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+        "source_license_id": 1,
+        "source_author_history": [
+          "wger.de"
+        ]
+      },
+      "images": [
+        {
+          "source_id": 115,
+          "source_uuid": "06cba35d-3c10-4e13-ae1c-524dbb194fdf",
+          "source_exercise_id": 185,
+          "url": "https://wger.de/media/exercise-images/100/Decline-bench-press-1.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/115/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "50ea915603a7eb2b4e7bc31c47a597c04a7675df2ff3b05855fd782ac2dd9224",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        },
+        {
+          "source_id": 116,
+          "source_uuid": "5e6aa692-cb40-45f5-a17c-b368c3bd2d3f",
+          "source_exercise_id": 185,
+          "url": "https://wger.de/media/exercise-images/100/Decline-bench-press-2.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/116/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "199b5e823e91efadc30cf103f3b9dc994125a2b5b714ca77258a748d1a6c12ae",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        }
+      ],
+      "review_status": "pending_professional_review",
+      "clinical_approval": false,
+      "can_activate_training": false
+    },
+    {
+      "id": "wger-197",
+      "name": "Fondos entre Bancos",
+      "language": "es",
+      "category": "Arms",
+      "category_source_id": 8,
+      "metadata_language": "en",
+      "equipment": [
+        {
+          "id": 8,
+          "name": "Bench"
+        }
+      ],
+      "equipment_metadata_complete": true,
+      "instructions": [
+        "Esta es una excelente variante de los fondos para aislar y trabajar los tríceps utilizando únicamente bancos y tu peso corporal.",
+        "Instrucciones",
+        "Posición: Coloca dos bancos paralelos entre sí. Siéntate en uno y apoya las palmas de tus manos en el borde, junto a tu cadera. Extiende las piernas y apoya los talones sobre el otro banco. Levanta la cadera del banco, sosteniendo tu peso con los brazos.",
+        "Descenso: Manteniendo los codos apuntando hacia atrás, flexiónalos para bajar tu cuerpo de forma controlada hasta que sientas un buen estiramiento en los tríceps (aproximadamente a un ángulo de 90 grados en el codo).",
+        "Ascenso: Empuja con fuerza a través de las palmas de tus manos para volver a la posición inicial, contrayendo los tríceps. Evita extender por completo los codos en la parte alta para mantener la tensión.",
+        "(Para hacerlo más difícil, pide a un compañero que coloque un disco sobre tus muslos. Para hacerlo más fácil, apoya los pies en el suelo con las rodillas flexionadas)."
+      ],
+      "source_url": "https://wger.de/en/exercise/197/view",
+      "source_api_url": "https://wger.de/api/v2/exerciseinfo/197/",
+      "source_exercise_id": 197,
+      "source_exercise_uuid": "7c8eb1ac-2d7e-4ca7-919a-1848ba38e0f4",
+      "source_translation_id": 2726,
+      "source_translation_uuid": "416a3b25-36f7-4897-8a8d-49df9053d8aa",
+      "source_language_id": 4,
+      "source_last_update": "2026-06-19T18:46:37.190865+02:00",
+      "checked_on": "2026-09-10",
+      "instructions_sha256": "1694ba50670471f99707c7a552e0689b08a9989faed04871f4ac853ac6e65bac",
+      "source_description_sha256": "2aa95e60c1a17aa18d1041cdb0c08dc2d47d414d7c77f464318a3c9e520abdc7",
+      "attribution": {
+        "authors": [
+          "wgerjhn"
+        ],
+        "license": "CC-BY-SA-4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "source_license_id": 2,
+        "source_license_url": "https://wger.de/api/v2/license/2/",
+        "source_author_history": [
+          "wgerjhn"
+        ],
+        "changes": "Se retiró el formato HTML y se normalizaron espacios; palabras originales, sin traducción ni instrucciones añadidas."
+      },
+      "base_attribution": {
+        "author": "wger.de",
+        "license": "CC-BY-SA-3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+        "source_license_id": 1,
+        "source_author_history": [
+          "wger.de"
+        ]
+      },
+      "images": [
+        {
+          "source_id": 35,
+          "source_uuid": "c64a9199-5ad7-4552-abdd-491deb02296a",
+          "source_exercise_id": 197,
+          "url": "https://wger.de/media/exercise-images/83/Bench-dips-1.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/35/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "b44b8c81f6e2f2605944358086cc3730d438c8f8accfea4f19246b74b4d98f5f",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        },
+        {
+          "source_id": 36,
+          "source_uuid": "e543fb73-06d0-4e1b-8645-d5706da9504a",
+          "source_exercise_id": 197,
+          "url": "https://wger.de/media/exercise-images/83/Bench-dips-2.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/36/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "b0507617e38e53acbc7ab0a75cae125bf959f049b293deb7c25f9399c9afc670",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        }
+      ],
+      "review_status": "pending_professional_review",
+      "clinical_approval": false,
+      "can_activate_training": false
+    },
+    {
+      "id": "wger-206",
+      "name": "Zancadas Caminando con Mancuernas",
+      "language": "es",
+      "category": "Legs",
+      "category_source_id": 9,
+      "metadata_language": "en",
+      "equipment": [
+        {
+          "id": 3,
+          "name": "Dumbbell"
+        }
+      ],
+      "equipment_metadata_complete": true,
+      "instructions": [
+        "Esta es la variante dinámica de las zancadas. Al avanzar con cada paso en lugar de permanecer en el mismo sitio, se incrementa el trabajo de estabilización, equilibrio y coordinación.",
+        "Instrucciones",
+        "Posición: De pie, con la espalda recta, sostén una mancuerna en cada mano a los costados de tu cuerpo.",
+        "Zancada: Da un paso largo hacia adelante. Baja la cadera de forma controlada hasta que ambas rodillas se flexionen en un ángulo de aproximadamente 90 grados. La rodilla de atrás debe quedar cerca del suelo, sin tocarlo.",
+        "Avance: Manteniendo el torso erguido, impúlsate hacia adelante: presiona con el talón del pie delantero para ponerte de pie y dar inmediatamente el siguiente paso con la otra pierna. Continúa \"caminando\" con zancadas de forma fluida."
+      ],
+      "source_url": "https://wger.de/en/exercise/206/view",
+      "source_api_url": "https://wger.de/api/v2/exerciseinfo/206/",
+      "source_exercise_id": 206,
+      "source_exercise_uuid": "dcc6e237-a8bb-4eca-bbc5-7fb852636f6a",
+      "source_translation_id": 2720,
+      "source_translation_uuid": "6ea6887f-6614-45fa-8fed-6792e4a64eda",
+      "source_language_id": 4,
+      "source_last_update": "2026-07-02T16:14:28.985601+02:00",
+      "checked_on": "2026-09-10",
+      "instructions_sha256": "d07097edc7e204c0ade953d7ab7f1992ee19dcf49bf5c0e023cbe6fd5d55e996",
+      "source_description_sha256": "eb9386d9b483a76e5b777f3c8afa2d6e40bb2d184a91471ca9dc65fc21f69495",
+      "attribution": {
+        "authors": [
+          "wgerjhn"
+        ],
+        "license": "CC-BY-SA-4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "source_license_id": 2,
+        "source_license_url": "https://wger.de/api/v2/license/2/",
+        "source_author_history": [
+          "wgerjhn"
+        ],
+        "changes": "Se retiró el formato HTML y se normalizaron espacios; palabras originales, sin traducción ni instrucciones añadidas."
+      },
+      "base_attribution": {
+        "author": "wger.de",
+        "license": "CC-BY-SA-3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+        "source_license_id": 1,
+        "source_author_history": [
+          "wger.de"
+        ]
+      },
+      "images": [
+        {
+          "source_id": 121,
+          "source_uuid": "b0e8b77a-97c2-470f-9fc0-928ffb2aae89",
+          "source_exercise_id": 206,
+          "url": "https://wger.de/media/exercise-images/113/Walking-lunges-1.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/121/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "07387896308a88dec1c1f9644be3eaa6bca9485c9574c56ce7c18ddd02b9751d",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        },
+        {
+          "source_id": 122,
+          "source_uuid": "52c4434e-b5a2-4fce-af61-d997b510438a",
+          "source_exercise_id": 206,
+          "url": "https://wger.de/media/exercise-images/113/Walking-lunges-2.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/122/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "e804f4c754e3b28e5887352cf5e993fbcb8384d4e88b06b83849ab2feb8d1443",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        },
+        {
+          "source_id": 123,
+          "source_uuid": "3d311933-e073-409b-92d3-41f3d75e8c94",
+          "source_exercise_id": 206,
+          "url": "https://wger.de/media/exercise-images/113/Walking-lunges-3.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/123/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "b2b354b4c215f0265277b848a5530d43be302787bc8a18f3b5c4faaf4fb3ebbf",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        },
+        {
+          "source_id": 124,
+          "source_uuid": "c0dff0d5-618d-4739-94f9-7d3cd76bc8a1",
+          "source_exercise_id": 206,
+          "url": "https://wger.de/media/exercise-images/113/Walking-lunges-4.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/124/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "435883b528f8e3065f47bffbb53be83abb013b8df3ad14b655c8c124aae22136",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        }
+      ],
+      "review_status": "pending_professional_review",
+      "clinical_approval": false,
+      "can_activate_training": false
+    },
+    {
+      "id": "wger-246",
+      "name": "Press Francés con Barra SZ",
+      "language": "es",
+      "category": "Arms",
+      "category_source_id": 8,
+      "metadata_language": "en",
+      "equipment": [
+        {
+          "id": 8,
+          "name": "Bench"
+        },
+        {
+          "id": 2,
+          "name": "SZ-Bar"
+        }
+      ],
+      "equipment_metadata_complete": true,
+      "instructions": [
+        "Este ejercicio, popularmente conocido como \"rompecráneos\" (skullcrusher), es uno de los más efectivos para añadir masa y fuerza a los tríceps. El uso de la barra SZ (o EZ) reduce la tensión sobre las muñecas en comparación con una barra recta.",
+        "Instrucciones",
+        "Posición: Acuéstate en un banco plano. Sujeta una barra SZ sobre tu pecho con un agarre cerrado (manos en las curvas interiores de la barra) y los brazos extendidos.",
+        "Descenso: Manteniendo la parte superior de los brazos inmóvil y perpendicular al suelo, flexiona únicamente los codos para bajar la barra de forma controlada en dirección a tu frente.",
+        "Ascenso: Justo antes de que la barra toque tu frente, empújala de vuelta a la posición inicial extendiendo los codos. Concéntrate en apretar los tríceps al final del movimiento."
+      ],
+      "source_url": "https://wger.de/en/exercise/246/view",
+      "source_api_url": "https://wger.de/api/v2/exerciseinfo/246/",
+      "source_exercise_id": 246,
+      "source_exercise_uuid": "95a7e546-e8f8-4521-a76b-983d94161b25",
+      "source_translation_id": 2738,
+      "source_translation_uuid": "3276fa09-192d-4586-ac3e-8ca7860ccba4",
+      "source_language_id": 4,
+      "source_last_update": "2026-06-19T18:46:40.278298+02:00",
+      "checked_on": "2026-09-10",
+      "instructions_sha256": "794c4c66fd4f6b4635364e51529d827b6f83533717ce700bc8071c25be2ea191",
+      "source_description_sha256": "e650010f9fc500bbb745c7649703432a0a98514ff49c4cd94a2e5ca09b7e0bd0",
+      "attribution": {
+        "authors": [
+          "wgerjhn"
+        ],
+        "license": "CC-BY-SA-4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "source_license_id": 2,
+        "source_license_url": "https://wger.de/api/v2/license/2/",
+        "source_author_history": [
+          "wgerjhn"
+        ],
+        "changes": "Se retiró el formato HTML y se normalizaron espacios; palabras originales, sin traducción ni instrucciones añadidas."
+      },
+      "base_attribution": {
+        "author": "wger.de",
+        "license": "CC-BY-SA-3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+        "source_license_id": 1,
+        "source_author_history": [
+          "wger.de"
+        ]
+      },
+      "images": [
+        {
+          "source_id": 60,
+          "source_uuid": "ad26f561-e80b-43e2-93ed-07c0fba63a3d",
+          "source_exercise_id": 246,
+          "url": "https://wger.de/media/exercise-images/84/Lying-close-grip-triceps-press-to-chin-1.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/60/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "b5ef24dff500cfd5cd2f098266b265680cf69f9783f96089ccef78f148f44ee7",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        },
+        {
+          "source_id": 61,
+          "source_uuid": "c205b132-b4f1-4e2c-b869-9b3f897bda9c",
+          "source_exercise_id": 246,
+          "url": "https://wger.de/media/exercise-images/84/Lying-close-grip-triceps-press-to-chin-2.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/61/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "a852ec0ae7897fcf4e10ec992cc09ff78240a897ea6938a9196e83a67e2828eb",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        }
+      ],
+      "review_status": "pending_professional_review",
+      "clinical_approval": false,
+      "can_activate_training": false
+    },
+    {
+      "id": "wger-257",
+      "name": "Sentadilla Frontal",
+      "language": "es",
+      "category": "Legs",
+      "category_source_id": 9,
+      "metadata_language": "en",
+      "equipment": [
+        {
+          "id": 1,
+          "name": "Barbell"
+        }
+      ],
+      "equipment_metadata_complete": true,
+      "instructions": [
+        "Contrario a la creencia popular, esta variante de la sentadilla pone un énfasis mucho mayor en los cuádriceps y en la fuerza del core (abdominales y espalda alta), ya que la posición de la barra obliga a mantener el torso extremadamente erguido.",
+        "Instrucciones",
+        "Posición: Sostén la barra sobre la parte frontal de tus hombros (deltoides). Puedes usar un agarre de levantamiento olímpico (\"clean grip\", con los codos apuntando al frente) o cruzando los brazos para estabilizar la barra.",
+        "Descenso: Manteniendo el pecho y los codos elevados en todo momento, baja a una sentadilla profunda. El torso debe permanecer lo más vertical posible durante todo el recorrido.",
+        "Ascenso: Empuja con fuerza a través de tus piernas (enfocándote en los cuádriceps) para volver a la posición inicial."
+      ],
+      "source_url": "https://wger.de/en/exercise/257/view",
+      "source_api_url": "https://wger.de/api/v2/exerciseinfo/257/",
+      "source_exercise_id": 257,
+      "source_exercise_uuid": "d677de4c-5bd9-412a-91f1-857116a666a2",
+      "source_translation_id": 2731,
+      "source_translation_uuid": "83b6fb1f-4646-4314-95fa-a6bb2f38f363",
+      "source_language_id": 4,
+      "source_last_update": "2026-04-15T22:23:55.585492+02:00",
+      "checked_on": "2026-09-10",
+      "instructions_sha256": "1485c932fe8e1c2f6d199f1b0805f29ceaa7d5578db8867dd8ffb354eae2f389",
+      "source_description_sha256": "c92932034019031bbb589e63f5c30aac4a43479505d76694f8f78a5421e32bc4",
+      "attribution": {
+        "authors": [
+          "wgerjhn"
+        ],
+        "license": "CC-BY-SA-4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "source_license_id": 2,
+        "source_license_url": "https://wger.de/api/v2/license/2/",
+        "source_author_history": [
+          "wgerjhn"
+        ],
+        "changes": "Se retiró el formato HTML y se normalizaron espacios; palabras originales, sin traducción ni instrucciones añadidas."
+      },
+      "base_attribution": {
+        "author": "sistab2",
+        "license": "CC-BY-SA-3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+        "source_license_id": 1,
+        "source_author_history": [
+          "sistab2"
+        ]
+      },
+      "images": [
+        {
+          "source_id": 149,
+          "source_uuid": "deeecd20-53f7-4494-a531-e6ff8cd79045",
+          "source_exercise_id": 257,
+          "url": "https://wger.de/media/exercise-images/191/Front-squat-1-857x1024.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/149/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "4068499db0a18054ceb56c01e36f0d74c58bb9a3f0729e1d990acd21d8d84159",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        },
+        {
+          "source_id": 150,
+          "source_uuid": "bec83f17-2060-4bee-8a02-78db230568bf",
+          "source_exercise_id": 257,
+          "url": "https://wger.de/media/exercise-images/191/Front-squat-2-857x1024.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/150/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "4fb462d6f75e2e063b1f11469df38983921dea139fd06bc94183e917951d97e0",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        }
+      ],
+      "review_status": "pending_professional_review",
+      "clinical_approval": false,
+      "can_activate_training": false
+    },
+    {
+      "id": "wger-513",
+      "name": "Remo en \"T\"",
+      "language": "es",
+      "category": "Back",
+      "category_source_id": 12,
+      "metadata_language": "en",
+      "equipment": [],
+      "equipment_metadata_complete": false,
+      "instructions": [
+        "La ejecución de este ejercicio es muy similar a la del remo inclinado normal, solo que aquí la barra está fija.",
+        "Agarra la barra con un agarre amplio (ligeramente más ancho que los hombros) e inclínate hacia delante. La parte superior del cuerpo no debe quedar totalmente paralela al suelo, sino formar un ligero ángulo. Mantén el pecho hacia fuera durante todo el ejercicio.",
+        "Tira de la barra con un movimiento rápido hacia el ombligo, sin subirla más.",
+        "Vuelve lentamente a la posición inicial.",
+        "No balancees el cuerpo y mantén los brazos pegados al cuerpo."
+      ],
+      "source_url": "https://wger.de/en/exercise/513/view",
+      "source_api_url": "https://wger.de/api/v2/exerciseinfo/513/",
+      "source_exercise_id": 513,
+      "source_exercise_uuid": "32c129f7-cc28-4ebc-8465-e4fa62e220b1",
+      "source_translation_id": 2936,
+      "source_translation_uuid": "d6daea11-909c-411c-bb4a-2f94f5255fa4",
+      "source_language_id": 4,
+      "source_last_update": "2026-06-19T18:46:54.848725+02:00",
+      "checked_on": "2026-09-10",
+      "instructions_sha256": "385a84a20f4238a512208852459c188cede85c4756d9e0618605b124916ffe79",
+      "source_description_sha256": "f4b8948f9e579b025b2560fb4a69c04b75b5f753281826654021c4cd43411903",
+      "attribution": {
+        "authors": [
+          "LEBRERO"
+        ],
+        "license": "CC-BY-SA-4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "source_license_id": 2,
+        "source_license_url": "https://wger.de/api/v2/license/2/",
+        "source_author_history": [
+          "LEBRERO"
+        ],
+        "changes": "Se retiró el formato HTML y se normalizaron espacios; palabras originales, sin traducción ni instrucciones añadidas."
+      },
+      "base_attribution": {
+        "author": "wger.de",
+        "license": "CC-BY-SA-3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+        "source_license_id": 1,
+        "source_author_history": [
+          "wger.de"
+        ]
+      },
+      "images": [
+        {
+          "source_id": 77,
+          "source_uuid": "94347272-2ea7-407f-9362-cde777bc908d",
+          "source_exercise_id": 513,
+          "url": "https://wger.de/media/exercise-images/106/T-bar-row-1.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/77/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "480b7c5b2374d10dcf41eb6ad173e77c5feccc825b85b24ce8a388b0e0377111",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        },
+        {
+          "source_id": 79,
+          "source_uuid": "b4dfc3fb-c049-418f-855d-23ab6c39d906",
+          "source_exercise_id": 513,
+          "url": "https://wger.de/media/exercise-images/106/T-bar-row-2.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/79/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "02d3b4f083396694b6b8ee0bac486fdde646c073358771a3b4381b4046691560",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        }
+      ],
+      "review_status": "pending_professional_review",
+      "clinical_approval": false,
+      "can_activate_training": false
+    },
+    {
+      "id": "wger-537",
+      "name": "Press inclinado con mancuernas",
+      "language": "es",
+      "category": "Chest",
+      "category_source_id": 11,
+      "metadata_language": "en",
+      "equipment": [
+        {
+          "id": 3,
+          "name": "Dumbbell"
+        },
+        {
+          "id": 9,
+          "name": "Incline bench"
+        }
+      ],
+      "equipment_metadata_complete": true,
+      "instructions": [
+        "Es una variante del press plano orientada a enfatizar el trabajo en el haz clavicular del pectoral (la sección superior). Al inclinar el torso, el ángulo de empuje cambia, transfiriendo más tensión hacia la parte alta del pecho y los hombros, lo que ayuda a conseguir un desarrollo más estético, equilibrado y tridimensional del torso.",
+        "Ajuste del banco y preparación: Coloca el banco a una inclinación de entre 30 y 45 grados (una inclinación mayor a 45° pasará demasiado esfuerzo al hombro y restará estímulo al pecho). Siéntate con una mancuerna sobre cada muslo.",
+        "Posición de inicio: Túmbate hacia atrás apoyando la espalda en el respaldo, mientras usas las rodillas secuencialmente para impulsar las mancuernas hacia arriba, a la altura de tus hombros.",
+        "Estabilización anatómica: Planta los pies firmemente en el suelo. Retrae las escápulas (junta los omóplatos y húndelos en el banco) para proteger los hombros y estabilizar la carga.",
+        "Fase Excéntrica (Bajada): Baja las mancuernas de forma lenta y controlada hacia la parte superior de tu pecho. Los codos no deben abrirse en cruz (90°); mantén un ángulo seguro de unos 45 a 60 grados respecto a tu torso.",
+        "Fase Concéntrica (Subida): Empuja las mancuernas verticalmente hacia arriba expulsando el aire. Sigue una trayectoria ligeramente convergente (sin que lleguen a tocarse arriba). Detén el movimiento justo antes de bloquear los codos para mantener la tensión muscular en el pectoral alto."
+      ],
+      "source_url": "https://wger.de/en/exercise/537/view",
+      "source_api_url": "https://wger.de/api/v2/exerciseinfo/537/",
+      "source_exercise_id": 537,
+      "source_exercise_uuid": "57e17672-52b9-43cf-8d0d-4b3f06a0c0d0",
+      "source_translation_id": 4379,
+      "source_translation_uuid": "375829be-7572-49fb-ae47-d8e9e488398a",
+      "source_language_id": 4,
+      "source_last_update": "2026-07-02T16:44:43.088138+02:00",
+      "checked_on": "2026-09-10",
+      "instructions_sha256": "826120fc7e32e8e584715d0e21083b290b68323f7241b7006f72417cdc0ad802",
+      "source_description_sha256": "bd0a4b8a58cb74571cd63e22e1b595b2c1ddce99c9d27172f149a378c1a0e09c",
+      "attribution": {
+        "authors": [
+          "wger.de"
+        ],
+        "license": "CC-BY-SA-4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "source_license_id": 2,
+        "source_license_url": "https://wger.de/api/v2/license/2/",
+        "source_author_history": [
+          "wger.de"
+        ],
+        "changes": "Se retiró el formato HTML y se normalizaron espacios; palabras originales, sin traducción ni instrucciones añadidas."
+      },
+      "base_attribution": {
+        "author": "wger.de",
+        "license": "CC-BY-SA-3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+        "source_license_id": 1,
+        "source_author_history": [
+          "wger.de"
+        ]
+      },
+      "images": [
+        {
+          "source_id": 105,
+          "source_uuid": "285943a6-e0ce-47cc-b244-ba698377af93",
+          "source_exercise_id": 537,
+          "url": "https://wger.de/media/exercise-images/16/Incline-press-1.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/105/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "53b0545c1bbe7dc5d7db758d4e510f7331f4b73d1ec291d4760f1e6d421ad6f9",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        },
+        {
+          "source_id": 106,
+          "source_uuid": "cb9267bb-f561-49a2-94ad-fa4adebf1e27",
+          "source_exercise_id": 537,
+          "url": "https://wger.de/media/exercise-images/16/Incline-press-2.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/106/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "e5a431a2475859436b32fcedefa316543c8dd2f72fb70e9980020e2ff3a21f34",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        }
+      ],
+      "review_status": "pending_professional_review",
+      "clinical_approval": false,
+      "can_activate_training": false
+    },
+    {
+      "id": "wger-566",
+      "name": "Press de hombros con barra",
+      "language": "es",
+      "category": "Shoulders",
+      "category_source_id": 13,
+      "metadata_language": "en",
+      "equipment": [
+        {
+          "id": 1,
+          "name": "Barbell"
+        }
+      ],
+      "equipment_metadata_complete": true,
+      "instructions": [
+        "Siéntate en un banco; el respaldo debe estar casi vertical. Coge una barra con un agarre del ancho de los hombros y súbela hasta la altura del pecho. Empuja el peso hacia arriba, pero no estires los brazos por completo. Baja lentamente y repite."
+      ],
+      "source_url": "https://wger.de/en/exercise/566/view",
+      "source_api_url": "https://wger.de/api/v2/exerciseinfo/566/",
+      "source_exercise_id": 566,
+      "source_exercise_uuid": "8b0a0371-c0a9-42a7-aab7-68d520542fb2",
+      "source_translation_id": 4353,
+      "source_translation_uuid": "faf2d371-7f79-49d6-b450-1045feaef2b0",
+      "source_language_id": 4,
+      "source_last_update": "2026-06-19T18:57:22.944103+02:00",
+      "checked_on": "2026-09-10",
+      "instructions_sha256": "2cac56e41273b8ed18c2c254760e4e02ccda65c117b41b62951489e86ba42896",
+      "source_description_sha256": "b1ba8fca493cc79b4922834308214648395610546c99cea7a3016fc9c2d93072",
+      "attribution": {
+        "authors": [
+          "wger.de"
+        ],
+        "license": "CC-BY-SA-4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "source_license_id": 2,
+        "source_license_url": "https://wger.de/api/v2/license/2/",
+        "source_author_history": [
+          "wger.de"
+        ],
+        "changes": "Se retiró el formato HTML y se normalizaron espacios; palabras originales, sin traducción ni instrucciones añadidas."
+      },
+      "base_attribution": {
+        "author": "wger.de",
+        "license": "CC-BY-SA-3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+        "source_license_id": 1,
+        "source_author_history": [
+          "wger.de"
+        ]
+      },
+      "images": [
+        {
+          "source_id": 171,
+          "source_uuid": "66ff858e-3719-4fdc-9710-c41e43a3c057",
+          "source_exercise_id": 566,
+          "url": "https://wger.de/media/exercise-images/119/seated-barbell-shoulder-press-large-1.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/171/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "34584e3751dceb4e6ef8b91fe0d0408f1a7ef7930b11a9367859af7a900af424",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        },
+        {
+          "source_id": 172,
+          "source_uuid": "01a05758-9b0b-4d9c-b5a6-80b9df6bd26a",
+          "source_exercise_id": 566,
+          "url": "https://wger.de/media/exercise-images/119/seated-barbell-shoulder-press-large-2.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/172/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "4033f2e600e96fb6614a861a70fc41d5c3a368749c87a31efd16449ee6e27dbb",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        }
+      ],
+      "review_status": "pending_professional_review",
+      "clinical_approval": false,
+      "can_activate_training": false
+    },
+    {
+      "id": "wger-567",
+      "name": "Press Militar mancuerna",
+      "language": "es",
+      "category": "Shoulders",
+      "category_source_id": 13,
+      "metadata_language": "en",
+      "equipment": [
+        {
+          "id": 3,
+          "name": "Dumbbell"
+        }
+      ],
+      "equipment_metadata_complete": true,
+      "instructions": [
+        "Siéntate en un banco, con el respaldo casi vertical. Toma dos mancuernas y súbelas a la altura de los hombros, con las palmas y los codos apuntando hacia adelante durante todo el ejercicio. Empuja las mancuernas hacia arriba; en el punto más alto, se acercarán mucho, pero sin tocarse. Baja lentamente y repite."
+      ],
+      "source_url": "https://wger.de/en/exercise/567/view",
+      "source_api_url": "https://wger.de/api/v2/exerciseinfo/567/",
+      "source_exercise_id": 567,
+      "source_exercise_uuid": "87affa4b-395b-437c-9581-2bd20ea5aa7c",
+      "source_translation_id": 2611,
+      "source_translation_uuid": "029745d1-a942-43e5-b754-7a0e5d87e13d",
+      "source_language_id": 4,
+      "source_last_update": "2026-06-19T18:46:58.504753+02:00",
+      "checked_on": "2026-09-10",
+      "instructions_sha256": "2eed5a8f59b5d21290d2405eba479ca4d4c12cb7ed403dc6a9e786f545755ee9",
+      "source_description_sha256": "01d1b1a8c4a05fee6c91324aca13009eed13e94b8e6096a91fc58cea0d8edb99",
+      "attribution": {
+        "authors": [
+          "admin"
+        ],
+        "license": "CC-BY-SA-4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "source_license_id": 2,
+        "source_license_url": "https://wger.de/api/v2/license/2/",
+        "source_author_history": [
+          "admin"
+        ],
+        "changes": "Se retiró el formato HTML y se normalizaron espacios; palabras originales, sin traducción ni instrucciones añadidas."
+      },
+      "base_attribution": {
+        "author": "wger.de",
+        "license": "CC-BY-SA-3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+        "source_license_id": 1,
+        "source_author_history": [
+          "wger.de"
+        ]
+      },
+      "images": [
+        {
+          "source_id": 173,
+          "source_uuid": "0aecd2f4-3016-4813-b3c0-6a708ae7069a",
+          "source_exercise_id": 567,
+          "url": "https://wger.de/media/exercise-images/123/dumbbell-shoulder-press-large-1.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/173/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "d3fbf6690df84e743ae090164f133e84c5595a54a892d80532e0af4cb543f670",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
+          "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        },
+        {
+          "source_id": 174,
+          "source_uuid": "1983b6be-1784-4ad3-a05c-7e4b34d9878f",
+          "source_exercise_id": 567,
+          "url": "https://wger.de/media/exercise-images/123/dumbbell-shoulder-press-large-2.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/174/",
+          "kind": "illustration",
+          "author": "Everkinetic",
+          "license": "CC-BY-SA-3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+          "source_license_id": 1,
+          "source_license_url": "https://wger.de/api/v2/license/1/",
+          "source_author_history": [],
+          "checked_on": "2026-09-10",
+          "visual_review": "exact_variant_verified",
+          "is_ai_generated": false,
+          "sha256": "42aa5e8286d57566ac5e5239013deddb48201c64656f13b4d26b91f6e33182ef",
           "changes": "Sin cambios en la imagen original servida por wger.",
           "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
           "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"

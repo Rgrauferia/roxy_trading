@@ -10,9 +10,9 @@ const payload={clinical_approval:false,can_activate_training:false,entries:data.
 const clone=x=>JSON.parse(JSON.stringify(x));
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
 
-test('all eight originals and sixteen exact-source illustrations render',()=>{
+test('all twenty-one sourced entries and forty-four exact-source illustrations render',()=>{
   const entries=api.validatedEntries(payload);
-  assert.equal(entries.length,8);assert.equal(entries.flatMap(x=>x.images).length,16);
+  assert.equal(entries.length,21);assert.equal(entries.flatMap(x=>x.images).length,44);
   for(const e of entries){const html=api.detail(e);assert.match(html,/Indicaciones originales/);assert.match(html,/Revisión profesional de Roxy: pendiente/);assert.match(html,/Everkinetic/);assert.match(html,/CC-BY-SA/);assert.match(html,/no-referrer/);assert.doesNotMatch(html,/Comenzar entrenamiento|FDA approved/);assert.equal((html.match(/<img /g)||[]).length,e.images.length);assert.ok(html.includes(e.source_url));}
 });
 test('unavailable or purported clinical approvals never enter educational UI',()=>{
@@ -20,20 +20,21 @@ test('unavailable or purported clinical approvals never enter educational UI',()
   assert.throws(()=>api.validatedEntries({...payload,clinical_approval:true}));
   assert.throws(()=>api.validatedEntries({...payload,can_activate_training:true}));
   const altered=clone(payload);altered.entries[0].can_activate_training=true;
-  assert.equal(api.validatedEntries(altered).length,7);
+  assert.equal(api.validatedEntries(altered).length,20);
 });
 test('unsafe sources, media, missing prose, duplicates and missing attribution are rejected',()=>{
   for(const mutate of [e=>e.images[0].url='https://evil.example/a.png',e=>e.source_url='javascript:alert(1)',e=>e.attribution.license_url='https://example.org/license',e=>e.instructions=[],e=>e.images=[],e=>e.images[0].author='']){
-    const altered=clone(payload);mutate(altered.entries[0]);assert.equal(api.validatedEntries(altered).length,7);
+    const altered=clone(payload);mutate(altered.entries[0]);assert.equal(api.validatedEntries(altered).length,20);
   }
-  assert.equal(api.validatedEntries({...payload,entries:[...data.entries,data.entries[0]]}).length,8);
+  assert.equal(api.validatedEntries({...payload,entries:[...data.entries,data.entries[0]]}).length,21);
   for(const url of ['javascript:alert(1)','http://wger.de/x','https://wger.de.evil.test/x','https://wger.de@evil.test/x'])assert.equal(api.safeLink(url),'');
   for(const url of ['https://wger.de/media/a.svg','https://evil.test/media/x.jpg','https://wger.de/media/a.png?redirect=evil'])assert.equal(api.safeImage(url),'');
 });
 test('filters accept accents, translated groups and equipment without inventing results',()=>{
   assert.equal(api.selectEntries(data.entries,{query:'biceps'}).length,2);
-  assert.equal(api.selectEntries(data.entries,{query:'piernas'}).length,2);
-  assert.equal(api.selectEntries(data.entries,{query:'mancuerna'}).length,3);
+  assert.equal(api.selectEntries(data.entries,{query:'piernas'}).length,4);
+  assert.deepEqual(api.selectEntries(data.entries,{query:'piernas'}).map(entry=>entry.id),['wger-365','wger-366','wger-206','wger-257']);
+  assert.equal(api.selectEntries(data.entries,{query:'mancuerna'}).length,7);
   assert.equal(api.selectEntries(data.entries,{category:'Arms',equipment:'1'}).length,1);
   assert.equal(api.selectEntries(data.entries,{query:'dragones'}).length,0);
 });

@@ -133,6 +133,8 @@ def test_globe_summary_preserves_zero_and_rejects_missing_or_stale_model_data():
 const assert=require('node:assert/strict'),now=Date.parse('2026-09-08T16:30:00Z');
 Date.now=()=>now;
 let homeWeather,familyWeatherGlobeActive=false,familyMapTransitioning=false,familyWeatherGlobeFrames=[];
+let familyWeatherGlobeLoadId=0,activePanel='family';
+const window={RoxyMapLibre:{load:async()=>{}}};
 const elements=new Map();
 const $=id=>{if(!elements.has(id))elements.set(id,{classList:{add(){}},setAttribute(){}});return elements.get(id)};
 const document={body:{classList:{add(){}}}};

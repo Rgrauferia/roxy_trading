@@ -11,17 +11,21 @@ from __future__ import annotations
 import base64
 import concurrent.futures
 import hashlib
+import io
 import json
 import os
 import re
 import shutil
 import threading
+import tempfile
 import time
 import unicodedata
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 
 BUILT_IN_ROOT = Path(__file__).resolve().parents[1] / "assets" / "roxy_home" / "recipe_custom"
@@ -31,6 +35,12 @@ BUILT_IN_PHOTOS = {
     "cafe con canela": "cafe-con-canela.jpg",
     "pan cubano": "pan-cubano.jpg",
 }
+
+# Card previews reuse the exact approved original. Limits are fixed server-side,
+# so requesting an image cannot create arbitrary resize jobs or large outputs.
+CARD_PHOTO_MAX_BYTES = 100_000
+CARD_PHOTO_MAX_EDGE = 480
+_CARD_PHOTO_LOCKS = tuple(threading.Lock() for _ in range(16))
 
 DISH_DIRECTIONS = {
     "pan cubano": (
@@ -175,6 +185,91 @@ class RecipePhotoStore:
         if not saved.get("approved") or not path.is_file():
             return None
         return path, saved
+
+    @staticmethod
+    def _source_fingerprint(path: Path) -> str:
+        state = path.stat()
+        identity = (str(path.resolve()), state.st_dev, state.st_ino, state.st_size,
+                    state.st_mtime_ns, state.st_ctime_ns)
+        return hashlib.sha256(repr(identity).encode("utf-8")).hexdigest()[:24]
+
+    @staticmethod
+    def _card_image_bytes(path: Path) -> bytes:
+        if path.stat().st_size > 12_000_000:
+            raise ValueError("Recipe photo exceeds preview input limit")
+        with Image.open(path) as original:
+            if original.width * original.height > 16_000_000:
+                raise ValueError("Recipe photo exceeds preview pixel limit")
+            # Apply orientation before sizing, then remove EXIF/GPS and all
+            # other embedded metadata from this shared derivative.
+            picture = ImageOps.exif_transpose(original)
+            picture.thumbnail((CARD_PHOTO_MAX_EDGE, CARD_PHOTO_MAX_EDGE), Image.Resampling.LANCZOS)
+            picture = picture.convert("RGBA" if "A" in picture.getbands() else "RGB")
+            picture.info.clear()
+            for edge, quality in ((480, 78), (480, 60), (480, 42), (360, 60), (240, 42)):
+                picture.thumbnail((edge, edge), Image.Resampling.LANCZOS)
+                encoded = io.BytesIO()
+                picture.save(encoded, format="WEBP", quality=quality, method=4)
+                payload = encoded.getvalue()
+                if len(payload) <= CARD_PHOTO_MAX_BYTES:
+                    return payload
+        raise ValueError("Recipe photo exceeds preview output limit")
+
+    @staticmethod
+    def _card_cache_valid(path: Path) -> bool:
+        try:
+            if not 0 < path.stat().st_size <= CARD_PHOTO_MAX_BYTES:
+                return False
+            with Image.open(path) as cached:
+                if cached.format != "WEBP" or max(cached.size) > CARD_PHOTO_MAX_EDGE:
+                    return False
+                cached.verify()
+            return True
+        except (OSError, ValueError, UnidentifiedImageError, Image.DecompressionBombError):
+            return False
+
+    def resolve_card(self, title: str) -> tuple[Path, dict[str, Any]] | None:
+        """Return a bounded preview of the currently approved exact original.
+
+        Authentication and HTTP caching remain the endpoint's responsibility;
+        this method never searches household records or calls a provider. If
+        conversion/storage fails, retain the original response behavior. Cached
+        derivatives never bypass approval, quarantine, or original existence.
+        """
+        resolved = self.resolve(title)
+        if resolved is None:
+            return None
+        path, metadata = resolved
+        temporary: Path | None = None
+        try:
+            key = self._key(title)
+            fingerprint = self._source_fingerprint(path)
+            cached = self.root / "card-cache-v1" / f"{key}-{fingerprint}.webp"
+            # Locks are shared across store instances and bounded in number.
+            # Atomic replacement also makes simultaneous process writes safe.
+            with _CARD_PHOTO_LOCKS[int(key[:2], 16) % len(_CARD_PHOTO_LOCKS)]:
+                if not self._card_cache_valid(cached):
+                    if shutil.disk_usage(self.root).free < 512 * 1024 * 1024:
+                        return resolved
+                    payload = self._card_image_bytes(path)
+                    # A replaced source must not be cached under its old identity.
+                    if self._source_fingerprint(path) != fingerprint:
+                        return resolved
+                    cached.parent.mkdir(parents=True, exist_ok=True)
+                    with tempfile.NamedTemporaryFile(dir=cached.parent, suffix=".tmp", delete=False) as output:
+                        temporary = Path(output.name)
+                        output.write(payload)
+                    temporary.replace(cached)
+                    temporary = None
+            return cached, {**metadata, "filename": cached.name, "media_type": "image/webp", "variant": "card"}
+        except (OSError, ValueError, UnidentifiedImageError, Image.DecompressionBombError):
+            return resolved
+        finally:
+            if temporary is not None:
+                try:
+                    temporary.unlink(missing_ok=True)
+                except OSError:
+                    pass
 
     def save_generated(self, title: str, image_base64: str, *, approved: bool = False) -> Path:
         """Persist a generated image once; unapproved work is never public."""

@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const renders = new WeakMap();
-  const countries = {Spanish:'España', French:'Francia', Japanese:'Japón', Greek:'Grecia', Indian:'India', Italian:'Italia'};
+  const countries = {Spanish:'España', French:'Francia', Japanese:'Japón', Greek:'Grecia', Indian:'India', Italian:'Italia',British:'Reino Unido',American:'Estados Unidos','North American':'Norteamérica',Mexican:'México'};
   const node = (tag, text, className) => {
     const el = document.createElement(tag);
     if (text) el.textContent = text;

@@ -36,6 +36,26 @@ CARE_SOURCES = [
     {"label": "ASPCA · Plantas tóxicas y no tóxicas", "url": "https://www.aspca.org/pet-care/aspca-poison-control/toxic-and-non-toxic-plants"},
 ]
 
+WATER_CARE_SOURCE = {
+    "label": "University of Illinois Extension · Esquejes en agua",
+    "url": "https://extension.illinois.edu/blogs/good-growing/2025-02-21-winter-gardening-propagating-houseplants-beat-winter-blues",
+}
+GROWING_MEDIA = {"unknown", "soil", "water"}
+
+# Species references are deliberately separate from generic houseplant advice.
+PLANT_SPECIFIC_SOURCES = {
+    "mango": [
+        {"label": "UF/IFAS · Mango en el jardín de Florida", "url": "https://ask.ifas.ufl.edu/publication/MG216"},
+        {"label": "UF/IFAS · Mango: lugar, luz y establecimiento", "url": "https://gardeningsolutions.ifas.ufl.edu/plants/edibles/fruits/mango/"},
+        {"label": "UF/IFAS · Factores ambientales, tabla 10", "url": "https://ask.ifas.ufl.edu/publication/HS1499"},
+    ],
+    "rosemary": [
+        {"label": "UF/IFAS · Romero", "url": "https://gardeningsolutions.ifas.ufl.edu/plants/edibles/vegetables/rosemary/"},
+        {"label": "University of Illinois Extension · Romero", "url": "https://extension.illinois.edu/herbs/rosemary"},
+        {"label": "ASPCA · Romero (Rosmarinus officinalis)", "url": "https://www.aspca.org/pet-care/aspca-poison-control/toxic-and-non-toxic-plants/rosemary"},
+    ],
+}
+
 PLANT_CATALOG: dict[str, dict[str, Any]] = {
     "pothos": {
         "common_name": "Pothos", "scientific_name": "Epipremnum aureum", "light": "Luz indirecta media a brillante",
@@ -86,6 +106,30 @@ PLANT_CATALOG: dict[str, dict[str, Any]] = {
         "history": "Hierba aromática de la familia de la menta, cultivada en muchas cocinas mediterráneas y asiáticas.",
         "toxicity": "Generalmente considerada no tóxica para perros y gatos.", "pet_safe": True,
     },
+    "mango": {
+        "common_name": "Mango", "scientific_name": "Mangifera indica", "light": "Pleno sol para crecimiento y producción de fruto; no es una planta de interior de poca luz.",
+        "soil_check_days": 1,
+        "soil_rule": "Comprueba humedad, drenaje y lluvias antes de decidir. Un árbol recién plantado necesita atención al riego durante el establecimiento; uno maduro no debe recibir riegos frecuentes por rutina. Falta conocer su edad y si está en suelo o maceta para concretar la pauta.",
+        "fertilizer": "No hay una dosis automática: depende de edad, producción y suelo. El exceso de fertilizante puede perjudicar la cosecha. Consulta la guía local y la etiqueta antes de elegir producto.",
+        "history": "Frutal originario del sur de Asia. Las variedades difieren en vigor y fruto; crecer desde semilla no garantiza la misma calidad ni una fecha de cosecha.",
+        "toxicity": "No se ha verificado aquí la seguridad de esta planta para mascotas. No la ofrecemos como alimento ni la marcamos como segura para cualquier animal.", "pet_safe": None,
+        "space": "En suelo, UF/IFAS distingue 25–30 pies (7,6–9,1 m) o más de separación para árboles vigorosos sin poda, frente a 12–15 pies (3,7–4,6 m) para variedades menos vigorosas con control de tamaño. Confirma variedad y espacio antes de plantar.",
+        "container_notes": "La guía citada trata árboles en el jardín, no valida un volumen universal de maceta. Si lo conservas en recipiente, confirma variedad, tamaño, raíces y drenaje con un vivero; no conviertas la pauta de un árbol adulto en suelo en una pauta para maceta.",
+        "care_scope": "Guía inicial de UF/IFAS para Florida. La zona climática y el microclima de tu hogar deben comprobarse; no garantiza cosecha.",
+        "source_reviewed_on": "2026-09-10",
+    },
+    "rosemary": {
+        "common_name": "Romero", "scientific_name": "Salvia rosmarinus", "light": "Pleno sol: al menos 6 horas de sol al día según UF/IFAS.",
+        "soil_check_days": 2,
+        "soil_rule": "Comprueba el sustrato antes de regar; necesita buen drenaje y sufre con riegos demasiado frecuentes. No dejes el recipiente en agua acumulada.",
+        "fertilizer": "No se asigna una dosis ni se fertiliza por calendario. Confirma sustrato y necesidades con la guía local; si eliges un producto para hierbas comestibles, sigue su etiqueta.",
+        "history": "Arbusto aromático mediterráneo de hojas persistentes, usado en cocina. También aparece con el nombre botánico Rosmarinus officinalis.",
+        "toxicity": "La ASPCA clasifica la planta de romero como no tóxica para perros, gatos y caballos. No extrapolamos esa ficha a aceites esenciales, extractos ni a otras mascotas.", "pet_safe": True,
+        "space": "En suelo puede alcanzar unos 6 pies (1,8 m) de altura y 4–5 pies (1,2–1,5 m) de ancho; el tamaño cambia con la variedad y la poda.",
+        "container_notes": "Puede cultivarse en recipiente con buen drenaje y luz suficiente. En zonas frías, comprueba la protección frente a heladas; estar dentro no sustituye una ubicación soleada.",
+        "care_scope": "Guía inicial para romero culinario confirmado. Las necesidades de una planta en maceta no se deducen solo del clima exterior.",
+        "source_reviewed_on": "2026-09-10",
+    },
     "orchid": {
         "common_name": "Orquídea Phalaenopsis", "scientific_name": "Phalaenopsis", "light": "Luz indirecta brillante",
         "soil_check_days": 7, "soil_rule": "Revisa raíces y sustrato; riega cuando estén casi secos y elimina todo exceso.",
@@ -117,6 +161,8 @@ PLANT_ENVIRONMENT = {
     "aloe": {"plant_type": "Suculenta", "temperature": "55–80 °F (13–27 °C)", "humidity": "Baja; necesita sustrato aireado"},
     "peace_lily": {"plant_type": "Tropical de sotobosque", "temperature": "65–80 °F (18–27 °C)", "humidity": "Media a alta"},
     "basil": {"plant_type": "Hierba aromática anual", "temperature": "65–85 °F (18–29 °C)", "humidity": "Media; evita hojas mojadas por mucho tiempo"},
+    "mango": {"plant_type": "Árbol frutal tropical", "temperature": "Rango óptimo de crecimiento publicado: 75–86 °F (24–30 °C). Es sensible al frío; las flores y frutos pequeños pueden dañarse por debajo de 40 °F (4,4 °C). No es un umbral que garantice seguridad.", "humidity": "No se fija un porcentaje doméstico. Evita mojar flores y follaje al regar y comprueba drenaje y ventilación."},
+    "rosemary": {"plant_type": "Arbusto aromático mediterráneo", "temperature": "La tolerancia al frío depende de la variedad y la ubicación; en áreas con heladas requiere valorar protección. No se fija un rango universal para todos los cultivares.", "humidity": "Prefiere condiciones relativamente secas y suelo drenante; no mantengas humedad constante por rutina."},
     "orchid": {"plant_type": "Orquídea epífita", "temperature": "65–80 °F (18–27 °C)", "humidity": "Media a alta con buena ventilación"},
     "succulent": {"plant_type": "Suculenta por confirmar", "temperature": "Depende de la especie exacta", "humidity": "Generalmente baja; confirma la especie"},
     "unknown": {"plant_type": "Tipo por confirmar", "temperature": "Pendiente de identificación", "humidity": "Pendiente de identificación"},
@@ -156,6 +202,29 @@ def _decode_journal_media(data_url: str) -> tuple[bytes, str, str]:
     return raw, match.group(1), VIDEO_TYPES[match.group(1)][1]
 
 
+def _growing_medium(value: Any) -> str:
+    return value if isinstance(value, str) and value in GROWING_MEDIA else "unknown"
+
+
+def _drainage(value: Any) -> bool | None:
+    # Missing information is not evidence that a pot lacks drainage.
+    return value if isinstance(value, bool) else None
+
+
+def _care_task_title(task: dict[str, Any], medium: str, species_key: str = "") -> str:
+    if task.get("status") != "PENDING":
+        return str(task.get("title") or "Revisión")
+    if task.get("action") == "CHECK_SOIL":
+        return {"soil": "Revisar tierra y hojas", "water": "Revisar agua, raíces y hojas", "unknown": "Confirmar si está en tierra o en agua"}[medium]
+    if task.get("action") == "FERTILIZE":
+        return {"soil": "Revisar si necesita fertilizante", "water": "Confirmar nutrientes para cultivo en agua", "unknown": "Confirmar el medio antes de fertilizar"}[medium]
+    if task.get("action") == "ROTATE":
+        if species_key == "mango":
+            return "Revisar luz y espacio del árbol"
+        return "Rotar la maceta" if medium == "soil" else "Revisar luz y posición"
+    return str(task.get("title") or "Revisión")
+
+
 def plant_condition_concerns(plant: dict[str, Any]) -> list[str]:
     """Preventive observations, never a diagnosis or instruction to water."""
     concerns = []
@@ -165,8 +234,10 @@ def plant_condition_concerns(plant: dict[str, Any]) -> list[str]:
         concerns.append("El sol directo de tarde puede ser demasiado intenso para esta especie. Revisa si hay hojas quemadas y considera moverla.")
     elif current == "low" and "brillante" in light:
         concerns.append("La ubicación puede tener menos luz de la recomendada. Observa crecimiento débil o pérdida de color.")
-    if not plant.get("drainage"):
-        concerns.append("No hay drenaje confirmado. Revisa que el exceso de agua pueda salir y que no quede acumulado en el plato antes de volver a regar.")
+    elif current in {"low", "indirect", "bright_indirect"} and "pleno sol" in light:
+        concerns.append("Esta especie tiene una recomendación de pleno sol y registraste una ubicación sin sol directo. Comprueba las horas de sol y el espacio; una habitación iluminada no equivale a pleno sol.")
+    if _growing_medium(plant.get("growing_medium")) == "soil" and plant.get("drainage") is False:
+        concerns.append("Indicaste que tiene tierra y no tiene drenaje. Revisa cómo sale el exceso de agua antes de volver a regar.")
     return concerns
 
 
@@ -261,7 +332,8 @@ class HomePlantStore:
         row = {
             "id": plant_id, "owner_id": owner, "created_by": user_id, "display_name": _text(values.get("display_name"), 60) or profile["common_name"],
             "species_key": key, **profile, "room": _text(values.get("room"), 60) or "Sin ubicación", "placement": _text(values.get("placement"), 20) or "indoor",
-            "pot_type": _text(values.get("pot_type"), 30) or "unknown", "drainage": bool(values.get("drainage")),
+            "pot_type": _text(values.get("pot_type"), 30) or "unknown", "drainage": _drainage(values.get("drainage")),
+            "growing_medium": _growing_medium(values.get("growing_medium")),
             "light_exposure": _text(values.get("light_exposure"), 40) or "unknown", "notes": _text(values.get("notes"), 800),
             "photo_path": str(photo_path), "photo_media_type": media_type,
             "identification": {
@@ -279,6 +351,8 @@ class HomePlantStore:
             ],
             "journal": [], "created_at": created, "updated_at": created, "archived": False,
         }
+        for task in row["care_tasks"]:
+            task["title"] = _care_task_title(task, row["growing_medium"], row["species_key"])
         def apply(value: dict[str, Any]) -> dict[str, Any]:
             self._household(value, owner)["plants"][plant_id] = row; return deepcopy(row)
         return self._locked(apply)
@@ -288,8 +362,12 @@ class HomePlantStore:
             row = self._household(value, owner).get("plants", {}).get(plant_id)
             if not row or row.get("archived"): raise KeyError(plant_id)
             for key, limit in (("display_name", 60), ("room", 60), ("placement", 20), ("pot_type", 30), ("light_exposure", 40), ("notes", 800)):
-                if key in values: row[key] = _text(values[key], limit)
-            if "drainage" in values: row["drainage"] = bool(values["drainage"])
+                if key in values and values[key] is not None: row[key] = _text(values[key], limit)
+            if "drainage" in values: row["drainage"] = _drainage(values["drainage"])
+            if "growing_medium" in values and values["growing_medium"] is not None:
+                row["growing_medium"] = _growing_medium(values["growing_medium"])
+                for task in row.get("care_tasks", []):
+                    task["title"] = _care_task_title(task, row["growing_medium"], row["species_key"])
             species_key = _text(values.get("species_key"), 40)
             if species_key and species_key in PLANT_CATALOG and species_key != "unknown":
                 row.update(deepcopy(PLANT_CATALOG[species_key]))
@@ -331,16 +409,27 @@ class HomePlantStore:
 
         return self._locked(apply)
 
-    def add_journal(self, owner: str, plant_id: str, user_id: str, notes: str, photo_data_url: str = "") -> dict[str, Any]:
+    def add_journal(self, owner: str, plant_id: str, user_id: str, notes: str, photo_data_url: str = "", *, result: str | None = None) -> dict[str, Any]:
+        if result is not None and (not isinstance(result, str) or result not in {"CHECKED", "WATERED"}):
+            raise ValueError("La acción debe ser CHECKED o WATERED, elegida explícitamente.")
+        clean_notes = _text(notes, 600)
+        if not clean_notes and not photo_data_url:
+            raise ValueError("Escribe qué observaste o añade una foto de la revisión.")
+        # Validate ownership/existence before writing any new media.
+        self.plant(owner, plant_id)
         photo_path = ""; media_type = ""
         if photo_data_url:
             raw, media_type, suffix = _decode_journal_media(photo_data_url)
             directory = self.image_root / re.sub(r"[^a-zA-Z0-9_.-]+", "_", owner) / plant_id / "journal"; directory.mkdir(parents=True, exist_ok=True)
             photo_path = str(directory / f"{uuid4().hex}{suffix}"); Path(photo_path).write_bytes(raw)
-        entry = {"id": uuid4().hex, "created_at": _now(), "created_by": user_id, "notes": _text(notes, 600), "photo_path": photo_path, "photo_media_type": media_type}
+        entry = {"id": uuid4().hex, "created_at": _now(), "created_by": user_id, "notes": clean_notes, "photo_path": photo_path, "photo_media_type": media_type}
+        # Keep old notes/photo callers compatible. Missing result is unknown,
+        # never inferred from language such as "No regué" or from a photograph.
+        if result is not None:
+            entry["result"] = result
         def apply(value: dict[str, Any]) -> dict[str, Any]:
             row = self._household(value, owner).get("plants", {}).get(plant_id)
-            if not row: raise KeyError(plant_id)
+            if not row or row.get("archived"): raise KeyError(plant_id)
             row.setdefault("journal", []).append(entry); row["updated_at"] = _now(); return deepcopy(entry)
         return self._locked(apply)
 
@@ -393,7 +482,33 @@ def public_plant(row: dict[str, Any], user_id: str) -> dict[str, Any]:
             entry["photo_url"] = f"/v1/home-plants/{user_id}/{row['id']}/journal/{entry['id']}/image"
         entry["media_type"] = entry.get("photo_media_type") or ""
         entry.pop("photo_path", None); entry.pop("photo_media_type", None)
-    result["sources"] = CARE_SOURCES
+    medium = _growing_medium(row.get("growing_medium"))
+    result["growing_medium"] = medium
+    result["drainage"] = _drainage(row.get("drainage"))
+    result["setup_questions"] = []
+    result["sources"] = deepcopy(PLANT_SPECIFIC_SOURCES.get(str(row.get("species_key") or "unknown"), CARE_SOURCES))
+    if row.get("species_key") in PLANT_SPECIFIC_SOURCES:
+        result["reminder_scope"] = "Las fechas son propuestas de Roxy para observar la planta, no frecuencias de riego o fertilización prescritas por la fuente."
+        if row.get("species_key") == "mango":
+            result["setup_questions"].append("Anota su edad aproximada, variedad si la conoces y si está en maceta o plantado en el jardín antes de concretar riego y espacio.")
+    if medium == "unknown":
+        result["setup_questions"].append("Confirma si está en tierra/sustrato o en agua para adaptar sus cuidados.")
+        result["soil_rule"] = "Observa las hojas y confirma si está en tierra/sustrato o en agua antes de decidir el cuidado."
+        result["fertilizer"] = "Confirma la especie y el medio de cultivo antes de elegir fertilizante."
+    elif medium == "water":
+        result["sources"].append(deepcopy(WATER_CARE_SOURCE))
+        if row.get("species_key") == "pothos" and row.get("identification", {}).get("status") == "CONFIRMED":
+            result["soil_rule"] = "Observa el agua, las raíces y las hojas. Para esquejes de Pothos en agua, renueva el agua si empieza a verse turbia."
+        else:
+            result["soil_rule"] = "Observa el agua, las raíces y las hojas. Confirma una guía de cultivo en agua para esta especie antes de cambiar su cuidado."
+        result["fertilizer"] = "Confirma si es un esqueje enraizando o un cultivo permanente en agua antes de elegir nutrientes y dosis."
+    elif result["drainage"] is None:
+        result["setup_questions"].append("Confirma si el recipiente permite salir al exceso de agua.")
+    for task in result.get("care_tasks", []):
+        task["title"] = _care_task_title(task, medium, str(row.get("species_key") or "unknown"))
     result["condition_concerns"] = plant_condition_concerns(result)
-    result["product_queries"] = [f"sustrato para {row.get('common_name')}", f"fertilizante para {row.get('common_name')}", "medidor de humedad para plantas"]
+    result["product_queries"] = (
+        [f"sustrato para {row.get('common_name')}", f"fertilizante para {row.get('common_name')}", "medidor de humedad para plantas"]
+        if medium == "soil" else []
+    )
     return result
