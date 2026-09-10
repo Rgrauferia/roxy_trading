@@ -175,10 +175,10 @@ def test_client_does_not_reuse_mismatched_cached_photo():
 
 
 def test_partial_load_never_overwrites_garden_or_design_cache_with_empty():
-    source = (ROOT / "assets/roxy_list.js").read_text()
-    assert "if(plantsData)await dbSet" in source
-    assert "if(designData)await dbSet" in source
-    assert "if (cachedPlants) homePlants = cachedPlants" in source
+    # Execute the real cache-preservation helpers, including archive failure,
+    # member isolation and explicit deletion, rather than matching an old line.
+    result = subprocess.run(["node", "--test", str(ROOT / "tests/test_roxy_home_snapshot_preservation.cjs")], capture_output=True, text=True)
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_cancelled_voice_permission_never_opens_a_late_session():

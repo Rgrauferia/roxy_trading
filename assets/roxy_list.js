@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '181';
+  const APP_VERSION = '182';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -435,59 +435,141 @@
     return data;
   }
   async function cacheSnapshot() { await dbSet(`snapshot:${user}`,snapshot); }
+  const collectionRecovery={};
+  const collectionLoadErrors={};
+  function collectionIdentity(){return `${account.mode}:${account.id||''}`}
+  function collectionCacheKey(kind,owner,identity){return `home-${kind}:${owner}`+(kind==='plants'?'':`:identity:${identity}`)}
+  function checkCollectionContext(owner,identity){if(user!==owner||collectionIdentity()!==identity)throw new Error('La sesión cambió; descartamos la respuesta anterior.')}
+  function removeCollectionRecord(kind,snapshot,id){
+    if(!snapshot)return null;const field=kind==='plants'?'plants':'projects';
+    const next={...snapshot,[field]:(snapshot[field]||[]).filter(row=>row.id!==id)};
+    if(kind==='plants'){next.due_today=(next.due_today||[]).filter(row=>row.plant_id!==id);next.upcoming_care=(next.upcoming_care||[]).filter(row=>row.plant_id!==id)}
+    return next;
+  }
+  async function forgetDeletedCollection(kind,id,owner,identity){
+    checkCollectionContext(owner,identity);
+    const field=kind==='plants'?'plants':'projects';
+    const current=kind==='plants'?homePlants:homeDesign;
+    const next=removeCollectionRecord(kind,current,id),key=collectionCacheKey(kind,owner,identity);
+    let recovery=await dbGet(key+'-recovery');checkCollectionContext(owner,identity);
+    if(recovery){const snapshot=removeCollectionRecord(kind,recovery.snapshot,id);recovery=snapshot[field].length?{...recovery,snapshot}:null}
+    await dbSet(key+'-recovery',recovery);checkCollectionContext(owner,identity);
+    await dbSet(key,next);checkCollectionContext(owner,identity);
+    collectionRecovery[kind]={owner,identity,value:recovery};if(kind==='plants')homePlants=next;else homeDesign=next;
+  }
+  function collectionApi(kind,owner){return api(`/v1/home-${kind}/${encodeURIComponent(owner)}`,{headers:{Accept:'application/json','X-Roxy-Snapshot-Version':'2'}})}
+  async function preserveCollectionSnapshot(kind,next,previous,owner,{intentionalDelete=false,identity=collectionIdentity(),isCurrent=()=>true}={}){
+    const check=()=>{checkCollectionContext(owner,identity);if(!isCurrent())throw new Error('Hay una sincronización más reciente; descartamos esta respuesta.')};check();
+    const field=kind==='plants'?'plants':'projects';
+    if(!next||!Array.isArray(next[field]))throw new Error('La respuesta no contiene una lista válida. Conservamos la copia anterior.');
+    const key=collectionCacheKey(kind,owner,identity),recoveryKey=key+'-recovery';
+    const cached=await dbGet(key);check();
+    const prior=Array.isArray(cached?.[field])&&cached[field].length?cached:previous;
+    let recovery=await dbGet(recoveryKey);check();
+    // Archive before replacing. If the archive cannot be written, never erase
+    // the last device snapshot. Explicit deletions must not resurrect old data.
+    if(!intentionalDelete&&!next[field].length&&Array.isArray(prior?.[field])&&prior[field].length){
+      const records=new Map([...(recovery?.snapshot?.[field]||[]),...prior[field]].map(row=>[row.id,row]));
+      recovery={saved_at:new Date().toISOString(),snapshot:{...prior,[field]:[...records.values()]}};await dbSet(recoveryKey,recovery);check();
+    }
+    await dbSet(key,next);check();
+    collectionRecovery[kind]={owner,identity,value:recovery};collectionLoadErrors[kind]=false;
+    return next;
+  }
+  function renderCollectionNotice(kind){
+    const panel=$(kind==='plants'?'plantsPanel':'designPanel');if(!panel)return;
+    let notice=$(`${kind}StorageNotice`);if(!notice){notice=document.createElement('section');notice.id=`${kind}StorageNotice`;notice.className='plant-condition-warning home-storage-notice';notice.setAttribute('role','status');panel.prepend(notice)}
+    notice.replaceChildren();
+    const recovery=collectionRecovery[kind]?.owner===user&&collectionRecovery[kind].identity===collectionIdentity()?collectionRecovery[kind].value:null;
+    const failed=collectionLoadErrors[kind];notice.hidden=!recovery&&!failed;if(notice.hidden)return;
+    const copy=document.createElement('div'),title=document.createElement('strong'),body=document.createElement('p');
+    title.textContent=recovery?'Encontramos una copia anterior en este dispositivo':'No se pudo actualizar esta sección';
+    body.textContent=recovery?'En una sincronización anterior, la lista del servidor llegó vacía. Conservamos estas fichas para revisar su recuperación. No es una restauración; las fotos originales pueden no estar incluidas.':'Lo mostrado puede ser una copia anterior, no una confirmación del estado actual. No hemos reemplazado tus fichas por una lista vacía.';
+    copy.append(title,body);notice.append(copy);
+    if(recovery)notice.append(makeButton('Descargar copia de las fichas','secondary',()=>{
+      const blob=new Blob([JSON.stringify({module:kind,...recovery},null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=`roxy-${kind}-copia.json`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    }));
+  }
   async function refreshHomeFood(){homeFood=await api(`/v1/home-food/${encodeURIComponent(user)}`);homeFoodReady=true;homeFoodLoadFailed=false;await dbSet(`home-food:${user}`,homeFood);renderRecipes();renderHomeDaily()}
 
   async function load({quiet=false}={}) {
+    const ticket={};load.ticket=ticket;
+    let requestedOwner=user,identity=collectionIdentity(),identityConfirmed=false;
+    const isCurrent=()=>load.ticket===ticket&&user===requestedOwner&&collectionIdentity()===identity;
+    const hasRenderedScope=()=>load.renderedScope?.owner===requestedOwner&&load.renderedScope?.identity===identity;
+    if(!hasRenderedScope())$('app').hidden=true;
+    const emptyDesign=()=>({projects:[],generation_configured:false});
+    const emptyPlants=()=>({plants:[],due_today:[],vacation:{},species:[],identification_configured:false});
+    const emptyFamily=()=>({status:'UNAVAILABLE',members:[],places:[],alerts:[],capabilities:{}});
+    const readCache=key=>dbGet(key).catch(()=>null);
     if (!quiet) setBusy(true);
-    const previousUser=user;
     try {
       const nextAccount=await api('/v1/home-account/me');
+      if(!isCurrent())return;
       if(account.id!==nextAccount.id||account.mode!==nextAccount.mode)window.RoxyFitness?.clear();
       account=nextAccount;
+      if(account.storage_user_id){user=account.storage_user_id;localStorage.setItem('roxyShoppingUser',user)}
+      requestedOwner=user;identity=collectionIdentity();identityConfirmed=true;
+      if(!hasRenderedScope())$('app').hidden=true;
       if(activePanel==='fitness')mountFitness();
-      $('app').hidden=false;
       const trial=account.trial;
       $('demoTrialBanner').hidden=!trial;
       if(trial)$('demoTrialBanner').textContent=trial.status==='ACTIVE'?`Demo gratis · hasta ${new Date(trial.expires_at).toLocaleString('es')}. Hasta ${trial.ai_daily_limit} solicitudes de Roxy al día por hogar; quedan ${trial.ai_remaining_today}. Voz y generación de imágenes/vídeos no incluidas.`:'Tu prueba de 5 días terminó. Puedes consultar tus datos. No hay cobro automático.';
-      if(account.storage_user_id){user=account.storage_user_id;localStorage.setItem('roxyShoppingUser',user)}
       appearance=safeAppearance(account.preferences||appearance);applyAppearance();
       const rangeStart=new Date();rangeStart.setHours(0,0,0,0);rangeStart.setDate(rangeStart.getDate()-7);
       const rangeEnd=new Date(rangeStart);rangeEnd.setDate(rangeEnd.getDate()+370);
       const [shopping,food,shoppingCommerce,calendarData,dailyData,designData,weatherData,plantsData,familyData] = await Promise.all([
-        api(`/v1/shopping/${encodeURIComponent(user)}`),
-        api(`/v1/home-food/${encodeURIComponent(user)}`),
-        api(`/v1/home-commerce/${encodeURIComponent(user)}`),
-        api(`/v1/home-calendar/${encodeURIComponent(user)}?start=${encodeURIComponent(rangeStart.toISOString())}&end=${encodeURIComponent(rangeEnd.toISOString())}`),
-        api(`/v1/home-daily/${encodeURIComponent(user)}`).catch(()=>null),
-        api(`/v1/home-design/${encodeURIComponent(user)}`).catch(()=>null),
-        api(`/v1/home-weather/${encodeURIComponent(user)}?days=16`).catch(()=>null),
-        api(`/v1/home-plants/${encodeURIComponent(user)}`).catch(()=>null),
+        api(`/v1/shopping/${encodeURIComponent(requestedOwner)}`),
+        api(`/v1/home-food/${encodeURIComponent(requestedOwner)}`),
+        api(`/v1/home-commerce/${encodeURIComponent(requestedOwner)}`),
+        api(`/v1/home-calendar/${encodeURIComponent(requestedOwner)}?start=${encodeURIComponent(rangeStart.toISOString())}&end=${encodeURIComponent(rangeEnd.toISOString())}`),
+        api(`/v1/home-daily/${encodeURIComponent(requestedOwner)}`).catch(()=>null),
+        collectionApi('design',requestedOwner).catch(()=>null),
+        api(`/v1/home-weather/${encodeURIComponent(requestedOwner)}?days=16`).catch(()=>null),
+        collectionApi('plants',requestedOwner).catch(()=>null),
         account.mode==='member'?api('/v1/home-family').catch(()=>null):Promise.resolve(null)
       ]);
-      snapshot = shopping;
+      if(!isCurrent())return;
+      const designKey=collectionCacheKey('design',requestedOwner,identity),plantsKey=collectionCacheKey('plants',requestedOwner,identity);
+      const [cachedDesign,cachedPlants,designRecovery,plantsRecovery,cachedFamily,cachedWeather]=await Promise.all([
+        readCache(designKey),readCache(plantsKey),readCache(designKey+'-recovery'),readCache(plantsKey+'-recovery'),
+        readCache(collectionCacheKey('family',requestedOwner,identity)),readCache(collectionCacheKey('weather',requestedOwner,identity))
+      ]);
+      if(!isCurrent())return;
+      // Archive before accepting an empty collection. Identity is passed through
+      // so a suspended IndexedDB operation cannot become a different member's copy.
+      if(designData){await preserveCollectionSnapshot('design',designData,null,requestedOwner,{identity,isCurrent});if(!isCurrent())return}
+      if(plantsData){await preserveCollectionSnapshot('plants',plantsData,null,requestedOwner,{identity,isCurrent});if(!isCurrent())return}
+      const writes=[
+        [`snapshot:${requestedOwner}`,shopping],[`home-food:${requestedOwner}`,food],
+        [collectionCacheKey('commerce',requestedOwner,identity),shoppingCommerce],[collectionCacheKey('calendar',requestedOwner,identity),calendarData],
+        ...(dailyData?[[collectionCacheKey('daily',requestedOwner,identity),dailyData]]:[]),
+        ...(familyData?[[collectionCacheKey('family',requestedOwner,identity),familyData]]:[]),
+        ...(weatherData?[[collectionCacheKey('weather',requestedOwner,identity),weatherData]]:[])
+      ];
+      for(const [key,value] of writes){if(!isCurrent())return;await dbSet(key,value);if(!isCurrent())return}
+      const beforeQueueSnapshot=snapshot;
+      await flushQueue();
+      if(!isCurrent())return;
+      // flushQueue may have obtained a newer shared shopping snapshot.
+      snapshot = snapshot!==beforeQueueSnapshot?snapshot:shopping;
       homeFood = food;
       homeFoodReady=true;homeFoodLoadFailed=false;
       commerce = shoppingCommerce;
       homeCalendar = calendarData;
       homeDaily = dailyData;
-      homeDesign = designData || await dbGet(`home-design:${user}`).catch(()=>null) || (previousUser===user?homeDesign:{projects:[],generation_configured:false});
-      homePlants = plantsData || await dbGet(`home-plants:${user}`).catch(()=>null) || (previousUser===user?homePlants:{plants:[],due_today:[],vacation:{},species:[],identification_configured:false});
-      if(familyData)homeFamily=familyData;
-      if(weatherData)homeWeather=weatherData;
-      await cacheSnapshot();
-      await dbSet(`home-food:${user}`,homeFood);
-      await dbSet(`home-commerce:${user}`,commerce);
-      await dbSet(`home-calendar:${user}`,homeCalendar);
-      if(homeDaily)await dbSet(`home-daily:${user}`,homeDaily);
-      if(designData)await dbSet(`home-design:${user}`,homeDesign);
-      if(plantsData)await dbSet(`home-plants:${user}`,homePlants);
-      if(familyData)await dbSet(`home-family:${user}`,homeFamily);
-      if(weatherData)await dbSet(`home-weather:${user}`,homeWeather);
-      await flushQueue();
+      homeDesign = designData || (Array.isArray(cachedDesign?.projects)?cachedDesign:emptyDesign());
+      homePlants = plantsData || (Array.isArray(cachedPlants?.plants)?cachedPlants:emptyPlants());
+      homeFamily=familyData||cachedFamily||emptyFamily();
+      homeWeather=weatherData||cachedWeather||{status:'LOCATION_REQUIRED',daily:[]};
+      if(!designData)collectionRecovery.design={owner:requestedOwner,identity,value:designRecovery};
+      if(!plantsData)collectionRecovery.plants={owner:requestedOwner,identity,value:plantsRecovery};
+      collectionLoadErrors.design=!designData;collectionLoadErrors.plants=!plantsData;
       setConnection('Sincronizado ahora','online');
       if(!designData||!plantsData){setConnection('Sincronización parcial · conserva lo guardado','offline');if(!quiet)announce('No se pudo actualizar '+[!designData?'Renueva':'',!plantsData?'Jardín':''].filter(Boolean).join(' y ')+'. Conservamos los últimos datos disponibles; vuelve a intentar.');}
       populateHomeForms();
       render();
+      load.renderedScope={owner:requestedOwner,identity};$('app').hidden=false;
       renderAccount();
       renderHomeMoment();
       if(familyData){void redeemNexoInvitationFromUrl();void resumeFamilyLocationIfEnabled()}
@@ -495,6 +577,7 @@
       if(!$('shoppingPanel').hidden)void loadPriceRecommendations({quiet:true});
       if(account.requires_profile_setup&&!sessionStorage.getItem('roxyHomeProfilePrompted')){sessionStorage.setItem('roxyHomeProfilePrompted','1');openAccountDialog()}
     } catch (error) {
+      if(!isCurrent())return;
       if(error.status===401||error.status===403){
         // Do not reveal offline snapshots after the server rejects a session.
         account={mode:'signed_out',requires_profile_setup:false};
@@ -505,39 +588,39 @@
         $('pairDialog').showModal();
         return;
       }
-      const cached = await dbGet(`snapshot:${user}`).catch(() => null);
-      const cachedFood = await dbGet(`home-food:${user}`).catch(() => null);
-      const cachedCommerce = await dbGet(`home-commerce:${user}`).catch(() => null);
-      const cachedCalendar = await dbGet(`home-calendar:${user}`).catch(() => null);
-      const cachedDaily = await dbGet(`home-daily:${user}`).catch(() => null);
-      const cachedDesign = await dbGet(`home-design:${user}`).catch(() => null);
-      const cachedPlants = await dbGet(`home-plants:${user}`).catch(() => null);
-      const cachedWeather = await dbGet(`home-weather:${user}`).catch(() => null);
-      const cachedFamily = await dbGet(`home-family:${user}`).catch(() => null);
-      if (cached) snapshot = cached;
-      if (cachedFood){homeFood = cachedFood;homeFoodReady=true;}
-      homeFoodLoadFailed=!homeFoodReady;
+      // A fresh, unverified session cannot choose a private member's cache.
+      if(!identityConfirmed&&account.mode!=='member'){setConnection('No se pudo confirmar tu sesión. Revisa la conexión.','offline');return}
+      const designKey=collectionCacheKey('design',requestedOwner,identity),plantsKey=collectionCacheKey('plants',requestedOwner,identity);
+      const [cached,cachedFood,cachedCommerce,cachedCalendar,cachedDaily,cachedDesign,cachedPlants,cachedWeather,cachedFamily,designRecovery,plantsRecovery]=await Promise.all([
+        readCache(`snapshot:${requestedOwner}`),readCache(`home-food:${requestedOwner}`),
+        readCache(collectionCacheKey('commerce',requestedOwner,identity)),readCache(collectionCacheKey('calendar',requestedOwner,identity)),readCache(collectionCacheKey('daily',requestedOwner,identity)),
+        readCache(designKey),readCache(plantsKey),readCache(collectionCacheKey('weather',requestedOwner,identity)),readCache(collectionCacheKey('family',requestedOwner,identity)),
+        readCache(designKey+'-recovery'),readCache(plantsKey+'-recovery')
+      ]);
+      if(!isCurrent())return;
+      homeDesign=Array.isArray(cachedDesign?.projects)?cachedDesign:emptyDesign();
+      homePlants=Array.isArray(cachedPlants?.plants)?cachedPlants:emptyPlants();
+      collectionRecovery.design={owner:requestedOwner,identity,value:designRecovery};
+      collectionRecovery.plants={owner:requestedOwner,identity,value:plantsRecovery};
+      collectionLoadErrors.design=true;collectionLoadErrors.plants=true;
+      // Do not reuse unlabelled in-memory data when this scope has no cache.
+      snapshot=cached||{items:[],history:[],habitual_products:[],revision:0};
+      homeFood=cachedFood||{profile:{preferences:[],allergies:[],dislikes:[],household_size:1},meal_planning:{style:'normal',cook_days:2,meal_scope:'all',people:2,max_minutes:25,weekly_budget:85},pantry:[],recipes:[],local_recipes:[],cooking_sessions:[],weekly_plans:[]};
+      homeFoodReady=Boolean(cachedFood);homeFoodLoadFailed=!homeFoodReady;
       if(homeFoodLoadFailed)renderRecipes();
-      if (cachedCommerce) commerce = cachedCommerce;
-      if (cachedCalendar) homeCalendar = cachedCalendar;
-      if (cachedDaily) homeDaily = cachedDaily;
-      if (cachedDesign) homeDesign = cachedDesign;
-      if (cachedPlants) homePlants = cachedPlants;
-      if (cachedWeather) homeWeather = cachedWeather;
-      if (cachedFamily) homeFamily = cachedFamily;
-      if (cached || cachedFood || cachedCommerce || cachedCalendar || cachedDaily || cachedDesign || cachedPlants || cachedWeather || cachedFamily) {
+      commerce=cachedCommerce||{profile:{objective:'balanced',organic_preference:'no_preference',favorite_retailers:[],favorite_brands:[],avoided_brands:[],dietary_labels:[],allow_substitutions:true,postal_code:'',location_enabled:false},providers:[],activity:{handoff_count:0,provider_counts:{},recent:[]},disclosure:''};
+      homeCalendar=cachedCalendar||{events:[],pending_draft:null,sync:{native_export:true,provider:'ICS'}};
+      homeDaily=cachedDaily||null;homeWeather=cachedWeather||{status:'LOCATION_REQUIRED',daily:[]};homeFamily=cachedFamily||emptyFamily();
+      if (cached || cachedFood || cachedCommerce || cachedCalendar || cachedDaily || cachedDesign || cachedPlants || cachedWeather || cachedFamily || designRecovery || plantsRecovery) {
         setConnection('Sin conexión · mostrando lo guardado','offline');
         populateHomeForms();
         render();
+        load.renderedScope={owner:requestedOwner,identity};$('app').hidden=false;
       }
-      if (error.status === 401 || error.status === 403) {
-        account={...account,mode:'signed_out',requires_profile_setup:false};
-        renderAccount();renderFamily();
-        $('userId').value = user;
-        if (!$('pairDialog').open) $('pairDialog').showModal();
-      } else if (!cached) setConnection('No se pudo cargar Roxy Home','offline');
+      if (!cached) setConnection('No se pudo cargar Roxy Home','offline');
     } finally {
-      if (!quiet) setBusy(false);
+      // An older request must not clear a newer request's loading indicator.
+      if(load.ticket===ticket)setBusy(false);
     }
   }
 
@@ -1485,7 +1568,11 @@
   }
 
   const commaValues=value=>String(value||'').split(',').map(row=>row.trim()).filter(Boolean).slice(0,20);
-  async function refreshPlants(){homePlants=await api(`/v1/home-plants/${encodeURIComponent(user)}`);await dbSet(`home-plants:${user}`,homePlants);renderPlants()}
+  async function refreshPlants(options={}){
+    const owner=user,identity=collectionIdentity();
+    try{const next=await collectionApi('plants',owner);checkCollectionContext(owner,identity);await preserveCollectionSnapshot('plants',next,homePlants,owner,{...options,identity});checkCollectionContext(owner,identity);homePlants=next;renderPlants()}
+    catch(error){if(user===owner&&identity===collectionIdentity()){collectionLoadErrors.plants=true;renderPlants()}throw error}
+  }
   const plantSpeciesLabel=key=>(homePlants.species||[]).find(row=>row.key===key)?.common_name||'Especie por confirmar';
   function appendPlantSourceContext(root,plant){
     const details=document.createElement('div');details.className='plant-facts';
@@ -1551,6 +1638,7 @@
     $('plantWeatherAdvice').textContent=advice;
   }
   function renderPlants(){
+    renderCollectionNotice('plants');
     const collection=$('plantCollection'),tasksRoot=$('plantTasksToday'),upcomingRoot=$('plantUpcomingCare'),healthRoot=$('plantHealthSummary'),shopping=$('plantShoppingSuggestion');if(!collection||!tasksRoot)return;collection.replaceChildren();tasksRoot.replaceChildren();upcomingRoot.replaceChildren();healthRoot.replaceChildren();shopping.replaceChildren();populatePlantSpecies();renderPlantEnvironment();
     const plants=homePlants.plants||[],due=homePlants.due_today||[],upcoming=(homePlants.upcoming_care||[]).filter(task=>!due.some(row=>row.id===task.id));$('plantCount').textContent=`${plants.length} ${plants.length===1?'planta':'plantas'}`;
     const conditionPlants=plants.filter(plant=>plantConditionConcern(plant));
@@ -1597,7 +1685,7 @@
     },onClose:reason=>{if(reason==='saved'){const updated=(homePlants.plants||[]).find(row=>row.id===plant.id);if(updated)openPlantDetail(updated)}}});
   }
   async function addPlantProduct(plant,productName=''){const name=productName||plant.product_queries?.[0];if(!name){announce('Primero confirma la especie y cómo está plantada para elegir un producto adecuado.');return}try{await api(`/v1/shopping/${encodeURIComponent(user)}`,{method:'POST',body:JSON.stringify({name,quantity:1,unit:'unidad',category:'HOUSEHOLD',notes:`Para ${plant.display_name}. Revisar marca, etiqueta, compatibilidad, precio y disponibilidad antes de comprar.`})});await load({quiet:true});if($('plantDetailDialog').open)$('plantDetailDialog').close();selectPanel('shopping');announce('Producto preparado en tu lista para que lo revises antes de comprar')}catch(error){announce(error.message)}}
-  async function deletePlant(plant){if(!window.confirm(`¿Eliminar ${plant.display_name} de Mi jardín?`))return;try{await api(`/v1/home-plants/${encodeURIComponent(user)}/${encodeURIComponent(plant.id)}`,{method:'DELETE'});$('plantDetailDialog').close();await refreshPlants();announce('Planta eliminada de Mi jardín')}catch(error){announce(error.message)}}
+  async function deletePlant(plant){if(!window.confirm(`¿Eliminar ${plant.display_name} de Mi jardín?`))return;const owner=user,identity=collectionIdentity();try{await api(`/v1/home-plants/${encodeURIComponent(owner)}/${encodeURIComponent(plant.id)}`,{method:'DELETE'});checkCollectionContext(owner,identity);await forgetDeletedCollection('plants',plant.id,owner,identity);$('plantDetailDialog').close();await refreshPlants({intentionalDelete:true});announce('Planta eliminada de Mi jardín')}catch(error){announce(error.message)}}
   async function readPlantPhoto(file){return readDesignPhoto(file)}
   async function submitPlant(event){event.preventDefault();const form=event.currentTarget;const button=$('plantSubmit');button.disabled=true;button.textContent='Roxy está observando…';try{const photo=await readPlantPhoto($('plantPhoto').files[0]);let speciesKey=$('plantSpecies').value;if(speciesKey==='unknown'&&homePlants.identification_configured){const identified=await api(`/v1/home-plants/${encodeURIComponent(user)}/identify`,{method:'POST',body:JSON.stringify({photo_data_url:photo})});const proposal=identified.proposal||{};if(proposal.species_key&&proposal.species_key!=='unknown'){const label=plantSpeciesLabel(proposal.species_key);const confidence=Math.round(Number(proposal.confidence||0)*100);const confirmed=window.confirm(`Roxy propone que es ${label} (${confidence}% de confianza). La foto no sustituye una identificación experta. ¿Confirmas esta especie?`);$('plantSpecies').value=proposal.species_key;if(!confirmed){announce('Revisa la especie propuesta y pulsa Añadir cuando esté correcta');return}speciesKey=proposal.species_key}}const data=await api(`/v1/home-plants/${encodeURIComponent(user)}`,{method:'POST',body:JSON.stringify({display_name:$('plantName').value,species_key:speciesKey,room:$('plantRoom').value,placement:$('plantPlacement').value,pot_type:$('plantPot').value,drainage:$('plantDrainage').checked,light_exposure:$('plantLightExposure').value,notes:$('plantNotes').value,photo_data_url:photo})});$('plantDialog').close();form.reset();await refreshPlants();if(data.plant?.identification?.status==='CONFIRMED')announce('Planta confirmada y añadida a Mi jardín');else announce('Planta añadida. Abre su ficha para confirmar la especie.')}catch(error){announce(error.message)}finally{button.disabled=false;button.textContent='Analizar y añadir'}}
   async function savePlantVacation(event){event.preventDefault();try{await api(`/v1/home-plants/${encodeURIComponent(user)}/vacation`,{method:'PUT',body:JSON.stringify({enabled:$('plantVacationEnabled').checked,starts_on:$('plantVacationStart').value,ends_on:$('plantVacationEnd').value,caregiver:$('plantVacationCaregiver').value,notes:$('plantVacationNotes').value})});$('plantVacationDialog').close();await refreshPlants();announce('Plan de viaje guardado para el hogar')}catch(error){announce(error.message)}}
@@ -1991,7 +2079,7 @@
       syncFamilyTraffic();const selected=familySelectedMember();clearFamilyRoutes();if(familyHistoryOpen&&selected?.location){const history=await api(`/v1/home-family/members/${encodeURIComponent(selected.id)}/history?limit=1000`).catch(()=>({points:[]}));familyHistoryPoints=history.points||[];renderFamilyHistoryPanel(familyHistoryPoints)}void renderFamilyRouteCard(selected);
     }catch(error){root.innerHTML=`<div class="family-map-empty"><span class="material-symbols-rounded" aria-hidden="true">wifi_off</span><strong>No pude abrir el mapa</strong><p>${escapeHtml(error.message)}</p></div>`}
   }
-  async function refreshFamily(){homeFamily=await api('/v1/home-family');await dbSet(`home-family:${user}`,homeFamily);renderFamily()}
+  async function refreshFamily(){const owner=user,identity=collectionIdentity(),next=await api('/v1/home-family');checkCollectionContext(owner,identity);await dbSet(collectionCacheKey('family',owner,identity),next);checkCollectionContext(owner,identity);homeFamily=next;renderFamily()}
   function renderFamily(){
     const members=$('familyMembers');const places=$('familyPlaces');const alerts=$('familyAlerts');const connections=$('familyConnections');if(!members||!places||!alerts||!connections)return;
     members.replaceChildren();places.replaceChildren();alerts.replaceChildren();connections.replaceChildren();$('familyPrivacyNotice').textContent=homeFamily.privacy_notice||'La ubicación solo se comparte con tu permiso.';
@@ -2032,8 +2120,10 @@
   async function saveFamilyProfile(event){event.preventDefault();const form=event.currentTarget;const button=form.querySelector('button[type="submit"]');button.disabled=true;try{await persistFamilyProfile()}catch(error){announce(error.message)}finally{button.disabled=false}}
   async function deleteFamilyPlace(place){if(!window.confirm(`¿Eliminar ${place.name} de los lugares del hogar?`))return;try{await api(`/v1/home-family/places/${encodeURIComponent(place.id)}`,{method:'DELETE'});await refreshFamily();announce('Lugar eliminado')}catch(error){announce(error.message)}}
 
-  async function refreshDesignProjects(){
-    homeDesign=await api(`/v1/home-design/${encodeURIComponent(user)}`);await dbSet(`home-design:${user}`,homeDesign);renderDesign();
+  async function refreshDesignProjects(options={}){
+    const owner=user,identity=collectionIdentity();
+    try{const next=await collectionApi('design',owner);checkCollectionContext(owner,identity);await preserveCollectionSnapshot('design',next,homeDesign,owner,{...options,identity});checkCollectionContext(owner,identity);homeDesign=next;renderDesign()}
+    catch(error){if(user===owner&&identity===collectionIdentity()){collectionLoadErrors.design=true;renderDesign()}throw error}
     const pending=(homeDesign.projects||[]).some(project=>project.proposal_status==='GENERATING');
     if(pending&&!designPoll)designPoll=setTimeout(()=>{designPoll=null;refreshDesignProjects().catch(()=>{})},5000);
   }
@@ -2059,6 +2149,7 @@
     return tier?{...project,selected_tier:tier.id,products:tier.products||[]}:project;
   }
   function renderDesign(){
+    renderCollectionNotice('design');
     const root=$('designProjects');if(!root)return;root.replaceChildren();
     const projects=homeDesign.projects||[];
     $('designOnboarding').hidden=Boolean(projects.length);$('designGenerationNotice').hidden=!projects.length;
@@ -2116,7 +2207,7 @@
   }
   async function deleteDesignProject(project){
     if(!window.confirm(`¿Eliminar “${project.name}” y sus imágenes privadas?`))return;
-    try{await api(`/v1/home-design/${encodeURIComponent(user)}/projects/${encodeURIComponent(project.id)}`,{method:'DELETE'});await refreshDesignProjects();announce('Proyecto eliminado')}catch(error){announce(error.message)}
+    const owner=user,identity=collectionIdentity();try{await api(`/v1/home-design/${encodeURIComponent(owner)}/projects/${encodeURIComponent(project.id)}`,{method:'DELETE'});checkCollectionContext(owner,identity);await forgetDeletedCollection('design',project.id,owner,identity);await refreshDesignProjects({intentionalDelete:true});announce('Proyecto eliminado')}catch(error){announce(error.message)}
   }
   async function saveRecipePersonalization(event){
     event.preventDefault();if(!currentRecipe)return;

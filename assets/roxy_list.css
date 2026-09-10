@@ -1271,3 +1271,8 @@ body.design-module-mode .design-panel{display:grid;gap:22px;max-width:760px;padd
 .design-budget-plan>div>span>small{font-size:12px;line-height:1.4}
 .design-budget-plan .design-tier-tabs small{font-size:11px}
 .design-budget-plan .design-tier-tabs button.active strong,.design-budget-plan .design-tier-tabs button.active small{color:#fff}
+.home-storage-notice{display:block;min-width:0;margin:0 0 20px;padding:18px}
+.home-storage-notice>div{min-width:0;width:100%}
+.home-storage-notice strong{display:block;font-size:17px;line-height:1.35}
+.home-storage-notice p{font-size:14px;line-height:1.5;margin:10px 0 0;overflow-wrap:anywhere}
+.home-storage-notice>button{display:block;width:100%;margin-top:14px;white-space:normal}

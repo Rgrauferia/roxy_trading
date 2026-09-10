@@ -64,9 +64,9 @@ from roxy_os.home_commerce import (
 )
 from roxy_os.home_conversation import HomeConversationStore
 from roxy_os.home_daily import build_home_daily_brief
-from roxy_os.home_design import HomeDesignGenerator, HomeDesignStore, public_project
+from roxy_os.home_design import HomeDesignGenerator, HomeDesignStore, HomeDesignStorageError, public_project
 from roxy_os.home_family import HomeFamilyStore
-from roxy_os.home_plants import HomePlantIdentifier, HomePlantStore, PLANT_CATALOG, public_plant
+from roxy_os.home_plants import HomePlantIdentifier, HomePlantStore, HomePlantStorageError, PLANT_CATALOG, public_plant
 from roxy_os.home_product_intelligence import HomeProductIntelligence, ProductIntelligenceConfig
 from roxy_os.home_food import HomeFoodStore, HomeFoodStorageError, HomePermissionPolicy, RecipeReviewRequired
 from roxy_os.home_pet_catalog import pet_profile_completion, personalized_pet_care_plan, personalized_pet_nutrition_plan, personalized_pet_products, pet_profile_options
@@ -151,6 +151,21 @@ async def home_food_storage_error(_request: Request, exc: HomeFoodStorageError) 
 @app.exception_handler(RecipeReviewRequired)
 async def recipe_review_required(_request: Request, exc: RecipeReviewRequired) -> JSONResponse:
     return JSONResponse(status_code=409, content={"detail": str(exc), "code": "RECIPE_REVIEW_REQUIRED"})
+
+
+@app.exception_handler(HomePlantStorageError)
+@app.exception_handler(HomeDesignStorageError)
+async def home_collection_storage_error(_request: Request, exc: RuntimeError) -> JSONResponse:
+    return JSONResponse(status_code=503, content={"detail": str(exc), "code": "HOME_STORAGE_UNAVAILABLE"},
+                        headers={"Retry-After": "30"})
+
+
+def _protect_legacy_collection_cache(request: Request, empty: bool) -> None:
+    # Older clients replace their offline copy with any successful empty response.
+    # Keep it intact until a version that archives the copy before replacement loads.
+    if empty and request.headers.get("x-roxy-snapshot-version") != "2":
+        raise HTTPException(status_code=503, detail="No hay fichas disponibles en el servidor para esta sección. Conserva la copia de tu dispositivo; estamos comprobando el almacenamiento.",
+                            headers={"Retry-After": "30"})
 
 
 class ShoppingCreateRequest(BaseModel):
@@ -2754,6 +2769,7 @@ def read_home_plants(
     _rate_limit(request)
     user = _authorize_user(user_id, auth)
     result = _plant_store().snapshot(user, user)
+    _protect_legacy_collection_cache(request, not result.get("plants"))
     result["identification_configured"] = HomePlantIdentifier.from_env().configured
     result["species"] = [
         {"key": key, **{field: value.get(field, "") for field in
@@ -3318,12 +3334,17 @@ def read_home_design(
     user = _authorize_user(user_id, auth)
     owner_key = _commerce_owner_key(auth, user)
     generator = HomeDesignGenerator.from_env()
+    store = _design_store()
+    projects = store.projects(owner_key)
+    storage_status = store.storage_status()
+    _protect_legacy_collection_cache(request, not projects)
     return {
         "status": "READY",
+        "storage_status": storage_status,
         "generation_configured": generator.configured,
         "connections": public_design_connections(),
         "trends": public_pinterest_design_trends(),
-        "projects": [public_project(row, user) for row in _design_store().projects(owner_key)],
+        "projects": [public_project(row, user) for row in projects],
     }
 
 

@@ -12,12 +12,13 @@ import hashlib
 import json
 import os
 import re
-import tempfile
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 from uuid import uuid4
+
+from roxy_os.home_private_storage import HomePrivateStorageError, discard_new_media, read_private_json, storage_io, write_new_private_media, write_private_json
 
 try:
     import fcntl
@@ -195,55 +196,69 @@ def _fit_assessment(values: Any) -> dict[str, Any]:
     }
 
 
+class HomeDesignStorageError(HomePrivateStorageError):
+    """Private room data is unavailable; never replace it with an empty list."""
+
+
+def _valid_design_state(value: Any) -> bool:
+    if not isinstance(value, dict) or not isinstance(value.get("projects"), dict):
+        return False
+    if value.get("schema_version", 1) != 1 or isinstance(value.get("schema_version"), bool):
+        return False
+    for projects in value["projects"].values():
+        if not isinstance(projects, dict):
+            return False
+        for project_id, row in projects.items():
+            if not isinstance(row, dict) or not isinstance(row.get("id"), str) or row["id"] != project_id:
+                return False
+            if any(key in row and not isinstance(row[key], str) for key in ("updated_at", "photo_path", "proposal_path")):
+                return False
+    return True
+
+
 class HomeDesignStore:
     def __init__(self, path: str | Path = "data/roxy_home_design.json", image_root: str | Path = "data/roxy_home_design") -> None:
         self.path = Path(path)
         self.lock_path = self.path.with_suffix(self.path.suffix + ".lock")
         self.image_root = Path(image_root)
+        self._storage_status = "NEW"
 
     @staticmethod
     def _empty() -> dict[str, Any]:
         return {"schema_version": 1, "projects": {}}
 
     def _read(self) -> dict[str, Any]:
-        try:
-            value = json.loads(self.path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return self._empty()
-        if not isinstance(value, dict):
-            return self._empty()
-        value.setdefault("projects", {})
+        value, self._storage_status = read_private_json(self.path, self._empty, _valid_design_state, HomeDesignStorageError)
         return value
 
+    def storage_status(self) -> str:
+        self._read()
+        return self._storage_status
+
     def _write(self, value: dict[str, Any]) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        handle, temp_name = tempfile.mkstemp(prefix=f".{self.path.name}.", suffix=".tmp", dir=str(self.path.parent))
-        try:
-            with os.fdopen(handle, "w", encoding="utf-8") as stream:
-                json.dump(value, stream, ensure_ascii=False, indent=2, sort_keys=True)
-                stream.flush()
-                os.fsync(stream.fileno())
-            os.chmod(temp_name, 0o600)
-            os.replace(temp_name, self.path)
-        finally:
-            try:
-                os.unlink(temp_name)
-            except FileNotFoundError:
-                pass
+        write_private_json(self.path, value, _valid_design_state, HomeDesignStorageError)
+        self._storage_status = "READY"
 
     def _mutate(self, callback: Callable[[dict[str, Any]], Any]) -> Any:
-        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
-        with self.lock_path.open("a+", encoding="utf-8") as lock:
-            if fcntl is not None:
-                fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
-            try:
-                value = self._read()
-                result = callback(value)
-                self._write(value)
-                return result
-            finally:
-                if fcntl is not None:
-                    fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+        committed = False
+        try:
+            with storage_io(HomeDesignStorageError):
+                self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+                with self.lock_path.open("a+", encoding="utf-8") as lock:
+                    if fcntl is not None:
+                        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+                    try:
+                        value = self._read()
+                        result = callback(value)
+                        self._write(value)
+                        committed = True
+                        return result
+                    finally:
+                        if fcntl is not None:
+                            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+        except HomeDesignStorageError as exc:
+            if committed: exc.committed = True
+            raise
 
     def projects(self, owner_key: str) -> list[dict[str, Any]]:
         rows = self._read().get("projects", {}).get(owner_key, {})
@@ -264,11 +279,7 @@ class HomeDesignStore:
         project_id = uuid4().hex
         owner_hash = hashlib.sha256(owner_key.encode("utf-8")).hexdigest()[:24]
         directory = self.image_root / owner_hash / project_id
-        directory.mkdir(parents=True, exist_ok=True)
-        os.chmod(directory, 0o700)
         photo_path = directory / f"original{suffix}"
-        photo_path.write_bytes(raw)
-        os.chmod(photo_path, 0o600)
         budget = round(float(values.get("budget") or 0), 2)
         keep_items = _list(values.get("keep_items"))
         priorities = _list(values.get("priorities"))
@@ -303,11 +314,19 @@ class HomeDesignStore:
             "updated_at": now,
         }
 
+        photo_written = False
         def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            nonlocal photo_written
+            write_new_private_media(photo_path, raw, HomeDesignStorageError)
+            photo_written = True
             payload["projects"].setdefault(owner_key, {})[project_id] = row
             return deepcopy(row)
 
-        return self._mutate(apply)
+        try:
+            return self._mutate(apply)
+        except Exception as exc:
+            if photo_written and not getattr(exc, "committed", False): discard_new_media(photo_path)
+            raise
 
     def update_fit_constraints(self, owner_key: str, project_id: str, values: dict[str, Any]) -> dict[str, Any]:
         constraints: dict[str, float] = {}
@@ -413,14 +432,21 @@ class HomeDesignStore:
         if not raw.startswith(b"\x89PNG\r\n\x1a\n") or len(raw) > 15_000_000:
             raise ValueError("OpenAI no devolvió una propuesta visual válida.")
         row = self.project(owner_key, project_id)
-        path = Path(row["photo_path"]).parent / "proposal.png"
-        path.write_bytes(raw)
-        os.chmod(path, 0o600)
+        # A failed state commit must not overwrite the previous proposal image.
+        path = Path(row["photo_path"]).parent / f"proposal-{uuid4().hex}.png"
+        photo_written = False
         def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            nonlocal photo_written
             target = payload["projects"][owner_key][project_id]
+            write_new_private_media(path, raw, HomeDesignStorageError)
+            photo_written = True
             target.update({"proposal_path": str(path), "proposal_status": "READY", "proposal_tier": target.get("selected_tier") or "balanced", "proposal_error": "", "updated_at": _now()})
             return deepcopy(target)
-        return self._mutate(apply)
+        try:
+            return self._mutate(apply)
+        except Exception as exc:
+            if photo_written and not getattr(exc, "committed", False): discard_new_media(path)
+            raise
 
     def mark_failed(self, owner_key: str, project_id: str) -> None:
         def apply(payload: dict[str, Any]) -> None:

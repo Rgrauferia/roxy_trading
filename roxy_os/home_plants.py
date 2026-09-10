@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
-import os
 import re
-import tempfile
 from copy import deepcopy
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -14,6 +12,7 @@ from typing import Any, Callable
 from uuid import uuid4
 
 from roxy_os.home_ai import HomeAIBudgetLedger, HomeAIConfig, HomeAIConfigurationError
+from roxy_os.home_private_storage import HomePrivateStorageError, discard_new_media, read_private_json, storage_io, write_new_private_media, write_private_json
 
 try:
     import fcntl
@@ -241,43 +240,73 @@ def plant_condition_concerns(plant: dict[str, Any]) -> list[str]:
     return concerns
 
 
+class HomePlantStorageError(HomePrivateStorageError):
+    """Private plant data is unavailable; callers must not present an empty garden."""
+
+
+def _valid_plant_state(value: Any) -> bool:
+    if not isinstance(value, dict) or not isinstance(value.get("households"), dict):
+        return False
+    if value.get("schema_version", 1) != 1 or isinstance(value.get("schema_version"), bool):
+        return False
+    for household in value["households"].values():
+        if not isinstance(household, dict) or not isinstance(household.get("plants"), dict):
+            return False
+        if household.get("vacation") is not None and not isinstance(household["vacation"], dict):
+            return False
+        for plant_id, row in household["plants"].items():
+            if not isinstance(row, dict) or not isinstance(row.get("id"), str) or row["id"] != plant_id:
+                return False
+            if any(key in row and not isinstance(row[key], str) for key in ("display_name", "room", "species_key")):
+                return False
+            if "identification" in row and not isinstance(row["identification"], dict):
+                return False
+            for key in ("care_tasks", "journal"):
+                items = row.get(key, [])
+                if not isinstance(items, list) or any(not isinstance(item, dict) for item in items):
+                    return False
+    return True
+
+
 class HomePlantStore:
     def __init__(self, path: str | Path = "data/roxy_home_plants.json", image_root: str | Path = "data/roxy_home_plants") -> None:
         self.path = Path(path)
         self.lock_path = self.path.with_suffix(self.path.suffix + ".lock")
         self.image_root = Path(image_root)
+        self._storage_status = "NEW"
 
     @staticmethod
     def _empty() -> dict[str, Any]:
         return {"schema_version": 1, "households": {}}
 
     def _read(self) -> dict[str, Any]:
-        try:
-            value = json.loads(self.path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return self._empty()
-        return value if isinstance(value, dict) else self._empty()
+        value, self._storage_status = read_private_json(self.path, self._empty, _valid_plant_state, HomePlantStorageError)
+        return value
+
+    def storage_status(self) -> str:
+        self._read()
+        return self._storage_status
 
     def _write(self, value: dict[str, Any]) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        handle, temp_name = tempfile.mkstemp(prefix=f".{self.path.name}.", suffix=".tmp", dir=str(self.path.parent))
-        try:
-            with os.fdopen(handle, "w", encoding="utf-8") as stream:
-                json.dump(value, stream, ensure_ascii=False, indent=2, sort_keys=True)
-                stream.flush(); os.fsync(stream.fileno())
-            os.replace(temp_name, self.path)
-        finally:
-            try: os.unlink(temp_name)
-            except FileNotFoundError: pass
+        write_private_json(self.path, value, _valid_plant_state, HomePlantStorageError)
+        self._storage_status = "READY"
 
     def _locked(self, callback: Callable[[dict[str, Any]], Any]) -> Any:
-        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
-        with self.lock_path.open("a+", encoding="utf-8") as lock:
-            if fcntl is not None: fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
-            try:
-                value = self._read(); result = callback(value); self._write(value); return result
-            finally:
-                if fcntl is not None: fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+        committed = False
+        try:
+            with storage_io(HomePlantStorageError):
+                self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+                with self.lock_path.open("a+", encoding="utf-8") as lock:
+                    if fcntl is not None: fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+                    try:
+                        value = self._read(); result = callback(value); self._write(value)
+                        committed = True
+                        return result
+                    finally:
+                        if fcntl is not None: fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+        except HomePlantStorageError as exc:
+            if committed: exc.committed = True
+            raise
 
     @staticmethod
     def _household(value: dict[str, Any], owner: str) -> dict[str, Any]:
@@ -303,7 +332,7 @@ class HomePlantStore:
         unidentified_ids = {row["id"] for row in plants if row.get("species_key") == "unknown" or row.get("identification", {}).get("status") != "CONFIRMED"}
         watched_ids = ({row["plant_id"] for row in due} | {row["id"] for row in plants if row.get("condition_concerns")}) - unidentified_ids
         return {
-            "status": "READY", "plants": plants, "due_today": due, "upcoming_care": upcoming[:30],
+            "status": "READY", "storage_status": self._storage_status, "plants": plants, "due_today": due, "upcoming_care": upcoming[:30],
             "health_summary": {"total": len(plants), "good": len(plants) - len(watched_ids) - len(unidentified_ids), "watch": len(watched_ids), "needs_identification": len(unidentified_ids)},
             "environment": {"sensor_status": "not_connected", "temperature_c": None, "humidity_percent": None},
             "vacation": deepcopy(household.get("vacation") or {}), "care_sources": CARE_SOURCES,
@@ -318,9 +347,7 @@ class HomePlantStore:
         raw, media_type, suffix = _decode_image(values.get("photo_data_url", ""))
         plant_id = uuid4().hex
         directory = self.image_root / re.sub(r"[^a-zA-Z0-9_.-]+", "_", owner) / plant_id
-        directory.mkdir(parents=True, exist_ok=True)
         photo_path = directory / f"original{suffix}"
-        photo_path.write_bytes(raw)
         key = _text(values.get("species_key"), 40)
         identification = identification or {}
         proposed_key = _text(identification.get("species_key"), 40)
@@ -353,9 +380,17 @@ class HomePlantStore:
         }
         for task in row["care_tasks"]:
             task["title"] = _care_task_title(task, row["growing_medium"], row["species_key"])
+        photo_written = False
         def apply(value: dict[str, Any]) -> dict[str, Any]:
+            nonlocal photo_written
+            write_new_private_media(photo_path, raw, HomePlantStorageError)
+            photo_written = True
             self._household(value, owner)["plants"][plant_id] = row; return deepcopy(row)
-        return self._locked(apply)
+        try:
+            return self._locked(apply)
+        except Exception as exc:
+            if photo_written and not getattr(exc, "committed", False): discard_new_media(photo_path)
+            raise
 
     def update(self, owner: str, plant_id: str, values: dict[str, Any]) -> dict[str, Any]:
         def apply(value: dict[str, Any]) -> dict[str, Any]:
@@ -420,18 +455,27 @@ class HomePlantStore:
         photo_path = ""; media_type = ""
         if photo_data_url:
             raw, media_type, suffix = _decode_journal_media(photo_data_url)
-            directory = self.image_root / re.sub(r"[^a-zA-Z0-9_.-]+", "_", owner) / plant_id / "journal"; directory.mkdir(parents=True, exist_ok=True)
-            photo_path = str(directory / f"{uuid4().hex}{suffix}"); Path(photo_path).write_bytes(raw)
+            directory = self.image_root / re.sub(r"[^a-zA-Z0-9_.-]+", "_", owner) / plant_id / "journal"
+            photo_path = str(directory / f"{uuid4().hex}{suffix}")
         entry = {"id": uuid4().hex, "created_at": _now(), "created_by": user_id, "notes": clean_notes, "photo_path": photo_path, "photo_media_type": media_type}
         # Keep old notes/photo callers compatible. Missing result is unknown,
         # never inferred from language such as "No regué" or from a photograph.
         if result is not None:
             entry["result"] = result
+        photo_written = False
         def apply(value: dict[str, Any]) -> dict[str, Any]:
+            nonlocal photo_written
             row = self._household(value, owner).get("plants", {}).get(plant_id)
             if not row or row.get("archived"): raise KeyError(plant_id)
+            if photo_path:
+                write_new_private_media(Path(photo_path), raw, HomePlantStorageError)
+                photo_written = True
             row.setdefault("journal", []).append(entry); row["updated_at"] = _now(); return deepcopy(entry)
-        return self._locked(apply)
+        try:
+            return self._locked(apply)
+        except Exception as exc:
+            if photo_written and not getattr(exc, "committed", False): discard_new_media(Path(photo_path))
+            raise
 
     def set_vacation(self, owner: str, values: dict[str, Any]) -> dict[str, Any]:
         clean = {"enabled": bool(values.get("enabled")), "starts_on": _text(values.get("starts_on"), 10), "ends_on": _text(values.get("ends_on"), 10), "caregiver": _text(values.get("caregiver"), 80), "notes": _text(values.get("notes"), 500), "updated_at": _now()}

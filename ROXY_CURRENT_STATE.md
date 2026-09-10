@@ -3,9 +3,40 @@
 Actualizado: 2026-09-10. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 
-## 181 — candidato probado: Jardín guiado, fotos y navegación
+## Incidente de persistencia — 182 probado, publicación pendiente; NO demo terminada
 
-Pendiente de publicación al escribir este bloque. HTML/APP181, JS182, CSS128,
+181 se publicó desde 87dc13ead6ba2de5323625c16a22c2b172b2237a.
+Render Live, health200/ok y nueve assets públicos idénticos al commit.
+La revisión pública tras recargar detectó Jardín vacío; antes la pantalla
+mostraba un Pothos en Cosina. Render Web Shell confirmó PLANTS_PATH/IMAGE_DIR
+y DESIGN_PATH/IMAGE_DIR UNSET, archivos de plantas ausentes en /app/data y
+ninguna copia de plantas/Renueva en /var/data. No se han recuperado los datos;
+no recrear plantas ni restaurar pruebas sintéticas. Evitar recargar teléfonos
+que conserven la copia previa. Fotos originales no garantizadas en caché.
+
+182 local probado: HTML/APP182, JS184, CSS129, SW181. Rutas persistentes de Jardín/Renueva, JSON fail-closed con marcador,
+escrituras atómicas/fotos únicas, 503 sin revelar rutas; protección de copia
+anterior en cliente y aislamiento de Renueva por miembro (no asumir dueño de
+caché legacy de hogar). 1503 Python aprobadas,11 PG omitidas;139 Node y2 mjs.
+Navegador393: alta Mango QA, ficha específica, pérdida simulada sólo en datos
+sintéticos conserva copia descargable y aviso legible; luego se restauró archivo
+QA original. Cero errores/warnings de consola. No planta real recuperada.
+Load protege carreras entre miembros/hogares y oculta DOM viejo al cambiar;
+cachés Commerce/Calendar/Daily/Nexo/Weather también se separan por identidad.
+Publicación182 y comprobación pública aún pendientes.
+No aplicar Blueprint: su disco declarado1GB difiere del real10GB; no pagos.
+Render mantiene aviso Payment failed. Usuario debe resolver facturación.
+
+Heartbeat activo `roxy-home-jornada-de-mejoras`: cada hora hasta el 10/09/2026
+23:59 America/New_York (20260911T035900Z). Sólo Home, no pagos/contratos sin
+autoridad concreta; avisar sólo avances relevantes, fallo o acción necesaria.
+Prototipo8796 preservado, QA sintético en8768. Impact requiere login.
+Recetas500 NO logrado: 510 candidatas,0 aprobadas; segunda auditoría20ES
+detectó defectos materiales y fotos ilustrativas, no se publican por cantidad.
+
+## 181 — publicado con incidente de Jardín pendiente
+
+Estado de pruebas previo a publicación. HTML/APP181, JS182, CSS128,
 SW179, FitnessCSS5/catalogJS2, GardenGuide1 y MapLibreLoader1. No tocar prototypes/.
 Jardín: guía de cuatro pasos con saludo del miembro, voz del dispositivo
 opcional, tierra/agua/desconocido, drenaje nullable, diario de texto sin foto

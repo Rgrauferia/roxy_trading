@@ -128,6 +128,14 @@ services:
         value: /var/data/roxy_home/shopping_list.json
       - key: ROXY_HOME_MEMORY_PATH
         value: /var/data/roxy_home/home_food.json
+      - key: ROXY_HOME_PLANTS_PATH
+        value: /var/data/roxy_home/plants.json
+      - key: ROXY_HOME_PLANTS_IMAGE_DIR
+        value: /var/data/roxy_home/plants
+      - key: ROXY_HOME_DESIGN_PATH
+        value: /var/data/roxy_home/design.json
+      - key: ROXY_HOME_DESIGN_IMAGE_DIR
+        value: /var/data/roxy_home/design
       - key: ROXY_HOME_RECIPE_LIBRARY_PATH
         value: /var/data/roxy_home/recipe_library.sqlite
       - key: ROXY_HOME_ACCOUNTS_PATH
