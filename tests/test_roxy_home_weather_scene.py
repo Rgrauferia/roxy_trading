@@ -123,3 +123,44 @@ def test_scene_accessibility_source_and_refresh_contract():
     assert "300000" in refresh
     assert "requestedUser=user" in refresh and "user!==requestedUser" in refresh
     assert "method:'POST'" not in refresh and "getCurrentPosition" not in refresh
+
+
+def test_globe_summary_preserves_zero_and_rejects_missing_or_stale_model_data():
+    source = (ROOT / "assets/roxy_list.js").read_text()
+    start = source.index("  async function activateFamilyWeatherGlobe()")
+    end = source.index("  function exitFamilyWeatherGlobe(", start)
+    run_scene_test(source[start:end] + r"""
+const assert=require('node:assert/strict'),now=Date.parse('2026-09-08T16:30:00Z');
+Date.now=()=>now;
+let homeWeather,familyWeatherGlobeActive=false,familyMapTransitioning=false,familyWeatherGlobeFrames=[];
+const elements=new Map();
+const $=id=>{if(!elements.has(id))elements.set(id,{classList:{add(){}},setAttribute(){}});return elements.get(id)};
+const document={body:{classList:{add(){}}}};
+const familyClock=time=>new Date(time).toISOString();
+const stopFamilyWeatherGlobePlayback=()=>{};
+const ensureFamilyWeatherGlobe=()=>{throw new Error('fixture offline')};
+console.warn=()=>{};
+const fresh=()=>({status:'READY',updated_at:'2026-09-08T16:20:00Z',location:{label:'Lugar de prueba'},
+ current:{valid_at:'2026-09-08T16:15:00Z',code:3,is_day:true,temperature:0,condition:'Nublado'}});
+async function show(weather){homeWeather=weather;familyWeatherGlobeActive=false;await activateFamilyWeatherGlobe();return $('familyWeatherGlobeCurrent').textContent;}
+(async()=>{
+ const zero=await show(fresh());
+ assert.match(zero,/0°/);assert.match(zero,/Nublado/);assert.match(zero,/Lugar de prueba/);
+ assert.match(zero,/Modelo Open-Meteo/);assert.match(zero,/2026-09-08T16:15:00.000Z/);
+ for(const temperature of [undefined,null,'',false,NaN,Infinity]){
+  const weather=fresh();weather.current.temperature=temperature;
+  const text=await show(weather);assert(!text.includes('°'));assert(!text.includes('NaN'));
+  assert.match(text,/Nublado/);assert.match(text,/Modelo Open-Meteo/);
+ }
+ for(const field of ['valid_at','updated_at']){
+  for(const invalid of [undefined,null,'','2026-09-08T16:15','2026-09-08T14:00:00Z','2026-09-08T18:00:00Z']){
+   const weather=fresh();(field==='valid_at'?weather.current:weather)[field]=invalid;
+   const text=await show(weather);assert.match(text,/pendiente de actualizar/);
+   assert(!text.includes('°'));assert(!text.includes('Nublado'));
+   assert(!$('familyWeatherGlobeNotice').textContent.includes('clima actual'));
+  }
+ }
+ const unavailable=fresh();unavailable.status='UNAVAILABLE';assert.match(await show(unavailable),/pendiente de actualizar/);
+ assert.match(await show({status:'LOCATION_REQUIRED'}),/Clima sin activar/);
+})().catch(error=>{console.error(error);process.exitCode=1});
+""")

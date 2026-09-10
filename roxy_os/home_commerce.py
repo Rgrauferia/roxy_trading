@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import math
 import os
 import re
 import tempfile
@@ -24,6 +25,41 @@ except ImportError:  # pragma: no cover
 
 COMMERCE_STORE_VERSION = 3
 SHOPPING_OBJECTIVES = {"balanced", "lowest_price", "organic", "favorites"}
+HUMAN_FOOD_CATEGORIES = frozenset({
+    "PRODUCE", "DAIRY_EGGS", "MEAT_SEAFOOD", "BAKERY", "PANTRY",
+    "BEVERAGES", "FROZEN", "FOOD",
+})
+# Exact unit labels only; quantities are never converted to an inferred weight.
+# Source checked 2026-09-10:
+# https://docs.instacart.com/developer_platform_api/api/units_of_measurement
+INSTACART_UNIT_ALIASES = {
+    **dict.fromkeys(("unidad", "unidades", "pieza", "piezas", "each"), "each"),
+    **dict.fromkeys(("paquete", "paquetes", "package", "packages"), "package"),
+    **dict.fromkeys(("lata", "latas", "can", "cans"), "can"),
+    **dict.fromkeys(("manojo", "manojos", "bunch", "bunches"), "bunch"),
+    **dict.fromkeys(("cabeza", "cabezas", "head", "heads"), "head"),
+    **dict.fromkeys(("gramo", "gramos", "gram", "grams", "g", "gs"), "gram"),
+    **dict.fromkeys(("kilogramo", "kilogramos", "kilogram", "kilograms", "kg", "kgs"), "kilogram"),
+    **dict.fromkeys(("miligramo", "miligramos", "mg"), None),
+    **dict.fromkeys(("mililitro", "mililitros", "milliliter", "millilitre", "milliliters", "millilitres", "ml", "mls"), "milliliter"),
+    **dict.fromkeys(("litro", "litros", "liter", "litre", "liters", "litres", "l"), "liter"),
+    **dict.fromkeys(("libra", "libras", "pound", "pounds", "lb", "lbs"), "pound"),
+    **dict.fromkeys(("onza", "onzas", "ounce", "ounces", "oz"), "ounce"),
+    **dict.fromkeys(("taza", "tazas", "cup", "cups", "c"), "cup"),
+    **dict.fromkeys(("cucharada", "cucharadas", "tablespoon", "tablespoons", "tb", "tbs", "tbsp"), "tablespoon"),
+    **dict.fromkeys(("cucharadita", "cucharaditas", "teaspoon", "teaspoons", "ts", "tsp", "tspn"), "teaspoon"),
+    **dict.fromkeys(("galon", "galones", "gallon", "gallons", "gal", "gals"), "gallon"),
+    **dict.fromkeys(("pinta", "pintas", "pint", "pints", "pt", "pts"), "pint"),
+    **dict.fromkeys(("quart", "quarts", "qt", "qts"), "quart"),
+    # Already supported compound/size labels retain their exact meaning.
+    **{unit: unit for unit in (
+        "fl oz can", "fl oz container", "fl oz jar", "fl oz pouch", "fl oz ounce",
+        "pt container", "lb bag", "lb can", "lb container", "per lb",
+        "ounces bag", "oz bag", "ounces can", "oz can", "ounces container", "oz container",
+        "ears", "large", "lrg", "lge", "lg", "medium", "med", "md", "packet",
+        "small", "sm", "small ears", "small head", "small heads",
+    )},
+}
 ORGANIC_PREFERENCES = {"required", "preferred", "no_preference"}
 AFFILIATE_DISCLOSURE = (
     "Roxy puede recibir una comisión si completas la compra desde estos enlaces; "
@@ -1213,12 +1249,15 @@ def personalize_items(raw_items: list[dict[str, Any]], profile: dict[str, Any], 
         name = _text(raw.get("name"), 120)
         if not name:
             continue
+        category = _text(raw.get("category") or "GENERAL", 32).upper()
+        human_food = category in HUMAN_FOOD_CATEGORIES
         query_parts = []
-        if organic in {"required", "preferred"} or objective == "organic":
+        if human_food and (organic in {"required", "preferred"} or objective == "organic"):
             query_parts.append("orgánico")
         query_parts.append(name)
-        query_parts.extend((profile.get("dietary_labels") or [])[:3])
-        if objective == "favorites" and brand:
+        if human_food:
+            query_parts.extend((profile.get("dietary_labels") or [])[:3])
+        if human_food and objective == "favorites" and brand:
             query_parts.append(brand)
         reasons = {
             "lowest_price": "Prioriza comparar el menor precio por unidad en la tienda.",
@@ -1231,15 +1270,19 @@ def personalize_items(raw_items: list[dict[str, Any]], profile: dict[str, Any], 
                 "name": name,
                 "quantity": float(raw.get("quantity") or 1),
                 "unit": _text(raw.get("unit") or "unidad", 32) or "unidad",
-                "category": _text(raw.get("category") or "GENERAL", 32) or "GENERAL",
+                "category": category,
                 "query": " ".join(query_parts),
-                "reason": reasons.get(str(objective), reasons["balanced"]),
-                "allergen_review_required": bool(allergies),
-                "avoided_brands": list(profile.get("avoided_brands") or []),
+                "reason": (
+                    reasons.get(str(objective), reasons["balanced"])
+                    if human_food else "Conserva el producto solicitado; revisa su variante y etiqueta. No se aplica la dieta humana."
+                ),
+                "allergen_review_required": bool(allergies) if human_food else False,
+                "allergen_review_scope": "human_food" if human_food else "not_evaluated_for_item",
+                "avoided_brands": list(profile.get("avoided_brands") or []) if human_food else [],
                 "shopping_preferences": {
-                    "organic_preference": organic,
-                    "dietary_labels": list(profile.get("dietary_labels") or [])[:3],
-                    "favorite_brand": brand if objective == "favorites" else "",
+                    "organic_preference": organic if human_food else "no_preference",
+                    "dietary_labels": list(profile.get("dietary_labels") or [])[:3] if human_food else [],
+                    "favorite_brand": brand if human_food and objective == "favorites" else "",
                 },
                 "postal_code": _text(profile.get("postal_code"), 12),
                 # Design proposals use these fields to keep an honest estimated
@@ -1250,6 +1293,45 @@ def personalize_items(raw_items: list[dict[str, Any]], profile: dict[str, Any], 
             }
         )
     return rows
+
+
+def _isolate_purchase_item(raw: dict[str, Any]) -> dict[str, Any]:
+    """Also protect preparations saved before food preferences were scoped."""
+    row = deepcopy(raw)
+    if _text(row.get("category") or "GENERAL", 32).upper() not in HUMAN_FOOD_CATEGORIES:
+        if "shopping_preferences" in row:
+            row["query"] = _text(row.get("name"), 120)
+            row["reason"] = "Conserva el producto solicitado; revisa su variante y etiqueta. No se aplica la dieta humana."
+        row["shopping_preferences"] = {
+            "organic_preference": "no_preference", "dietary_labels": [], "favorite_brand": "",
+        }
+        row["allergen_review_required"] = False
+        row["allergen_review_scope"] = "not_evaluated_for_item"
+        row["avoided_brands"] = []
+    return row
+
+
+def _instacart_line_item(row: dict[str, Any]) -> dict[str, Any]:
+    """Translate only an exact label, keeping the local quantity/unit untouched."""
+    original_unit = _text(row.get("unit"), 32)
+    unit = INSTACART_UNIT_ALIASES.get(_fold(original_unit))
+    if not unit:
+        raise ValueError(
+            f"Revisa la unidad «{original_unit or 'sin indicar'}» de {row.get('name') or 'este producto'} "
+            "antes de abrir Instacart. Usa una cantidad medible o unidades; no estimaré el tamaño del envase."
+        )
+    raw_quantity = row.get("quantity")
+    try:
+        quantity = float(raw_quantity)
+    except (ValueError, TypeError, OverflowError) as exc:
+        raise ValueError("Revisa la cantidad del producto antes de abrir Instacart.") from exc
+    if isinstance(raw_quantity, bool) or not math.isfinite(quantity) or quantity <= 0:
+        raise ValueError("Revisa la cantidad del producto antes de abrir Instacart.")
+    return {
+        "name": _text(row.get("query") or row.get("name"), 300),
+        "display_text": f"{_text(row.get('name'), 120)} · {quantity:g} {original_unit}",
+        "line_item_measurements": [{"quantity": quantity, "unit": unit}],
+    }
 
 
 def _affiliate_template_link(template: str, destination: str, query: str, tracking_id: str = "") -> str:
@@ -1268,7 +1350,7 @@ def create_purchase_links(provider_id: str, preparation: dict[str, Any], *, task
         raise ValueError("Proveedor no permitido para esta preparación.")
     if not provider["configured"]:
         raise RuntimeError("Este proveedor todavía necesita su cuenta de afiliación o clave aprobada.")
-    items = preparation.get("items") or []
+    items = [_isolate_purchase_item(row) for row in (preparation.get("items") or [])]
     if provider_id == "dataforseo":
         links, pending = _dataforseo_catalog(items, task_ids)
         if not links:
@@ -1320,13 +1402,7 @@ def create_purchase_links(provider_id: str, preparation: dict[str, Any], *, task
         )
         payload = {
             "title": preparation.get("source_title") or "Compra preparada por Roxy",
-            "line_items": [
-                {
-                    "name": row["query"],
-                    "line_item_measurements": [{"quantity": row["quantity"], "unit": row["unit"]}],
-                }
-                for row in items
-            ],
+            "line_items": [_instacart_line_item(row) for row in items],
         }
         request = urllib.request.Request(
             endpoint,

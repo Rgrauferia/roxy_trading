@@ -1,12 +1,30 @@
 {
   "product": "roxy-home",
-  "updated_on": "2026-09-08",
+  "updated_on": "2026-09-10",
   "deployment_branch": "codex/roxy-home-nfc",
   "public_url": "https://roxy-home.onrender.com/lista#ejercicio",
   "last_verified_public_version": 179,
   "deployed_implementation_commit": "762ef1ae5",
-  "candidate_version": 179,
-  "candidate_status": "179_published_and_verified_educational_exercise_not_complete_training_module",
+  "candidate_version": 180,
+  "candidate_status": "180_login_commerce_weather_metadata_local_verified_public_deploy_pending",
+  "access_commerce_180": {
+    "login": "explicit_document_reload_after_success_duplicate_submit_protection_error_retry",
+    "browser_qa": "loopback_synthetic_wrong_password_rejected_then_correct_password_opens_Hoy_1280x720",
+    "browser_evidence": "/tmp/roxy-home-audit-20260910/login-success.png",
+    "real_phone_or_user_credentials_tested": false,
+    "commerce": "human_diet_scoped_to_human_food_legacy_preparations_sanitized_exact_Instacart_units_no_weight_guessing",
+    "tests_node": 41,
+    "tests_accounts": 5,
+    "tests_commerce": 87,
+    "weather": "globe_reuses_model_freshness_preserves_true_zero_omits_missing_temperature_no_visual_changes",
+    "tests_weather": 32,
+    "full_python_passed": 1289,
+    "full_python_skipped_postgres": 11,
+    "render_session": "signed_in_dashboard_verified_2026_09_10",
+    "render_notice": "Payment_failed_user_notified_no_payment_or_billing_changes",
+    "production_account_pet_or_shopping_data_modified": false,
+    "public_deploy_verified": false
+  },
   "exercise_candidate_178": {
     "requested_objective": "integrated_private_member_exercise_module_following_user_specification",
     "scope": "five_step_preferences_and_six_section_preview_not_operational_training",
@@ -146,7 +164,7 @@
     "Aderezo César photo showed a salad; quarantine until an exact replacement is visually reviewed",
     "Only five manufacturer ingredient panels screened; restrictions fail closed, not clinical allergy clearance"
   ],
-  "next_step": "179 educational Exercise published and verified. User must sign in to Render before reviewing/provisioning dedicated Home PostgreSQL; confirm any new cost first, then test production isolation/persistence. Qualified professional review for screening/templates and broader exact-media catalogue before enabling guided plans. No module-complete or open-demo readiness claim. Existing recipe/provider/registration gates remain.",
+  "next_step": "Finish full regression suite and publish login/commerce candidate180; verify public assets and ask user to retry phone login without sharing password. Render session is now open but Payment_failed warning requires user billing action. Recipe originals only6, TheMealDB key/license absent; exercise catalogue8 unbalanced/no active training; weather target not achieved. Dedicated Home PostgreSQL still requires cost approval, provisioning and isolation verification; professional screening/templates remain gated. No demo-ready claim.",
   "launch": {
     "five_day_web_beta": "requested_not_scheduled",
     "app_store": "target_next_month_not_guaranteed",

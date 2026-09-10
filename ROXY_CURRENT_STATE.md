@@ -1,7 +1,38 @@
 # Roxy Home — estado operativo
 
-Actualizado: 2026-09-08. Este documento pertenece exclusivamente a la rama Home.
+Actualizado: 2026-09-10. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
+
+## 180 — corrección de acceso y aislamiento de Compra, candidato local
+
+Login corregido: tras recibir la cookie, recarga el documento en Hoy. Antes,
+un cambio de fragmento dejaba abierto el formulario con contraseña correcta.
+Evita envíos duplicados y conserva el formulario ante rechazo. Navegador real
+con cuenta sintética desechable: error incorrecto visible y acceso correcto
+abre Hoy; 41 pruebas Node login/Ejercicio y 5 backend cuentas aprobadas.
+No se ha probado todavía el teléfono ni las credenciales reales del usuario.
+
+Compra deja de añadir dietas/alergias humanas a artículos PETS, limpieza y
+otras categorías no alimentarias, incluidas preparaciones guardadas antiguas.
+Unidades Instacart se traducen solo por equivalencias exactas, sin inventar
+pesos; envases ambiguos/cantidades inválidas requieren revisión antes de red.
+87 pruebas de comercio aprobadas. No llamadas de compra ni cambios de afiliación.
+El globo de Nexo reutiliza frescura meteorológica y ya no inventa 0° si falta
+temperatura ni llama actual a un dato vencido. Conserva un 0° válido y fecha/fuente.
+32 pruebas de clima aprobadas; no hay cambios de gráficos ni catálogo de Ejercicio.
+Candidato HTML/APP180, JS181, SW178.
+Validación global: 1.289 pruebas Python aprobadas y 41 Node. Once pruebas de
+PostgreSQL se omiten en este entorno ordinario; no se modificó esa capa y la
+evidencia local real de 179 se conserva. Despliegue aún pendiente de confirmar.
+
+Render accesible con sesión el 10/09; último live 762ef1ae5/179, y aviso
+«Payment failed» comunicado al usuario. No pagos ni cambios de tarjeta.
+Los avisos históricos de sesión cerrada en 179 ya no describen el acceso actual.
+Recetario original: 6 fichas Wikibooks; TheMealDB sigue sin cuenta/clave/licencia
+comercial confirmadas. Ejercicio: 8 fichas/16 ilustraciones, 0 vídeos, cobertura
+insuficiente y sin entrenamientos activos. Clima aún no tiene el acabado pedido.
+Ver informes de acceso/Instacart del 09/09, continuados el 10/09. Datos públicos
+de mascotas y hogar preservados. `prototypes/` sin tocar.
 
 ## 179 — Ejercicio educativo PUBLICADO y comprobado
 

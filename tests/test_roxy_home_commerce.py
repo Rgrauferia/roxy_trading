@@ -1,10 +1,12 @@
 import json
+from copy import deepcopy
 from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlparse
 
+import pytest
 from fastapi.testclient import TestClient
 
-from roxy_os.home_commerce import HomeCommerceStore, create_purchase_links, public_providers
+from roxy_os.home_commerce import HomeCommerceStore, create_purchase_links, personalize_items, public_providers
 from roxy_os.home_price_recommendations import (
     PriceFeedConfig,
     fetch_nearby_retailers,
@@ -225,6 +227,179 @@ def test_instacart_affiliate_link_is_fallback_without_developer_key(tmp_path, mo
     assert checkout.json()["links"] == [
         {"label": "Abrir Instacart", "url": "https://instacart.pxf.io/roxy-home"}
     ]
+
+
+def test_shopping_personalization_applies_human_diet_only_to_human_food():
+    profile = {
+        "objective": "favorites", "organic_preference": "required",
+        "dietary_labels": ["vegano", "sin gluten"],
+        "favorite_brands": ["Marca humana"], "avoided_brands": ["Otra marca humana"],
+    }
+    raw_items = [
+        {"name": "Leche", "category": "DAIRY_EGGS"},
+        {"name": "Alimento para ferret", "category": "PETS"},
+        {"name": "Detergente", "category": "CLEANING"},
+        {"name": "Producto sin clasificar"},
+    ]
+    original = deepcopy(raw_items)
+    rows = personalize_items(raw_items, profile, ["cacahuete"])
+
+    assert rows[0]["query"] == "orgánico Leche vegano sin gluten Marca humana"
+    assert rows[0]["allergen_review_required"] is True
+    assert rows[0]["allergen_review_scope"] == "human_food"
+    assert rows[0]["avoided_brands"] == ["Otra marca humana"]
+    for row in rows[1:]:
+        assert row["query"] == row["name"]
+        assert row["shopping_preferences"] == {
+            "organic_preference": "no_preference", "dietary_labels": [], "favorite_brand": "",
+        }
+        assert row["allergen_review_required"] is False
+        assert row["allergen_review_scope"] == "not_evaluated_for_item"
+        assert row["avoided_brands"] == []
+        assert "No se aplica la dieta humana" in row["reason"]
+    assert raw_items == original
+
+
+@pytest.mark.parametrize("category", ["PETS", "CLEANING", "PERSONAL", "HEALTH", "HOUSEHOLD", "BABY", "OTHER", "GENERAL"])
+def test_legacy_nonfood_preparations_remove_human_preferences_before_instacart(monkeypatch, category):
+    from roxy_os import home_commerce
+
+    monkeypatch.setenv("ROXY_HOME_INSTACART_API_KEY", "synthetic-home-key")
+    captured = []
+    monkeypatch.setattr(home_commerce.urllib.request, "urlopen", lambda request, timeout: (
+        captured.append(json.loads(request.data)) or _CatalogResponse({
+            "products_link_url": "https://www.instacart.com/store/shopping_lists/synthetic?aff_id=123",
+        })
+    ))
+    preparation = {
+        "providers": ["instacart"], "source_title": "Compra de prueba",
+        "items": [{
+            "name": "Producto específico", "query": "orgánico Producto específico vegano Marca humana",
+            "category": category, "quantity": 2, "unit": "unidad",
+            "shopping_preferences": {"organic_preference": "required", "dietary_labels": ["vegano"], "favorite_brand": "Marca humana"},
+            "allergen_review_required": True, "avoided_brands": ["Otra marca humana"],
+        }],
+    }
+    original = deepcopy(preparation)
+    result = create_purchase_links("instacart", preparation)
+
+    assert captured[0]["line_items"] == [{
+        "name": "Producto específico", "display_text": "Producto específico · 2 unidad",
+        "line_item_measurements": [{"quantity": 2, "unit": "each"}],
+    }]
+    assert result["links"][0]["url"].endswith("?aff_id=123")
+    assert "synthetic-home-key" not in str(result)
+    assert preparation == original
+
+
+def test_legacy_pet_preferences_do_not_reappear_in_amazon_search(monkeypatch):
+    monkeypatch.setenv("ROXY_HOME_AMAZON_ASSOCIATE_TAG", "home-test-20")
+    monkeypatch.delenv("ROXY_HOME_AMAZON_CREATORS_CLIENT_ID", raising=False)
+    preparation = {
+        "providers": ["amazon"], "items": [{
+            "name": "Alimento para ferret", "query": "orgánico Alimento para ferret vegano",
+            "category": "PETS", "quantity": 1, "unit": "paquete",
+            "shopping_preferences": {"organic_preference": "required", "dietary_labels": ["vegano"], "favorite_brand": "Marca humana"},
+            "reason": "Prioriza una opción orgánica disponible.",
+        }],
+    }
+    link = create_purchase_links("amazon", preparation)["links"][0]
+    query = parse_qs(urlparse(link["url"]).query)["k"][0]
+
+    assert all(term not in query for term in ("organic", "vegan", "Marca humana"))
+    assert "ferret" in query
+    assert "No se aplica la dieta humana" in link["reason"]
+
+
+@pytest.mark.parametrize("local_unit,provider_unit", [
+    ("unidad", "each"), ("unidades", "each"), ("paquete", "package"),
+    ("lata", "can"), ("gramos", "gram"), ("kg", "kilogram"),
+    ("mililitros", "milliliter"), ("litro", "liter"), ("galón", "gallon"),
+    ("libra", "pound"), ("onzas", "ounce"), ("taza", "cup"),
+    ("cucharada", "tablespoon"), ("cucharadita", "teaspoon"),
+    ("manojo", "bunch"), ("cabeza", "head"), ("pinta", "pint"), ("quart", "quart"),
+    ("fl oz can", "fl oz can"), ("oz bag", "oz bag"), ("small head", "small head"),
+])
+def test_instacart_payload_translates_exact_units_without_converting_quantity(monkeypatch, local_unit, provider_unit):
+    from roxy_os import home_commerce
+
+    monkeypatch.setenv("ROXY_HOME_INSTACART_API_KEY", "synthetic-home-key")
+    monkeypatch.setenv("ROXY_HOME_INSTACART_API_URL", "https://connect.dev.instacart.tools/idp/v1/products/products_link")
+    captured = []
+    def fake_urlopen(request, timeout):
+        captured.append(request)
+        return _CatalogResponse({"products_link_url": "https://www.instacart.com/store/shopping_lists/synthetic"})
+    monkeypatch.setattr(home_commerce.urllib.request, "urlopen", fake_urlopen)
+    preparation = {"providers": ["instacart"], "items": [{
+        "name": "Arroz", "query": "orgánico Arroz", "category": "PANTRY",
+        "quantity": 1.25, "unit": local_unit,
+    }]}
+    original = deepcopy(preparation)
+    result = create_purchase_links("instacart", preparation)
+
+    assert len(captured) == 1
+    assert captured[0].get_method() == "POST"
+    assert captured[0].full_url == "https://connect.dev.instacart.tools/idp/v1/products/products_link"
+    assert json.loads(captured[0].data)["line_items"] == [{
+        "name": "orgánico Arroz", "display_text": f"Arroz · 1.25 {local_unit}",
+        "line_item_measurements": [{"quantity": 1.25, "unit": provider_unit}],
+    }]
+    assert result["mode"] == "full_list"
+    assert preparation == original
+
+
+@pytest.mark.parametrize("unit", ["bolsa", "botella", "al gusto", "mg", "", None])
+def test_instacart_unknown_units_require_review_before_any_provider_request(monkeypatch, unit):
+    from roxy_os import home_commerce
+
+    monkeypatch.setenv("ROXY_HOME_INSTACART_API_KEY", "synthetic-home-key")
+    monkeypatch.setattr(home_commerce.urllib.request, "urlopen", lambda *args, **kwargs: pytest.fail("No provider request is allowed"))
+    preparation = {"providers": ["instacart"], "items": [{
+        "name": "Arroz", "category": "PANTRY", "quantity": 2, "unit": unit,
+    }]}
+    with pytest.raises(ValueError, match="Revisa la unidad"):
+        create_purchase_links("instacart", preparation)
+
+
+@pytest.mark.parametrize("quantity", [0, -1, True, None, "invalid", float("nan"), float("inf"), float("-inf")])
+def test_instacart_invalid_quantities_stop_before_any_provider_request(monkeypatch, quantity):
+    from roxy_os import home_commerce
+
+    monkeypatch.setenv("ROXY_HOME_INSTACART_API_KEY", "synthetic-home-key")
+    monkeypatch.setattr(home_commerce.urllib.request, "urlopen", lambda *args, **kwargs: pytest.fail("No provider request is allowed"))
+    preparation = {"providers": ["instacart"], "items": [{
+        "name": "Arroz", "category": "PANTRY", "quantity": quantity, "unit": "gramos",
+    }]}
+    with pytest.raises(ValueError, match="Revisa la cantidad"):
+        create_purchase_links("instacart", preparation)
+
+
+def test_instacart_checkout_keeps_confirmation_and_reports_unit_review_without_handoff(tmp_path, monkeypatch):
+    from roxy_os import home_commerce
+
+    client, headers = _client(tmp_path, monkeypatch)
+    monkeypatch.setenv("ROXY_HOME_INSTACART_API_KEY", "synthetic-home-key")
+    monkeypatch.setattr(home_commerce.urllib.request, "urlopen", lambda *args, **kwargs: pytest.fail("No provider request is allowed"))
+    created = client.post("/v1/shopping/robert", headers=headers, json={
+        "name": "Arroz", "quantity": 2, "unit": "bolsa", "category": "PANTRY",
+    })
+    assert created.status_code == 201
+    prepared = client.post("/v1/home-commerce/robert/preparations", headers=headers, json={
+        "source": "shopping", "provider_ids": ["instacart"],
+    })
+    assert prepared.status_code == 201
+    endpoint = f"/v1/home-commerce/robert/preparations/{prepared.json()['preparation']['id']}/checkout"
+
+    unconfirmed = client.post(endpoint, headers=headers, json={"provider_id": "instacart", "confirmed": False})
+    confirmed = client.post(endpoint, headers=headers, json={"provider_id": "instacart", "confirmed": True})
+
+    assert unconfirmed.status_code == 409
+    assert unconfirmed.json()["detail"] == "CONFIRMATION_REQUIRED"
+    assert confirmed.status_code == 422
+    assert "Revisa la unidad" in confirmed.json()["detail"]
+    assert client.get("/v1/home-commerce/robert", headers=headers).json()["activity"]["handoff_count"] == 0
+    shopping = client.get("/v1/shopping/robert", headers=headers).json()["items"]
+    assert [(row["quantity"], row["unit"]) for row in shopping] == [(2, "bolsa")]
 
 
 def test_recipe_ingredients_can_be_prepared_without_adding_fake_products(tmp_path, monkeypatch):
