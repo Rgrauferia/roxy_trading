@@ -3,7 +3,31 @@
 Actualizado: 2026-09-11. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 
-## 186 — candidato probado, publicación pendiente
+## 187 — corrección de plan y recetario; verificación final en curso
+
+Incidente reproducido en público186: comida antigua sin receta → búsqueda exacta
+inyectada → recetario aparentemente vacío aunque conserva59. Plan usaba tabla de
+títulos separada, con8ausentes/9borradores/2aliasincorrectos/7exactos. Se sustituyó
+el productor por referencias del catálogo existente y apertura exacta sin POST;
+propuestas viejas tienen aviso y vuelta a todas. Ajustar/actualizar plan ya no está
+oculto ni se envía automáticamente al cambiar un campo. Compra revalida receta,
+cantidades y restricciones antes de escribir; conversación ya no usa alias/IA
+para resolver una receta del plan. No se modificaron planes ni datos públicos.
+QA393px: semana nueva, tres recetas completas abiertas, cambio de cena, búsqueda
+vacía recupera59, ajustes visibles y actualización explícita. Publicación pendiente
+de comprobación final; no decir187público hasta verificar. Informe:
+reports/home_release_187_20260911.md. No ampliación del catálogo,500no cumplidas.
+
+## 186 — PUBLICADO y comprobado; 500 recetas / demo aún pendientes
+
+Commit17f354941c3a34b05d544c378d56b37b7fa721ae, RenderLive
+dep-dai0qr8jo6nc73dq8ak0 (1m01s; inicio11/09 10:17:17EDT). Health200/ok y
+cinco assets públicos200 byte-idénticos. Durante reinicio hubo502 y se comprobó
+recuperación. Sesión/meta186conservadas; Todas muestra categorías, filtroIndia+ES
+devuelve2de7, fotoPohe3264px y lector11pasos, ES/ENconservapaso2. UIpública765px
+sin overflow/consola; QAlocal393px. No teléfono físico. ServidorQA6015detenido,
+pestaña2cerrada, prototipo8796intacto. Sin datos de producción modificados.
+Este registro postdespliegue no requiere publicar otra vez el mismo código.
 
 Se terminó el trabajo local de paginación que estaba incompleto: resúmenes24,
 detalle al abrir, búsqueda global/cocina/idioma ES+EN, edición ligada al cursor,

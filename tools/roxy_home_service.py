@@ -89,7 +89,8 @@ from roxy_os.home_price_recommendations import (
     recommend_prices,
 )
 from roxy_os.home_weekly_plans import (
-    MEALS,
+    resolve_weekly_meal_recipe,
+    validate_weekly_plan_for_shopping,
     create_local_weekly_plan,
     update_weekly_plan_day,
     update_weekly_plan_meal,
@@ -612,11 +613,6 @@ _RECIPE_PHOTO_QUEUE_LOCK = threading.Lock()
 def _all_recipe_photo_rows() -> list[dict[str, Any]]:
     rows = [
         *local_recipe_catalog({"profile": {"allergies": []}}),
-        *(
-            {**meal, "kind": "meal", "description": f"Resultado final de {meal.get('title') or 'la receta'}"}
-            for meal in MEALS.values()
-            if meal.get("title")
-        ),
         *_home_food_store().all_saved_recipes(),
     ]
     unique: list[dict[str, Any]] = []
@@ -1109,13 +1105,20 @@ def _weekly_meal_type(text: str) -> str:
     return "dinner"
 
 
+def _create_weekly_plan_or_422(snapshot: dict[str, Any], **options: Any) -> dict[str, Any]:
+    try:
+        return create_local_weekly_plan(snapshot, **options)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
 def _weekly_plan_for_conversation(home_store: HomeFoodStore, user: str) -> tuple[dict[str, Any], dict[str, Any]]:
     snapshot = home_store.snapshot(user)
     plans = snapshot.get("weekly_plans") or []
     if plans:
         return plans[-1], snapshot
     settings = snapshot.get("meal_planning") or {}
-    plan = create_local_weekly_plan(
+    plan = _create_weekly_plan_or_422(
         snapshot,
         style=str(settings.get("style") or "normal"),
         people=int(settings.get("people") or (snapshot.get("profile") or {}).get("household_size") or 1),
@@ -2430,7 +2433,7 @@ def assistant_command(
             settings = snapshot.get("meal_planning") or {}
             plan = home_store.save_weekly_plan(
                 user,
-                create_local_weekly_plan(
+                _create_weekly_plan_or_422(
                     snapshot,
                     style=str(settings.get("style") or "normal"),
                     people=int(settings.get("people") or (snapshot.get("profile") or {}).get("household_size") or 1),
@@ -2487,7 +2490,11 @@ def assistant_command(
                         )
                     recipe_prompt = f"Receta sencilla para hoy con {pantry_words}"
                 try:
-                    recipe_data, generation_mode = _recipe_with_resilience(recipe_prompt, food_snapshot, deep=False)
+                    if intent == "weekly_from_pantry":
+                        recipe_data, generation_mode = _recipe_with_resilience(recipe_prompt, food_snapshot, deep=False)
+                    else:
+                        recipe_data = resolve_weekly_meal_recipe(meal, food_snapshot)
+                        generation_mode = "weekly_exact_recipe"
                 except ValueError as exc:
                     raise HTTPException(status_code=422, detail=str(exc)) from exc
                 recipe = home_store.save_recipe(user, recipe_data, mode="routine")
@@ -4650,15 +4657,18 @@ def create_home_weekly_plan(
     _rate_limit(request)
     user = _authorize_user(user_id, auth)
     store = _home_food_store()
-    result = create_local_weekly_plan(
-        store.snapshot(user),
-        style=payload.style,
-        people=payload.people,
-        max_minutes=payload.max_minutes,
-        weekly_budget=payload.weekly_budget,
-        cook_days=payload.cook_days,
-        meal_scope=payload.meal_scope,
-    )
+    try:
+        result = create_local_weekly_plan(
+            store.snapshot(user),
+            style=payload.style,
+            people=payload.people,
+            max_minutes=payload.max_minutes,
+            weekly_budget=payload.weekly_budget,
+            cook_days=payload.cook_days,
+            meal_scope=payload.meal_scope,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     try:
         planning = store.update_meal_planning(user, **payload.model_dump())
         plan = store.save_weekly_plan(user, result)
@@ -4683,7 +4693,12 @@ def commit_home_weekly_plan_shopping(
         plan = _home_food_store().get_weekly_plan(user, plan_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Plan semanal no encontrado") from exc
-    items = weekly_plan_shopping_items(plan, {index for index in payload.excluded_days if 0 <= index <= 6})
+    excluded_days = {index for index in payload.excluded_days if 0 <= index <= 6}
+    try:
+        validate_weekly_plan_for_shopping(plan, _home_food_store().snapshot(user), excluded_days)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    items = weekly_plan_shopping_items(plan, excluded_days)
     added = [
         _store().add(
             user,

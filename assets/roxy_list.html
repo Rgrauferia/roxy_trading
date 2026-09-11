@@ -8,13 +8,13 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="186" />
+  <meta name="roxy-home-version" content="187" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=131" />
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=132" />
   <link rel="stylesheet" href="/assets/roxy_fitness.css?v=5" />
   <link rel="stylesheet" href="/assets/roxy_garden_guide.css?v=1" />
   <script src="/assets/roxy_maplibre_loader.js?v=1" defer></script>
@@ -25,7 +25,7 @@
   <script src="/assets/roxy_fitness_catalog.js?v=2" defer></script>
   <script src="/assets/roxy_fitness.js?v=4" defer></script>
   <script src="/assets/roxy_garden_guide.js?v=1" defer></script>
-  <script src="/assets/roxy_list.js?v=188" defer></script>
+  <script src="/assets/roxy_list.js?v=189" defer></script>
   <script src="/assets/roxy_home_registration.js?v=1" defer></script>
 </head>
 <body>
@@ -84,6 +84,7 @@
           </form>
         </details>
         <section id="mealPlanResult" class="meal-plan-result" aria-live="polite" hidden>
+          <aside id="mealPlanRecipeNotice" class="meal-plan-recipe-notice" hidden></aside>
           <div class="meal-plan-focus"><span><small>Objetivo de esta semana</small><strong id="mealPlanFocus">Plan personalizado</strong><em id="mealPlanBalance">Variado y equilibrado</em></span><span class="material-symbols-rounded" aria-hidden="true">restaurant</span></div>
           <div id="mealPlanDays" class="meal-plan-days"></div>
           <aside id="mealPlanPrepTip" class="meal-plan-tip"></aside>

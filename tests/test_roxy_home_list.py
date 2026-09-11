@@ -38,21 +38,21 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "script-src 'none'" in privacy.headers["content-security-policy"]
     assert "roxy_privacy.html assets/roxy_privacy.css" in Path("Dockerfile.roxy-home").read_text(encoding="utf-8")
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="186"' in page.text
+    assert 'name="roxy-home-version" content="187"' in page.text
     assert 'href="/assets/vendor/maplibre-gl.css?v=1"' not in page.text
     assert 'src="/assets/vendor/maplibre-gl.js?v=1"' not in page.text
     assert 'src="/assets/roxy_maplibre_loader.js?v=1"' in page.text
-    assert 'href="/assets/roxy_list.css?v=131"' in page.text
-    assert 'src="/assets/roxy_list.js?v=188"' in page.text
+    assert 'href="/assets/roxy_list.css?v=132"' in page.text
+    assert 'src="/assets/roxy_list.js?v=189"' in page.text
     assert '/assets/vendor/maplibre-gl.css?v=1' in worker.text
     assert '/assets/vendor/maplibre-gl.js?v=1' in worker.text
-    assert '/assets/roxy_list.css?v=131' in worker.text
-    assert '/assets/roxy_list.js?v=188' in worker.text
+    assert '/assets/roxy_list.css?v=132' in worker.text
+    assert '/assets/roxy_list.js?v=189' in worker.text
     for asset in ('roxy_home_weather_renderer.js?v=2', 'roxy_home_map_readiness.js?v=1', 'roxy_home_open_recipes.js?v=4', 'roxy_home_recipe_provider.js?v=2'):
         assert '/assets/' + asset in worker.text
         assert '/assets/' + asset in page.text
         assert client.get('/assets/' + asset).status_code == 200
-    assert 'roxy-list-shell-v185' in worker.text
+    assert 'roxy-list-shell-v186' in worker.text
     assert 'COPY assets/roxy_home_map_readiness.js ./assets/roxy_home_map_readiness.js' in Path('Dockerfile.roxy-home').read_text()
     assert '/assets/roxy_home/renueva-living-room-hero.webp' in worker.text
     assert '/assets/roxy_home/plants-soil-meter.png' in worker.text
@@ -85,7 +85,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="designProjectForm"' in page.text
     assert '/v1/home-design/' in script.text
     assert 'Revisar productos' in script.text
-    assert "const APP_VERSION = '186'" in script.text
+    assert "const APP_VERSION = '187'" in script.text
     assert '/assets/roxy_home_recipe_provider.js?v=2' in page.text
     assert '/assets/roxy_home_recipe_provider.js?v=2' in worker.text
     assert client.get('/assets/roxy_home_recipe_provider.js').status_code == 200
@@ -373,7 +373,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "/weekly-plans/" in script.text
     assert "updateWeeklyPlanMeal" in script.text
     assert "updateWeeklyPlanDay" in script.text
-    assert "mealPlanForm').requestSubmit()" in script.text
+    assert "mealPlanForm').requestSubmit()" not in script.text
+    assert "$('mealPlanForm').addEventListener('submit',createWeeklyPlan)" in script.text
     assert "Comeremos sobras" in script.text
     assert "Cambiar ${meal.title}" in script.text
     assert 'id="substitutionForm"' in page.text

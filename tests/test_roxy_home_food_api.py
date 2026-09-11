@@ -714,6 +714,7 @@ def test_roxy_conversation_controls_days_and_reuses_available_recipes(tmp_path, 
     thursday = roxy_home_service._weekly_day_index("jueves", leftovers_plan)
     for meal in leftovers_plan["days"][thursday]["meals"]:
         meal["title"] = "Huevos con tostada integral"
+        meal["catalog_key"] = "eggs_toast"
     roxy_home_service._home_food_store().replace_weekly_plan("robert", leftovers_plan["id"], leftovers_plan)
 
     recipe = client.post(
@@ -724,7 +725,7 @@ def test_roxy_conversation_controls_days_and_reuses_available_recipes(tmp_path, 
     assert recipe.status_code == 200
     assert recipe.json()["intent"] == "weekly_recipe"
     assert recipe.json()["data"]["recipe"]["steps"]
-    assert recipe.json()["data"]["generation_mode"] == "local_recipe_catalog"
+    assert recipe.json()["data"]["generation_mode"] == "weekly_exact_recipe"
 
     adapted = client.post(
         "/v1/assistant/command/robert",
