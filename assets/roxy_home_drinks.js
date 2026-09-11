@@ -5,6 +5,7 @@
   const imagePrefix = `https://raw.githubusercontent.com/alfg/opendrinks/${revision}/src/assets/recipes/`;
   const sourcePrefix = `https://github.com/alfg/opendrinks/blob/${revision}/src/recipes/`;
   const categories = {all:'Sin licores', coffee_tea:'Café y té', juice:'Jugos', smoothie:'Batidos', mocktail:'Refrescantes', cocktail:'Cócteles · 21+'};
+  const spiritNames = {gin:'Ginebra', vodka:'Vodka', rum:'Ron', agave:'Tequila y mezcal', whisky:'Whisky', wine:'Vino, vermut y espumoso', other:'Otras bases'};
   let dialogSequence = 0;
   const node = (tag, text, className) => { const el = document.createElement(tag); if (text != null) el.textContent = text; if (className) el.className = className; return el; };
   const button = (text, action, className = 'drinks-button') => { const el = node('button', text, className); el.type = 'button'; el.addEventListener('click', action); return el; };
@@ -14,17 +15,21 @@
   const safeSource = value => typeof value === 'string' && value.startsWith(sourcePrefix) && /^[a-z0-9_-]+\.json$/i.test(value.slice(sourcePrefix.length));
   const translated = row => typeof row.title_es === 'string' && row.title_es.trim() && validLines(row.ingredients_es) && validLines(row.steps_es) &&
     row.ingredients_es.length === row.ingredients.length && row.steps_es.length === row.steps.length;
+  const validSpirits = row => Array.isArray(row.spirit_bases) && row.spirit_bases.length <= 7 &&
+    new Set(row.spirit_bases).size === row.spirit_bases.length && row.spirit_bases.every(value => typeof value === 'string' && Object.hasOwn(spiritNames, value)) &&
+    (row.alcoholic ? row.spirit_bases.length > 0 : row.spirit_bases.length === 0);
   const validBase = row => row && typeof row.id === 'string' && /^[a-z0-9_-]{1,140}$/i.test(row.id) && typeof row.title === 'string' && row.title.trim() && row.title.length <= 300 &&
     typeof row.title_es === 'string' && row.title_es.trim() && row.title_es.length <= 300 &&
     Object.hasOwn(categories, row.category) && row.category !== 'all' && typeof row.alcoholic === 'boolean' &&
-    row.alcoholic === (row.category === 'cocktail') &&
+    row.alcoholic === (row.category === 'cocktail') && validSpirits(row) &&
     typeof row.source_sha256 === 'string' && /^[a-f0-9]{64}$/.test(row.source_sha256);
   const validSummary = row => validBase(row) && Number.isInteger(row.ingredient_count) && row.ingredient_count > 0 && row.ingredient_count <= 128 &&
     Number.isInteger(row.step_count) && row.step_count > 0 && row.step_count <= 128 &&
     (row.source_url === undefined || row.source_url === `${sourcePrefix}${row.id}.json`) &&
-    Object.keys(row).every(key => ['id','title','title_es','category','alcoholic','image_url','image_credit','source_url','source_sha256','ingredient_count','step_count'].includes(key));
+    Object.keys(row).every(key => ['id','title','title_es','category','alcoholic','image_url','image_credit','source_url','source_sha256','ingredient_count','step_count','spirit_bases'].includes(key));
   const validDetail = (row, summary) => validBase(row) &&
     ['id','title','title_es','category','alcoholic','image_url','source_sha256'].every(key => row[key] === summary[key]) &&
+    row.spirit_bases.length === summary.spirit_bases.length && row.spirit_bases.every(value => summary.spirit_bases.includes(value)) &&
     validLines(row.ingredients) && validLines(row.steps) && translated(row) && row.source_url === `${sourcePrefix}${summary.id}.json` &&
     row.ingredients.length === summary.ingredient_count && row.steps.length === summary.step_count && !Object.hasOwn(row, 'raw_source');
   const validSource = source => source?.name === 'Open Drinks' && source.revision === revision && source.license === 'MIT';
@@ -44,7 +49,7 @@
     const signature = JSON.stringify([user, identity, hidden]); const previous = renders.get(container);
     if (previous?.signature === signature) { previous.isCurrent = isCurrent; previous.activate(active); return; }
     previous?.dispose(); container.replaceChildren(); container.hidden = hidden;
-    const state = {signature, active:Boolean(active), isCurrent, rows:[], counts:{}, page:1, category:'all', query:'',
+    const state = {signature, active:Boolean(active), isCurrent, rows:[], counts:{}, page:1, category:'all', spiritBase:'', query:'',
       loaded:false, busy:false, adult:false, generation:0, controller:null, detailGeneration:0, detailController:null, detailId:'',
       utterance:null, speechToken:0, returnFocus:null};
     state.activate = () => {}; state.dispose = () => {}; renders.set(container, state); if (hidden) return;
@@ -59,13 +64,14 @@
     const search = node('input'); search.type = 'search'; search.maxLength = 100; search.placeholder = 'Café, limonada, coffee…'; label.append(search);
     const submit = node('button', 'Buscar bebidas', 'drinks-button'); submit.type = 'submit'; form.append(label, submit);
     const tabs = node('nav', null, 'drinks-categories'); tabs.setAttribute('aria-label', 'Categorías de bebidas');
+    const spirits = node('div', null, 'drinks-spirit-filter'); spirits.hidden = true;
     const grid = node('div', null, 'drinks-grid');
     const pager = node('nav', null, 'drinks-pagination'); pager.setAttribute('aria-label', 'Páginas de bebidas');
     const pageLabel = node('span');
     const prev = button('Bebidas anteriores', () => { if (state.page > 1) { state.page--; showPage(true); } });
     const next = button('Más bebidas', () => { if (state.page * 24 < filtered().length) { state.page++; showPage(true); } }); pager.append(prev, pageLabel, next);
-    const clear = button('Quitar filtros de bebidas', () => { search.value = ''; state.query = ''; state.category = 'all'; state.page = 1; showPage(true); }); clear.hidden = true;
-    browser.append(form, tabs, grid, clear, pager);
+    const clear = button('Quitar filtros de bebidas', () => { search.value = ''; state.query = ''; state.category = 'all'; state.spiritBase = ''; state.page = 1; showPage(true); }); clear.hidden = true;
+    browser.append(form, tabs, spirits, grid, clear, pager);
     const note = node('p', 'Recetas de Open Drinks: comunidad, no cocina de prueba de Roxy. Conservamos las cantidades del lote original; no calculamos porciones ni nutrición.', 'drinks-note');
     const license = node('a', 'Créditos y licencia de Open Drinks', 'drinks-license'); license.href = '/assets/open-drinks-license.txt'; license.target = '_blank'; license.rel = 'noopener noreferrer';
     const dialog = node('dialog', null, 'drinks-dialog'); dialog.setAttribute('aria-modal', 'true');
@@ -91,16 +97,18 @@
       head.append(heading, button('Cerrar bebida', () => closeDialog())); dialog.setAttribute('aria-labelledby', id); dialogInner.append(head);
       dialog.showModal(); heading.focus({preventScroll:false}); return heading;
     };
+    const titleMatches = row => normalize(`${row.title} ${row.title_es}`).includes(state.query);
     const filtered = () => state.rows.filter(row => (!row.alcoholic || (state.adult && state.category === 'cocktail')) &&
-      (state.category === 'all' || row.category === state.category) && normalize(`${row.title} ${row.title_es}`).includes(state.query));
+      (state.category === 'all' || row.category === state.category) &&
+      (!state.spiritBase || (state.adult && state.category === 'cocktail' && row.spirit_bases.includes(state.spiritBase))) && titleMatches(row));
     function chooseCategory(key, opener) {
       if (!current()) return;
-      if (key !== 'cocktail' || state.adult) { state.category = key; state.query = ''; search.value = ''; state.page = 1; showPage(true); return; }
+      if (key !== 'cocktail' || state.adult) { state.category = key; state.spiritBase = ''; state.query = ''; search.value = ''; state.page = 1; showPage(true); return; }
       openDialog('Contenido con alcohol', opener);
       dialogInner.append(node('p', 'Esta sección es opcional. Para verla, confirma que tienes 21 años o más. Es una elección de contenido, no una verificación de edad.', 'drinks-age-copy'));
       const ageLabel = node('label', null, 'drinks-age-check'); const check = node('input'); check.type = 'checkbox'; ageLabel.append(check, node('span', 'Confirmo que tengo 21 años o más.'));
       const confirm = button('Ver cócteles con alcohol', () => {
-        if (!current() || !check.checked) return; state.adult = true; state.category = 'cocktail'; state.query = ''; search.value = ''; state.page = 1; closeDialog(false); showPage(true);
+        if (!current() || !check.checked) return; state.adult = true; state.category = 'cocktail'; state.spiritBase = ''; state.query = ''; search.value = ''; state.page = 1; closeDialog(false); showPage(true);
       }, 'drinks-button drinks-primary'); confirm.disabled = true;
       check.addEventListener('change', () => { confirm.disabled = !check.checked; });
       dialogInner.append(ageLabel, node('p', 'No guardamos esta confirmación. Evita el alcohol si vas a conducir; las recetas no son recomendaciones de salud.', 'drinks-note'), confirm,
@@ -116,6 +124,21 @@
         const tab = button(`${name}${Number.isInteger(count) ? ` (${count})` : ''}`, () => chooseCategory(key, tab), 'drinks-category');
         tab.setAttribute('aria-pressed', String(key === state.category)); tabs.append(tab);
       });
+      spirits.replaceChildren(); spirits.hidden = !(state.adult && state.category === 'cocktail');
+      if (!spirits.hidden) {
+        const available = state.rows.filter(row => row.alcoholic && titleMatches(row));
+        const label = node('label'); label.append(node('span', 'Base del cóctel'));
+        const select = node('select'); select.setAttribute('aria-label', 'Base del cóctel');
+        [['', 'Todas las bases'], ...Object.entries(spiritNames)].forEach(([value, name]) => {
+          const count = value ? available.filter(row => row.spirit_bases.includes(value)).length : available.length;
+          const option = node('option', `${name} (${count})`); option.value = value; select.append(option);
+        });
+        select.value = state.spiritBase; select.addEventListener('change', () => {
+          if (!current() || !select.isConnected || !state.adult || state.category !== 'cocktail' || (select.value && !Object.hasOwn(spiritNames, select.value))) return;
+          state.spiritBase = select.value; state.page = 1; showPage(true);
+        });
+        label.append(select); spirits.append(label, node('p', 'Una receta puede incluir varias bases. Este filtro no indica su graduación alcohólica.', 'drinks-note'));
+      }
       grid.replaceChildren(...matches.slice((state.page - 1) * 24, state.page * 24).map(row => {
         const card = node('article', null, 'drinks-card'); card.append(photo(row)); const body = node('div', null, 'drinks-card-body');
         const title = node('h3', row.title_es); title.lang = 'es';
@@ -123,7 +146,7 @@
         body.append(title, node('p', `${row.ingredient_count} ${row.ingredient_count === 1 ? 'ingrediente' : 'ingredientes'} · ${row.step_count} ${row.step_count === 1 ? 'paso' : 'pasos'}${row.alcoholic ? ' · Con alcohol' : ''}`, 'drinks-card-meta'), open); card.append(body); return card;
       }));
       summary.textContent = `${state.rows.length} bebidas en esta colección: ${state.rows.filter(row => !row.alcoholic).length} sin licores y ${state.rows.filter(row => row.alcoholic).length} cócteles con alcohol en una sección opcional para mayores de 21 años.`;
-      status.textContent = matches.length ? `${(state.page - 1) * 24 + 1}–${Math.min(state.page * 24, matches.length)} de ${matches.length} bebidas. Abre una ficha para ver sus ingredientes y pasos.` : 'No hay bebidas con esos filtros. Prueba otro nombre en español o inglés, o quita los filtros.';
+      status.textContent = matches.length ? `${(state.page - 1) * 24 + 1}–${Math.min(state.page * 24, matches.length)} de ${matches.length} ${matches.length === 1 ? 'bebida' : 'bebidas'}. Abre una ficha para ver sus ingredientes y pasos.` : 'No hay bebidas con esos filtros. Prueba otro nombre en español o inglés, o quita los filtros.';
       pageLabel.textContent = `Página ${state.page} de ${pages}`; prev.disabled = state.page === 1; next.disabled = state.page === pages; pager.hidden = pages <= 1;
       clear.hidden = !state.query && state.category === 'all'; if (focus) status.focus({preventScroll:false});
     }
@@ -138,7 +161,7 @@
       const fresh = () => current() && state.generation === generation && state.detailGeneration === detailGeneration &&
         state.detailController === controller && dialog.open && loading.isConnected;
       try {
-        const data = await request(`/v1/home-food/${encodeURIComponent(user)}/drinks/${encodeURIComponent(summary.id)}`, controller);
+        const data = await request(`/v1/home-food/${encodeURIComponent(user)}/drinks/${encodeURIComponent(summary.id)}?include_spirit_bases=true`, controller);
         if (!fresh() || controller.signal.aborted) return;
         if (!validSource(data.source) || data.audience !== 'human' || data.can_scale !== false || data.can_add_to_shopping !== false ||
           !validDetail(data.drink, summary)) throw new Error('invalid_detail');
@@ -221,7 +244,7 @@
       state.busy = true; explore.disabled = true; root.setAttribute('aria-busy', 'true'); status.textContent = 'Cargando el recetario de bebidas…';
       const generation = state.generation, controller = new AbortController(); state.controller = controller;
       try {
-        const data = await request(`/v1/home-food/${encodeURIComponent(user)}/drinks/summaries`, controller);
+        const data = await request(`/v1/home-food/${encodeURIComponent(user)}/drinks/summaries?include_spirit_bases=true`, controller);
         if (!current() || controller.signal.aborted || generation !== state.generation) return;
         if (!Array.isArray(data.drinks) || data.drinks.length > 200 || !data.drinks.every(validSummary) || data.total !== data.drinks.length ||
           new Set(data.drinks.map(row => row.id)).size !== data.drinks.length || !data.counts ||
@@ -239,9 +262,9 @@
     const visibility = () => state.activate(state.active);
     state.activate = value => {
       state.active = Boolean(value); if (current()) return;
-      stop(); closeDialog(false); state.adult = false; state.category = 'all'; state.loaded = false; state.rows = []; state.counts = {};
+      stop(); closeDialog(false); state.adult = false; state.category = 'all'; state.spiritBase = ''; state.loaded = false; state.rows = []; state.counts = {};
       state.query = ''; search.value = ''; state.page = 1;
-      grid.replaceChildren(); tabs.replaceChildren(); browser.hidden = true; explore.hidden = false; retry.hidden = true; status.textContent = '';
+      grid.replaceChildren(); tabs.replaceChildren(); spirits.replaceChildren(); spirits.hidden = true; browser.hidden = true; explore.hidden = false; retry.hidden = true; status.textContent = '';
     };
     state.dispose = () => { stop(); closeDialog(false); state.rows = []; document.removeEventListener('visibilitychange', visibility); };
     document.addEventListener('visibilitychange', visibility);

@@ -7,13 +7,18 @@ import test from 'node:test';
 const code = fs.readFileSync(new URL('../assets/roxy_home_drinks.js', import.meta.url), 'utf8');
 const revision = 'f446f0e9356b9b43155d207b4f7c5214d9da91ab';
 const categories = ['coffee_tea', 'juice', 'smoothie', 'mocktail', 'cocktail'];
+const bases = ['gin', 'vodka', 'rum', 'agave', 'whisky', 'wine', 'other'];
 const rows = Array.from({length:60}, (_, index) => ({id:`synthetic-${index}`, title:`Synthetic drink ${index}`, title_es:`Bebida sintética ${index}`,
   category:categories[index % 5], alcoholic:index % 5 === 4,
+  spirit_bases:index % 5 === 4 ? [bases[Math.floor(index / 5) % bases.length]] : [],
   image_url:`https://raw.githubusercontent.com/alfg/opendrinks/${revision}/src/assets/recipes/synthetic-${index}.jpg`,
   image_credit:'Synthetic photographer', ingredients:['1/2 cup synthetic A', '1.5 oz synthetic B'], steps:['Synthetic exact first step.', 'Synthetic exact second step.'],
   ingredients_es:['1/2 taza de A sintético', '1.5 oz de B sintético'], steps_es:['Primer paso sintético exacto.', 'Segundo paso sintético exacto.'],
   source_url:`https://github.com/alfg/opendrinks/blob/${revision}/src/recipes/synthetic-${index}.json`, contributor:'Synthetic author', notes_es:['Nota sintética.'], source_sha256:'a'.repeat(64)}));
-const summaries = drinks => drinks.map(row => ({...Object.fromEntries(['id','title','title_es','category','alcoholic','image_url','source_sha256'].map(key => [key,row[key]])),
+// Actual manifest rows do not store server-derived base metadata. This fixture
+// only supplies an explicit synthetic bucket; server classifier tests are separate.
+const withBases = row => Object.hasOwn(row, 'spirit_bases') ? row : {...row, spirit_bases:row.alcoholic ? ['other'] : []};
+const summaries = drinks => drinks.map(withBases).map(row => ({...Object.fromEntries(['id','title','title_es','category','alcoholic','image_url','source_sha256','spirit_bases'].map(key => [key,row[key]])),
   ingredient_count:row.ingredients.length, step_count:row.steps.length}));
 const fixtureBodies = new WeakMap();
 const payload = (drinks = rows) => {
@@ -21,7 +26,7 @@ const payload = (drinks = rows) => {
     source:{name:'Open Drinks', revision, license:'MIT', license_url:'/assets/open-drinks-license.txt'}};
   fixtureBodies.set(value, structuredClone(drinks)); return value;
 };
-const fullResponse = row => ({drink:structuredClone(Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'raw_source'))),
+const fullResponse = row => ({drink:structuredClone(Object.fromEntries(Object.entries(withBases(row)).filter(([key]) => key !== 'raw_source'))),
   source:{name:'Open Drinks', revision, license:'MIT', license_url:'/assets/open-drinks-license.txt'}, audience:'human', can_scale:false, can_add_to_shopping:false});
 const deferred = () => { let resolve, reject; const promise = new Promise((a,b) => { resolve = a; reject = b; }); return {promise, resolve, reject}; };
 const settle = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
@@ -70,10 +75,12 @@ function harness({voice = true} = {}) {
 function server(data = payload(), intercept) {
   const calls = [], fullRows = fixtureBodies.get(data) || rows;
   return {calls, api:async (path, options) => {
-    assert.match(path, /^\/v1\/home-food\/household%2Fa\/drinks(?:\/[a-z0-9_-]+)?$/); assert.equal(options.method, 'GET'); assert.ok(options.signal instanceof AbortSignal);
-    const call = {path, options}; calls.push(call); const override = intercept?.(calls.length, call); if (override !== undefined) return await override;
-    if (path.endsWith('/drinks/summaries')) return structuredClone(data);
-    const row = fullRows.find(item => item.id === path.split('/').at(-1)); assert.ok(row, `Unknown synthetic detail ${path}`); return fullResponse(row);
+    const url = new URL(path, 'https://home.invalid');
+    assert.match(url.pathname, /^\/v1\/home-food\/household%2Fa\/drinks(?:\/[a-z0-9_-]+)?$/); assert.equal(options.method, 'GET'); assert.ok(options.signal instanceof AbortSignal);
+    assert.equal(url.search, '?include_spirit_bases=true', 'new metadata is negotiated without breaking previous clients');
+    const call = {path, url, options}; calls.push(call); const override = intercept?.(calls.length, call); if (override !== undefined) return await override;
+    if (url.pathname.endsWith('/drinks/summaries')) return structuredClone(data);
+    const row = fullRows.find(item => item.id === url.pathname.split('/').at(-1)); assert.ok(row, `Unknown synthetic detail ${path}`); return fullResponse(row);
   }};
 }
 async function start(h, panel, mock, options = {}) {
@@ -103,6 +110,7 @@ test('pagination and bilingual searches remain local and replace pages of at mos
   assert.equal(byClass(panel, 'drinks-card').length, 24); assert.equal(button(panel, 'Más bebidas').disabled, true); assert.equal(mock.calls.length, 1);
   await button(panel, 'Bebidas anteriores').click(); const search = all(panel, 'input')[0]; search.value = 'sintética 58'; await all(panel, 'form')[0].emit('submit');
   assert.equal(byClass(panel, 'drinks-card').length, 1); assert.ok(byClass(panel, 'drinks-card')[0].textContent.includes(rows[58].title_es));
+  assert.ok(panel.textContent.includes('1–1 de 1 bebida.')); assert.ok(!panel.textContent.includes('1–1 de 1 bebidas.'));
   search.value = 'Synthetic drink 0'; await all(panel, 'form')[0].emit('submit'); assert.equal(byClass(panel, 'drinks-card').length, 1);
   await button(panel, 'Quitar filtros de bebidas').click(); assert.equal(byClass(panel, 'drinks-card').length, 24); assert.equal(mock.calls.length, 1);
 });
@@ -233,12 +241,12 @@ test('200 lightweight summaries need only one list request, 24 DOM cards, and no
   const data = payload(large), h = harness(), panel = h.container(), mock = server(data); await start(h, panel, mock);
   assert.ok(Buffer.byteLength(JSON.stringify(data), 'utf8') < 150 * 1024);
   assert.ok(data.drinks.every(row => !('ingredients' in row) && !('steps' in row) && !('raw_source' in row)));
-  assert.equal(mock.calls.length, 1); assert.equal(mock.calls[0].path, '/v1/home-food/household%2Fa/drinks/summaries');
+  assert.equal(mock.calls.length, 1); assert.equal(mock.calls[0].path, '/v1/home-food/household%2Fa/drinks/summaries?include_spirit_bases=true');
   assert.equal(byClass(panel, 'drinks-card').length, 24); assert.equal(byClass(panel, 'drinks-steps').length, 0);
   await button(panel, 'Más bebidas').click(); assert.equal(mock.calls.length, 1);
   const search = all(panel, 'input')[0]; search.value = 'Grande 198'; await all(panel, 'form')[0].emit('submit');
   assert.equal(byClass(panel, 'drinks-card').length, 1); await button(panel, 'Preparar bebida').click();
-  assert.equal(mock.calls.length, 2); assert.equal(mock.calls[1].path, '/v1/home-food/household%2Fa/drinks/large-198');
+  assert.equal(mock.calls.length, 2); assert.equal(mock.calls[1].path, '/v1/home-food/household%2Fa/drinks/large-198?include_spirit_bases=true');
 });
 
 test('selecting a category clears an old title query so its visible count matches its cards', async () => {
@@ -298,4 +306,82 @@ for (const mutation of [
 ]) test(`detail is tied to summary and allowed actions: ${mutation.toString()}`, async () => {
   const value = fullResponse(rows[0]); mutation(value); const h = harness(), panel = h.container(), mock = server(payload(), n => n === 2 ? value : undefined);
   await start(h, panel, mock); await button(panel, 'Preparar bebida').click(); assert.equal(byClass(panel, 'drinks-steps').length, 0); assert.equal(button(panel, 'Reintentar esta bebida').hidden, false);
+});
+
+const baseSelect = panel => all(byClass(panel, 'drinks-spirit-filter')[0], 'select')[0];
+async function acceptCocktails(panel) {
+  await category(panel, 'cocktail').click();
+  const check = all(dialog(panel), 'input')[0];
+  if (check) { check.checked = true; await check.emit('change'); await button(panel, 'Ver cócteles con alcohol').click(); }
+}
+const mixedCocktails = () => [rows[0], ...Array.from({length:64}, (_, index) => ({...rows[4], id:`base-${index}`,
+  title:`Mix ${index}`, title_es:`Mezcla ${index}`, spirit_bases:index % 2 ? ['gin','vodka'] : ['rum'],
+  source_url:`https://github.com/alfg/opendrinks/blob/${revision}/src/recipes/base-${index}.json`}))];
+
+test('base names and controls appear only after explicit adult cocktail choice', async () => {
+  const h = harness(), panel = h.container(), mock = server(); await start(h, panel, mock);
+  assert.equal(byClass(panel, 'drinks-spirit-filter')[0].hidden, true); assert.equal(all(panel, 'select').length, 0);
+  await category(panel, 'cocktail').click(); assert.equal(all(panel, 'select').length, 0);
+  await button(panel, 'Seguir sin licores').click(); assert.equal(all(panel, 'select').length, 0);
+  await acceptCocktails(panel); const select = baseSelect(panel); assert.ok(select); assert.equal(select.value, '');
+  assert.equal(select.children.length, 8); assert.ok(select.children.some(option => option.textContent === 'Ginebra (2)'));
+  assert.ok(select.children.some(option => option.textContent === 'Vino, vermut y espumoso (1)'));
+  assert.ok(select.children.some(option => option.textContent === 'Otras bases (1)'));
+  await category(panel, 'juice').click(); assert.equal(all(panel, 'select').length, 0);
+});
+
+test('multi-base counts, title search, pagination and clear intersect without more API calls', async () => {
+  const h = harness(), panel = h.container(), mock = server(payload(mixedCocktails())); await start(h, panel, mock); await acceptCocktails(panel);
+  let select = baseSelect(panel); assert.ok(select.children.some(option => option.textContent === 'Todas las bases (64)'));
+  assert.ok(select.children.some(option => option.textContent === 'Ginebra (32)')); assert.ok(select.children.some(option => option.textContent === 'Vodka (32)'));
+  select.value = 'gin'; await select.emit('change'); assert.equal(byClass(panel, 'drinks-card').length, 24);
+  await button(panel, 'Más bebidas').click(); assert.equal(byClass(panel, 'drinks-card').length, 8);
+  select = baseSelect(panel); select.value = 'rum'; await select.emit('change'); assert.equal(byClass(panel, 'drinks-card').length, 24); assert.equal(button(panel, 'Bebidas anteriores').disabled, true);
+  const search = all(panel, 'input')[0]; search.value = 'Mezcla 3'; await all(panel, 'form')[0].emit('submit'); assert.equal(byClass(panel, 'drinks-card').length, 5);
+  select = baseSelect(panel); assert.equal(select.value, 'rum'); assert.ok(select.children.some(option => option.textContent === 'Todas las bases (11)'));
+  assert.ok(select.children.some(option => option.textContent === 'Ginebra (6)'));
+  select.value = 'gin'; await select.emit('change'); assert.equal(search.value, 'Mezcla 3'); assert.equal(byClass(panel, 'drinks-card').length, 6);
+  await button(panel, 'Quitar filtros de bebidas').click(); assert.equal(search.value, ''); assert.equal(all(panel, 'select').length, 0); assert.equal(byClass(panel, 'drinks-card').length, 1);
+  await acceptCocktails(panel); assert.equal(baseSelect(panel).value, ''); assert.equal(mock.calls.length, 1);
+});
+
+test('leaving the module clears selected base, query, adult choice and base labels', async () => {
+  const h = harness(), panel = h.container(), mock = server(); await start(h, panel, mock); await acceptCocktails(panel);
+  const oldSelect = baseSelect(panel); oldSelect.value = 'gin'; await oldSelect.emit('change'); h.setActive(panel, false);
+  assert.equal(all(panel, 'select').length, 0); assert.equal(byClass(panel, 'drinks-spirit-filter')[0].hidden, true);
+  h.setActive(panel, true); await button(panel, 'Explorar bebidas').click(); assert.equal(all(panel, 'select').length, 0);
+  await category(panel, 'cocktail').click(); assert.equal(button(panel, 'Ver cócteles con alcohol').disabled, true);
+  await button(panel, 'Seguir sin licores').click(); oldSelect.value = 'vodka'; await oldSelect.emit('change'); assert.equal(all(panel, 'select').length, 0);
+});
+
+test('changing base cancels a pending detail and ignores its stale result', async () => {
+  const pending = deferred(), h = harness(), panel = h.container(), data = payload(mixedCocktails()), mock = server(data, n => n === 2 ? pending.promise : undefined);
+  await start(h, panel, mock); await acceptCocktails(panel); await button(panel, 'Preparar bebida').click();
+  const select = baseSelect(panel); select.value = 'gin'; await select.emit('change'); assert.equal(mock.calls[1].options.signal.aborted, true);
+  pending.resolve(fullResponse(mixedCocktails()[1])); await settle(); assert.equal(dialog(panel).open, false); assert.equal(byClass(panel, 'drinks-steps').length, 0);
+});
+
+for (const bad of [undefined, null, 'gin', [], ['unknown'], ['gin','gin'], [true], ['gin','vodka','rum','agave','whisky','wine','other','gin']]) test(`malformed cocktail summary bases fail closed: ${JSON.stringify(bad)}`, async () => {
+  const data = payload([rows[4]]); if (bad === undefined) delete data.drinks[0].spirit_bases; else data.drinks[0].spirit_bases = bad;
+  const h = harness(), panel = h.container(), mock = server(data); await start(h, panel, mock);
+  assert.equal(button(panel, 'Reintentar bebidas').hidden, false); assert.equal(byClass(panel, 'drinks-card').length, 0); assert.equal(all(panel, 'select').length, 0);
+});
+
+test('a nonalcoholic summary cannot be assigned an alcoholic base', async () => {
+  const data = payload([rows[0]]); data.drinks[0].spirit_bases = ['gin'];
+  const h = harness(), panel = h.container(), mock = server(data); await start(h, panel, mock); assert.equal(button(panel, 'Reintentar bebidas').hidden, false);
+});
+
+for (const bad of [undefined, null, 'gin', [], ['rum'], ['gin','gin'], ['unknown'], [1]]) test(`detail cannot change or omit its summary base metadata: ${JSON.stringify(bad)}`, async () => {
+  const row = rows[4], value = fullResponse(row); if (bad === undefined) delete value.drink.spirit_bases; else value.drink.spirit_bases = bad;
+  const h = harness(), panel = h.container(), mock = server(payload([row]), n => n === 2 ? value : undefined);
+  await start(h, panel, mock); await acceptCocktails(panel); await button(panel, 'Preparar bebida').click();
+  assert.equal(byClass(panel, 'drinks-steps').length, 0); assert.equal(button(panel, 'Reintentar esta bebida').hidden, false);
+});
+
+test('multi-base detail accepts the same canonical set in a different order, never inventing ABV', async () => {
+  const row = {...rows[4], spirit_bases:['gin','vodka']}, value = fullResponse(row); value.drink.spirit_bases = ['vodka','gin'];
+  const h = harness(), panel = h.container(), mock = server(payload([row]), n => n === 2 ? value : undefined);
+  await start(h, panel, mock); await acceptCocktails(panel); await button(panel, 'Preparar bebida').click();
+  assert.equal(byClass(panel, 'drinks-steps').length, 1); assert.ok(panel.textContent.includes('no indica su graduación alcohólica'));
 });

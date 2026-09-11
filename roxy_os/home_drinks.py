@@ -18,6 +18,18 @@ REVISION = "f446f0e9356b9b43155d207b4f7c5214d9da91ab"
 SOURCE_BASE = f"https://github.com/alfg/opendrinks/blob/{REVISION}/"
 IMAGE_BASE = f"https://raw.githubusercontent.com/alfg/opendrinks/{REVISION}/src/assets/recipes/"
 CATEGORIES = ("coffee_tea", "juice", "smoothie", "mocktail", "cocktail")
+SPIRIT_BASES = ("gin", "vodka", "rum", "agave", "whisky", "wine", "other")
+# Navigation labels from literal ingredient names, not ABV or a health assessment.
+# Never infer a spirit from a drink title, translated prose, steps or the member.
+_BASE_PATTERNS = (
+    ("gin", r"\bgin\b"),
+    ("vodka", r"\bvodka\b"),
+    ("rum", r"\brum\b"),
+    ("agave", r"\b(?:tequila|mezcal)\b"),
+    ("whisky", r"\b(?:whisky|whiskey|scotch|bourbon(?![ -]+vanilla\b))\b"),
+    ("wine", r"\b(?:wine|champagne|prosecco|cava|cr[eé]mant|vermouth|sherry|port|dubonnet|lillet)\b"),
+)
+_NON_BASE = re.compile(r"\b(?:non[ -]?alcoholic|alcohol[ -]?free|extract|essence|syrup|vinegar)\b", re.I)
 MAX_BYTES = 2 * 1024 * 1024
 MAX_ROWS = 200
 
@@ -143,19 +155,31 @@ def _metadata():
                        "license_url": "/assets/open-drinks-license.txt"}}
 
 
-def drink_catalog():
+def _spirit_bases(row):
+    if not row["alcoholic"]:
+        return []
+    original = _json(row["raw_source"])
+    names = [str(part.get("ingredient", "")).casefold() for part in original["ingredients"]]
+    names = [name for name in names if not _NON_BASE.search(name)]
+    matches = [key for key, pattern in _BASE_PATTERNS
+               if any(re.search(pattern, name) for name in names)]
+    return matches or ["other"]
+
+
+def drink_catalog(*, include_spirit_bases=False):
     """Only lightweight cards; ingredients and instructions load on demand."""
     rows = _catalog()
     fields = ("id", "title", "title_es", "category", "alcoholic", "image_url", "source_sha256")
     summaries = [{**{key: row[key] for key in fields},
-                  "ingredient_count": len(row["ingredients"]), "step_count": len(row["steps"])}
+                  "ingredient_count": len(row["ingredients"]), "step_count": len(row["steps"]),
+                  **({"spirit_bases": _spirit_bases(row)} if include_spirit_bases else {})}
                  for row in rows]
     counts = Counter(row["category"] for row in rows)
     return {"drinks": summaries, "total": len(rows),
             "counts": {key: counts[key] for key in CATEGORIES}, **_metadata()}
 
 
-def drink_detail(drink_id):
+def drink_detail(drink_id, *, include_spirit_bases=False):
     """Exact, immutable selection; never fetch, invent, or silently truncate."""
     if not isinstance(drink_id, str) or len(drink_id) > 100 or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", drink_id):
         raise DrinkNotFound("drink_not_found")
@@ -167,7 +191,10 @@ def drink_detail(drink_id):
     fields = ("id", "title", "title_es", "original_name", "category", "alcoholic",
               "ingredients", "steps", "ingredients_es", "steps_es", "notes_es",
               "source_url", "contributor", "image_url", "image_credit", "source_sha256")
-    return {"drink": {key: deepcopy(row[key]) for key in fields if key in row}, **_metadata()}
+    public_row = {key: deepcopy(row[key]) for key in fields if key in row}
+    if include_spirit_bases:
+        public_row["spirit_bases"] = _spirit_bases(row)
+    return {"drink": public_row, **_metadata()}
 
 
 def drink_catalog_legacy():

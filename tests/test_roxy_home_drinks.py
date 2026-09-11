@@ -126,6 +126,49 @@ def test_two_hundred_summaries_stay_lightweight_without_prefetching_details(inst
     assert catalog.drink_detail(rows[-1]["id"])["drink"]["steps"] == rows[-1]["steps"]
 
 
+@pytest.mark.parametrize("names,expected", [
+    (["dry Gin", "ginger ale"], ["gin"]),
+    (["Blueberry Vodka", "Light rum"], ["vodka", "rum"]),
+    (["blanco tequila", "mezcal"], ["agave"]),
+    (["Scotch whiskey", "bourbon", "rye whiskey"], ["whisky"]),
+    (["dry Gin", "Champagne", "dry vermouth"], ["gin", "wine"]),
+    (["White dry Port", "Peppermint"], ["wine"]),
+    (["Cognac", "brandy", "Cachaça", "Shochu"], ["other"]),
+    (["Ginger Liqueur", "pineapple juice"], ["other"]),
+    (["rum extract", "bourbon vanilla", "non-alcoholic gin", "alcohol-free wine"], ["other"]),
+    (["Vanilla vodka", "bourbon-vanilla"], ["vodka"]),
+    (["bourbon vanilla vodka"], ["vodka"]),
+    (["bourbon vanilla whiskey", "Vanilla bourbon whiskey"], ["whisky"]),
+    (["red wine vinegar", "Champagne vinegar", "Gin"], ["gin"]),
+    (["Crémant de Loire"], ["wine"]),
+])
+def test_bases_are_literal_ingredient_labels_not_titles_or_strength(names, expected):
+    row = source_row(category="cocktail")
+    bind_original(row, lambda data: data.update(ingredients=[{"ingredient": name} for name in names]))
+    row["title"] = "Gin Vodka Rum Tequila Whisky Wine"
+    row["ingredients_es"] = ["Texto que no debe determinar bases"]
+    assert catalog._spirit_bases(row) == expected
+    row["alcoholic"] = False
+    assert catalog._spirit_bases(row) == []
+
+
+def test_base_metadata_is_opt_in_and_consistent_for_all_real_details():
+    previous = catalog.drink_catalog()
+    enriched = catalog.drink_catalog(include_spirit_bases=True)
+    assert "spirit_bases" not in json.dumps(previous)
+    assert "spirit_bases" not in json.dumps(catalog.drink_catalog_legacy())
+    assert previous["total"] == enriched["total"]
+    for original, summary in zip(previous["drinks"], enriched["drinks"]):
+        bases = summary["spirit_bases"]
+        assert len(bases) == len(set(bases)) and set(bases) <= set(catalog.SPIRIT_BASES)
+        assert bool(bases) is summary["alcoholic"]
+        assert {key: value for key, value in summary.items() if key != "spirit_bases"} == original
+        detail = catalog.drink_detail(summary["id"], include_spirit_bases=True)["drink"]
+        assert detail["spirit_bases"] == bases
+        assert "spirit_bases" not in catalog.drink_detail(summary["id"])["drink"]
+        assert "raw_source" not in detail
+
+
 def test_legacy_open_tabs_receive_a_compatible_bounded_selection(install):
     rows = [source_row(index) for index in range(200)]
     install(rows)
@@ -276,17 +319,17 @@ def api_client(tmp_path, monkeypatch, install):
         yield client, path
 
 
-@pytest.mark.parametrize("suffix", ["", "/summaries", "/synthetic-drink-1"])
+@pytest.mark.parametrize("suffix", ["", "/summaries", "/synthetic-drink-1", "/summaries?include_spirit_bases=true", "/synthetic-drink-1?include_spirit_bases=true"])
 def test_api_is_private_authenticated_same_household_and_get_only(api_client, suffix):
     client, path = api_client; before = path.read_bytes()
     url = BASE + suffix
     response = client.get(url)
     assert response.status_code == 200
-    if suffix == "/synthetic-drink-1":
+    if suffix.startswith("/synthetic-drink-1"):
         assert response.json()["drink"]["id"] == "synthetic-drink-1"
     else:
         assert response.json()["total"] == 2
-        if suffix == "/summaries":
+        if suffix.startswith("/summaries"):
             assert "steps" not in response.text and "ingredients" not in response.text
     assert response.headers["Cache-Control"] == "private, no-store"
     assert response.headers["Vary"] == "Cookie, Authorization"
@@ -298,6 +341,19 @@ def test_api_is_private_authenticated_same_household_and_get_only(api_client, su
     client.cookies.clear()
     assert client.get(url).status_code == 401
     assert client.get(url, headers={"Authorization": "Bearer wrong"}).status_code == 403
+    assert path.read_bytes() == before
+
+
+def test_api_flag_adds_only_base_labels_and_preserves_190_payload(api_client):
+    client, path = api_client; before = path.read_bytes()
+    old = client.get(BASE + "/summaries").json()
+    enriched = client.get(BASE + "/summaries?include_spirit_bases=true").json()
+    assert "spirit_bases" not in json.dumps(old)
+    assert enriched["drinks"][0]["spirit_bases"] == []
+    assert enriched["drinks"][1]["spirit_bases"] == ["other"]
+    assert client.get(BASE + "/synthetic-drink-2?include_spirit_bases=true").json()["drink"]["spirit_bases"] == ["other"]
+    assert client.get(BASE + "/summaries?include_spirit_bases=false").json() == old
+    assert client.get(BASE + "/summaries?include_spirit_bases=invalid").status_code == 422
     assert path.read_bytes() == before
 
 

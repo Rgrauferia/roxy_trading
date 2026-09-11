@@ -3802,6 +3802,398 @@
       ],
       "original_name": "Two-One-Two",
       "raw_source": "{\n    \"name\": \"Two-One-Two\",\n    \"description\": \"The 212, from beverage consultants Aisha Sharpe and Willy Shine, is a wonderfully refreshing long drink that's as easy to make as it is to sip. The 212 refers to the Manhattan area code, but also to the drink's proportions.\",\n    \"github\": \"lazav94\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Reposado tequila\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Aperol\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Grapefruit juice\"\n        }\n    ],\n    \"directions\": [\n        \"Combine all ingredients in a shaker and shake\",\n        \"Double strain into chilled glass filled with ice.\",\n        \"Optionally top with soda.\",\n        \"Optionally add grapefruit or orange peel for garnish\"\n    ],\n    \"image\": \"two-one-two.jpg\",\n    \"keywords\": [\n        \"alcoholic\",\n        \"aperol\",\n        \"grapefruit\"\n    ]\n}\n"
+    },
+    {
+      "id": "black-martini",
+      "title": "Black Martini",
+      "title_es": "Black Martini de ginebra y sambuca negra",
+      "category": "cocktail",
+      "alcoholic": true,
+      "ingredients": [
+        "30 ml gin",
+        "15 ml black sambuca",
+        "1 lemon twist"
+      ],
+      "steps": [
+        "Combine ingredients in a shaker and shake with ice until chilled.",
+        "Strain into a cocktail glass.",
+        "Garnish with a lemon twist."
+      ],
+      "ingredients_es": [
+        "30 ml de ginebra",
+        "15 ml de sambuca negra",
+        "1 tira retorcida de piel de limón"
+      ],
+      "steps_es": [
+        "Combina los ingredientes en una coctelera y agita con hielo hasta enfriar.",
+        "Cuela en una copa de cóctel.",
+        "Decora con la tira de piel de limón."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/black-martini.json",
+      "contributor": "Donearm",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/black-martini.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de Donearm; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "804aa5681344643a0690dc9e27e3392ae82691a596e452e439c8c64480123f93",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra.",
+        "Usa sambuca negra; no sustituye ni duplica la receta local de martini seco con vermut. La piel de limón figura como decoración en el último paso."
+      ],
+      "original_name": "Black Martini",
+      "raw_source": "{\n    \"name\": \"Black Martini\",\n\t\"description\": \"Black Martini is a famous cocktail beverage served at parties and special occasions, with plenty of variations.\",\n    \"github\": \"Donearm\",\n\n    \"ingredients\": [\n        {\n            \"quantity\": \"30\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"gin\"\n        },\n        {\n            \"quantity\": \"15\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"black sambuca\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"\",\n            \"ingredient\": \"lemon twist\"\n        }\n    ],\n    \"directions\": [\n\t\t\"Combine ingredients in a shaker and shake with ice until chilled.\",\n\t\t\"Strain into a cocktail glass.\",\n\t\t\"Garnish with a lemon twist.\"\n    ],\n    \"image\": \"black-martini.jpg\",\n        \"keywords\": [\n\t\t\"alcoholic\",\n\t\t\"gin\",\n\t\t\"lemon\",\n\t\t\"sambuca\"\n        ]\n    \n}\n"
+    },
+    {
+      "id": "coco-loco",
+      "title": "Coco loco",
+      "title_es": "Coco Loco de ron y leche de coco",
+      "category": "cocktail",
+      "alcoholic": true,
+      "ingredients": [
+        "2 cl White Rum",
+        "4 cl Coconut milk",
+        "2 teaspoons Sugar",
+        "6 cl Milk"
+      ],
+      "steps": [
+        "Make the Coco Loco cocktail recipe in a blender or blender.",
+        "Add white rum and coconut milk.",
+        "Add the sugar and milk.",
+        "Add ice cubes.",
+        "Blend for a few seconds.",
+        "Pour the mixture into a large tumbler glass.",
+        "Add a few ice cubes to obtain a fresh cocktail."
+      ],
+      "ingredients_es": [
+        "2 cl de ron blanco",
+        "4 cl de leche de coco",
+        "2 cucharaditas de azúcar",
+        "6 cl de leche"
+      ],
+      "steps_es": [
+        "Prepara el cóctel Coco Loco en una licuadora.",
+        "Añade el ron blanco y la leche de coco.",
+        "Añade el azúcar y la leche.",
+        "Añade cubos de hielo.",
+        "Licúa durante unos segundos.",
+        "Vierte la mezcla en un vaso tumbler grande.",
+        "Añade unos cubos de hielo para obtener un cóctel fresco."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/coco-loco.json",
+      "contributor": "lucasmartinelle",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/coco-loco.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de lucasmartinelle; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "0db37d103e6675dd8c434914a147f9769232550cfa604a25bd7fd80811b99c2d",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra.",
+        "El primer paso inglés repite «blender»; la traducción no introduce otro equipo. El hielo aparece sólo en los pasos y no tiene una cantidad especificada."
+      ],
+      "original_name": "Coco loco",
+      "raw_source": "{\r\n    \"name\": \"Coco loco\",\r\n    \"description\": \"A rum and coconut cocktail from the West Indies.\",\r\n    \"github\": \"lucasmartinelle\",\r\n    \"ingredients\": [\r\n        {\r\n            \"quantity\": \"2\",\r\n            \"measure\": \"cl\",\r\n            \"ingredient\": \"White Rum\"\r\n        },\r\n        {\r\n            \"quantity\": \"4\",\r\n            \"measure\": \"cl\",\r\n            \"ingredient\": \"Coconut milk\"\r\n        },\r\n        {\r\n            \"quantity\": \"2\",\r\n            \"measure\": \"teaspoons\",\r\n            \"ingredient\": \"Sugar\"\r\n        },\r\n        {\r\n            \"quantity\": \"6\",\r\n            \"measure\": \"cl\",\r\n            \"ingredient\": \"Milk\"\r\n        }\r\n    ],\r\n    \"directions\": [\r\n        \"Make the Coco Loco cocktail recipe in a blender or blender.\",\r\n        \"Add white rum and coconut milk.\",\r\n        \"Add the sugar and milk.\",\r\n        \"Add ice cubes.\",\r\n        \"Blend for a few seconds.\",\r\n        \"Pour the mixture into a large tumbler glass.\",\r\n        \"Add a few ice cubes to obtain a fresh cocktail.\"\r\n    ],\r\n    \"image\": \"coco-loco.jpg\",\r\n    \"keywords\": [\r\n        \"coconut\",\r\n        \"coconut milk\",\r\n        \"sugar\",\r\n        \"alcoholic\",\r\n        \"rum\",\r\n        \"milk\"\r\n    ]\r\n}\r\n"
+    },
+    {
+      "id": "embuscade",
+      "title": "Embuscade",
+      "title_es": "Embuscade normando de cerveza y Calvados",
+      "category": "cocktail",
+      "alcoholic": true,
+      "ingredients": [
+        "10 cl cold lager",
+        "6 cl white wine, preferably dry",
+        "4 cl Calvados apple brandy",
+        "2 cl blackcurrant syrup",
+        "2 cl lemon juice"
+      ],
+      "steps": [
+        "Pour the blackcurrant syrup and the lemon juice in a glass",
+        "Stir well with a spoon",
+        "Add the white wine and the Calvados brandy",
+        "Stir again",
+        "Add the cold beer slowly"
+      ],
+      "ingredients_es": [
+        "10 cl de cerveza lager fría",
+        "6 cl de vino blanco, preferiblemente seco",
+        "4 cl de brandy de manzana Calvados",
+        "2 cl de jarabe de grosella negra",
+        "2 cl de jugo de limón"
+      ],
+      "steps_es": [
+        "Vierte el jarabe de grosella negra y el jugo de limón en un vaso.",
+        "Remueve bien con una cuchara.",
+        "Añade el vino blanco y el brandy Calvados.",
+        "Vuelve a remover.",
+        "Añade lentamente la cerveza fría."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/embuscade.json",
+      "contributor": "WilliamAboucaya",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/embuscade.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de WilliamAboucaya; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "1cc3ac7599b8f474134952902b18c12b7a14a7017748fc33a302530a6a018a43",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra."
+      ],
+      "original_name": "Embuscade",
+      "raw_source": "{\n    \"name\": \"Embuscade\",\n    \"description\": \"A French beer-based cocktail from Normandy. Refreshing and slightly sweet.\",\n    \"github\": \"WilliamAboucaya\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"10\",\n            \"measure\": \"cl\",\n            \"ingredient\": \"cold lager\"\n        },\n        {\n            \"quantity\": \"6\",\n            \"measure\": \"cl\",\n            \"ingredient\": \"white wine, preferably dry\"\n        },\n        {\n            \"quantity\": \"4\",\n            \"measure\": \"cl\",\n            \"ingredient\": \"Calvados apple brandy\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"cl\",\n            \"ingredient\": \"blackcurrant syrup\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"cl\",\n            \"ingredient\": \"lemon juice\"\n        }\n    ],\n    \"directions\": [\n        \"Pour the blackcurrant syrup and the lemon juice in a glass\",\n        \"Stir well with a spoon\",\n        \"Add the white wine and the Calvados brandy\",\n        \"Stir again\",\n        \"Add the cold beer slowly\"\n    ],\n    \"image\": \"embuscade.jpg\",\n    \"keywords\": [\n        \"beer\",\n        \"blackcurrant\",\n        \"calvados\",\n        \"french\"\n    ]\n}\n"
+    },
+    {
+      "id": "mind-eraser",
+      "title": "Mind Eraser",
+      "title_es": "Mind Eraser de café, vodka y soda",
+      "category": "cocktail",
+      "alcoholic": true,
+      "ingredients": [
+        "1 oz Kahlúa",
+        "2 oz Vodka",
+        "2 oz Club soda"
+      ],
+      "steps": [
+        "Pour 1 ounce of Kahlúa in a rocks glass with ice.",
+        "Float 2 ounces of vodka on top, pouring down the side of the glass so that it separates.",
+        "Top with 2 ounces of club soda, poured down the side of the glass in the same way."
+      ],
+      "ingredients_es": [
+        "1 oz de Kahlúa",
+        "2 oz de vodka",
+        "2 oz de agua con gas"
+      ],
+      "steps_es": [
+        "Vierte 1 onza de Kahlúa en un vaso bajo con hielo.",
+        "Deja flotar 2 onzas de vodka por encima, vertiéndolo por la pared del vaso para que se separe.",
+        "Completa con 2 onzas de agua con gas, vertiéndola por la pared del vaso de la misma manera."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/mind-eraser.json",
+      "contributor": "jhkim8268",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/mind-eraser.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de jhkim8268; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "feccadf6563e6b917236b1507bfad63689265006bc58d2c342bcb9db36232338",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra.",
+        "El nombre es el del cóctel. No se reproduce como promesa ni recomendación la descripción del proveedor sobre pérdida de memoria."
+      ],
+      "original_name": "Mind Eraser",
+      "raw_source": "{\n    \"name\": \"Mind Eraser\",\n    \"description\": \"The drink that will literally erase your mind after drinking it! Prepare to forget!\",\n    \"github\": \"jhkim8268\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Kahlúa\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Vodka\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Club soda\"\n        }\n    ],\n    \"directions\": [\n        \"Pour 1 ounce of Kahlúa in a rocks glass with ice.\",\n        \"Float 2 ounces of vodka on top, pouring down the side of the glass so that it separates.\",\n        \"Top with 2 ounces of club soda, poured down the side of the glass in the same way.\"\n    ],\n    \"image\": \"mind-eraser.jpg\",\n    \"keywords\": [\n        \"kahlúa\",\n        \"vodka\",\n        \"club soda\"\n    ]\n}\n"
+    },
+    {
+      "id": "monaco",
+      "title": "Monaco",
+      "title_es": "Monaco de cerveza, limonada y granadina",
+      "category": "cocktail",
+      "alcoholic": true,
+      "ingredients": [
+        "5 oz Beer",
+        "0.3 oz Grenadine syrup",
+        "2 oz Lemonade"
+      ],
+      "steps": [
+        "Mix everything together starting with the syrup.",
+        "And drink!"
+      ],
+      "ingredients_es": [
+        "5 oz de cerveza",
+        "0.3 oz de jarabe de granadina",
+        "2 oz de limonada"
+      ],
+      "steps_es": [
+        "Mezcla todo, empezando por el jarabe.",
+        "¡Y bebe!"
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/monaco.json",
+      "contributor": "siffreinsg",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/monaco.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de siffreinsg; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "3d198122ab737728f0478159d955231e904112c00e12385333634f4d58f4ce61",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra.",
+        "La fuente indica limonada sin detallar una receta base o marca; se trata de un ingrediente ya preparado."
+      ],
+      "original_name": "Monaco",
+      "raw_source": "{\n    \"name\": \"Monaco\",\n    \"description\": \"A monaco is an alcoholic beverage made up of beer mixed with lemonade and grenadine syrup.\",\n    \"github\": \"siffreinsg\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"5\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Beer\"\n        },\n        {\n            \"quantity\": \"0.3\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Grenadine syrup\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Lemonade\"\n        }\n    ],\n    \"directions\": [\n        \"Mix everything together starting with the syrup.\",\n        \"And drink!\"\n    ],\n    \"image\": \"monaco.jpg\",\n    \"keywords\": [\"beer\", \"lemonade\"]\n}\n"
+    },
+    {
+      "id": "venus-flytrap",
+      "title": "Venus Flytrap",
+      "title_es": "Venus Flytrap de ginebra y lima makrut",
+      "category": "cocktail",
+      "alcoholic": true,
+      "ingredients": [
+        "1 cup crushed ice",
+        "2 oz gin infused with kefir lime",
+        "1 oz Falernum (West Indies lime based sweetener)",
+        ".5 oz lime juice",
+        ".5 oz soda",
+        "1 dash angostura bitters",
+        "3 dash absinthe",
+        "1 dash nutmeg",
+        "1 kefir lime leaf",
+        "1 wedge of lime"
+      ],
+      "steps": [
+        "To make the gin infusion: blend the gin with keffir lime leaves. Combine 1 double kefir lime leaf per 2oz gin.",
+        "Strain the result through a cheesecloth and retain infused gin.",
+        "Combine infused gin, other liquid ingredients, and crushed ice with a blender.",
+        "Serve in a fancy glass with lime slice, keffir leaf and dash of nutmeg as garnish."
+      ],
+      "ingredients_es": [
+        "1 taza de hielo triturado",
+        "2 oz de ginebra infusionada con lima makrut",
+        "1 oz de falernum (endulzante antillano a base de lima)",
+        ".5 oz de jugo de lima",
+        ".5 oz de soda",
+        "1 toque de amargo Angostura",
+        "3 toques de absenta",
+        "1 toque de nuez moscada",
+        "1 hoja de lima makrut",
+        "1 gajo de lima"
+      ],
+      "steps_es": [
+        "Para preparar la infusión de ginebra: licúa la ginebra con hojas de lima makrut. Combina 1 hoja doble de lima makrut por cada 2 oz de ginebra.",
+        "Cuela el resultado a través de una gasa de cocina y conserva la ginebra infusionada.",
+        "Combina la ginebra infusionada, los demás ingredientes líquidos y el hielo triturado en una licuadora.",
+        "Sirve en una copa vistosa con una rodaja de lima, una hoja de lima makrut y un toque de nuez moscada como decoración."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/venus-flytrap.json",
+      "contributor": "kristina-hager",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/venus-flytrap.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de kristina-hager; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "5d351f796eb7036091274a65551d43d1324a0f8e446527704a938cdd9b366ff5",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra.",
+        "El original escribe «kefir» y «keffir lime»; se traduce como lima makrut o kaffir, no como kéfir lácteo.",
+        "La hoja doble para la infusión está cuantificada en el primer paso; la hoja de la lista se usa para decorar en el último.",
+        "Se conserva falernum como ingrediente ya preparado; no se inventa su composición ni se sustituye por un jarabe cualquiera."
+      ],
+      "original_name": "Venus Flytrap",
+      "raw_source": "{\n    \"name\": \"Venus Flytrap\",\n    \"description\": \"The Venus Flytrip is a delicious sweet but not too sweet gin drink. It's very summer, but also somehow very holiday.\",\n    \"github\": \"kristina-hager\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"cup\",\n            \"ingredient\": \"crushed ice\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"gin infused with kefir lime\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Falernum (West Indies lime based sweetener)\"\n        },\n        {\n            \"quantity\": \".5\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"lime juice\"\n        },\n        {\n            \"quantity\": \".5\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"soda\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"dash\",\n            \"ingredient\": \"angostura bitters\"\n        },\n        {\n            \"quantity\": \"3\",\n            \"measure\": \"dash\",\n            \"ingredient\": \"absinthe\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"dash\",\n            \"ingredient\": \"nutmeg\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"\",\n            \"ingredient\": \"kefir lime leaf\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"\",\n            \"ingredient\": \"wedge of lime\"\n        }\n    ],\n    \"directions\": [\n        \"To make the gin infusion: blend the gin with keffir lime leaves. Combine 1 double kefir lime leaf per 2oz gin.\",\n        \"Strain the result through a cheesecloth and retain infused gin.\",\n        \"Combine infused gin, other liquid ingredients, and crushed ice with a blender.\",\n        \"Serve in a fancy glass with lime slice, keffir leaf and dash of nutmeg as garnish.\"\n    ],\n    \"image\": \"venus-flytrap.jpg\",\n    \"keywords\": [\n        \"alcoholic\",\n        \"gin\",\n        \"bitters\"\n    ]\n}\n"
+    },
+    {
+      "id": "white-bear",
+      "title": "White Bear",
+      "title_es": "White Bear de champán y vodka",
+      "category": "cocktail",
+      "alcoholic": true,
+      "ingredients": [
+        "100 ml Champagne",
+        "50 ml Vodka",
+        "Ice",
+        "1 wedge Lemon"
+      ],
+      "steps": [
+        "Optional: Put some ice into champagne glass.",
+        "Add Champagne and Vodka.",
+        "Stir gently to release some bubbles.",
+        "Garnish with a lemon wedge."
+      ],
+      "ingredients_es": [
+        "100 ml de champán",
+        "50 ml de vodka",
+        "Hielo",
+        "1 gajo de limón"
+      ],
+      "steps_es": [
+        "Opcional: pon algo de hielo en una copa de champán.",
+        "Añade el champán y el vodka.",
+        "Remueve suavemente para liberar algunas burbujas.",
+        "Decora con un gajo de limón."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/white-bear.json",
+      "contributor": "4ndrej",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/white-bear.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de 4ndrej; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "4d49f146c2137a59649b1674dbfc5600deff3261daeaa74a30ba1ca57c91a233",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra."
+      ],
+      "original_name": "White Bear",
+      "raw_source": "{\n    \"name\": \"White Bear\",\n    \"description\": \"The White Bear is a simple but powerful starter cocktail based on Champagne and Vodka.\",\n    \"github\": \"4ndrej\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"100\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"Champagne\"\n        },\n        {\n            \"quantity\": \"50\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"Vodka\"\n        },\n        {\n            \"quantity\": \"\",\n            \"measure\": \"\",\n            \"ingredient\": \"Ice\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"wedge\",\n            \"ingredient\": \"Lemon\"\n        }\n    ],\n    \"directions\": [\n        \"Optional: Put some ice into champagne glass.\",\n        \"Add Champagne and Vodka.\",\n        \"Stir gently to release some bubbles.\",\n        \"Garnish with a lemon wedge.\"\n    ],\n    \"image\": \"white-bear.jpg\",\n    \"keywords\": [\n        \"champagne\",\n        \"vodka\",\n        \"lemon\",\n        \"hard\",\n        \"alcoholic\",\n        \"vegan\"\n    ]\n}\n"
+    },
+    {
+      "id": "zorbatini",
+      "title": "Zorbatini",
+      "title_es": "Zorbatini de vodka y ouzo",
+      "category": "cocktail",
+      "alcoholic": true,
+      "ingredients": [
+        "1 oz vodka",
+        "1 oz ouzo"
+      ],
+      "steps": [
+        "Pour the vodka and ouzo into a martini glass.",
+        "Decorate with a green olive."
+      ],
+      "ingredients_es": [
+        "1 oz de vodka",
+        "1 oz de ouzo"
+      ],
+      "steps_es": [
+        "Vierte el vodka y el ouzo en una copa de martini.",
+        "Decora con una aceituna verde."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/zorbatini.json",
+      "contributor": "JeanKreek",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/zorbatini-cocktail.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de JeanKreek; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "f6aa1652bebda983266a60a9c376ab13c07413ac47106a3c0bdd064f2bb1b067",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra.",
+        "La aceituna verde sólo aparece en el procedimiento, sin cantidad indicada en la lista."
+      ],
+      "original_name": "Zorbatini",
+      "raw_source": "{\r\n    \"name\": \"Zorbatini\",\r\n    \"description\": \"Cocktail with Ouzo and Vodka.\",\r\n    \"github\": \"JeanKreek\",\r\n    \"ingredients\": [\r\n        {\r\n            \"quantity\": \"1\",\r\n            \"measure\": \"oz\",\r\n            \"ingredient\": \"vodka\"\r\n        },\r\n        {\r\n            \"quantity\": \"1\",\r\n            \"measure\": \"oz\",\r\n            \"ingredient\": \"ouzo\"\r\n        }\r\n    ],\r\n    \"directions\": [\r\n        \"Pour the vodka and ouzo into a martini glass.\",\r\n        \"Decorate with a green olive.\"\r\n    ],\r\n    \"image\": \"zorbatini-cocktail.jpg\",\r\n    \"keywords\": [\r\n        \"alcoholic\",\r\n        \"ouzo\",\r\n\t\t\"vodka\"\r\n    ]\r\n}"
+    },
+    {
+      "id": "rumchata-bourbon",
+      "title": "Rumchata Bourbon",
+      "title_es": "RumChata Bourbon",
+      "category": "cocktail",
+      "alcoholic": true,
+      "ingredients": [
+        "2 oz Bourbon",
+        "1.5 oz RumChata",
+        "2 dashes Mole bitters (optional)"
+      ],
+      "steps": [
+        "Add ingredients to a cocktail shaker filled with ice and shake until well chilled.",
+        "Strain into a lowball glass over fresh ice.",
+        "Optional: Garnish with a sprinkle of nutmeg."
+      ],
+      "ingredients_es": [
+        "2 oz de bourbon",
+        "1.5 oz de RumChata",
+        "2 toques de amargo de mole (opcionales)"
+      ],
+      "steps_es": [
+        "Añade los ingredientes a una coctelera llena de hielo y agita hasta que estén bien fríos.",
+        "Cuela en un vaso bajo con hielo nuevo.",
+        "Opcional: decora con un poco de nuez moscada."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/rumchata-bourbon.json",
+      "contributor": "bethmartino",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/rumchata-bourbon.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de bethmartino; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "fc10086e8d938428286890948a19fced30acdc4235babe8087037286369e8f1e",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra.",
+        "El amargo de mole es opcional según la lista original. La nuez moscada sólo aparece como decoración opcional, sin cantidad numérica."
+      ],
+      "original_name": "Rumchata Bourbon",
+      "raw_source": "{\n    \"name\": \"Rumchata Bourbon\",\n    \"description\": \"Similar to a Mudslide, lighter than Eggnog - this drink is a great alternative to either on those chilly autumn evenings.\",\n    \"github\": \"bethmartino\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Bourbon\"\n        },\n        {\n            \"quantity\": \"1.5\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"RumChata\"\n        },        \n    {\n            \"quantity\": \"2\",\n            \"measure\": \"dashes\",\n            \"ingredient\": \"Mole bitters (optional)\"\n        }  \n    ],\n    \"directions\": [\n        \"Add ingredients to a cocktail shaker filled with ice and shake until well chilled.\",\n        \"Strain into a lowball glass over fresh ice.\",\n        \"Optional: Garnish with a sprinkle of nutmeg.\"\n    ],\n    \"image\": \"rumchata-bourbon.jpg\",\n     \"keywords\": [\n        \"bourbon\",\n        \"homemade\",\n        \"rumchata\",\n        \"creamy\",\n        \"mudslide\",\n        \"eggnog\",\n        \"white russian\",\n        \"autumn\",\n        \"fall\"\n    ]\n}\n"
     }
   ]
 }

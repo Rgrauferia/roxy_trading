@@ -3,7 +3,18 @@
 Actualizado: 2026-09-11. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 
-## 190 — preparado localmente: 87 bebidas; publicación pendiente
+## 191 — preparado: 59 cócteles, publicación pendiente
+
+9cóctelesnuevos,96bebidas(59con/37sinlicores);87anterioresintactas.
+OpenDrinksMITpin y fotos cotejadas,37ingredientes/33pasos nuevos ES/EN.
+Filtros por base sólo tras elección21+, conteos multietiqueta. APIopt-in
+include_spirit_bases=true mantieneclientes190/189. NoIA, pagos, compras ni perfiles.
+2411Python/11PGskip,138focalizadasdatosfinales,437Node(77bebidas),QA393sin
+errores/overflow;Ron8,brass1,tercerapágina49–59,CocoLoco4/7foto600lectorES/EN.
+HTML/APP191 JS193 CSS132 SW190 bebidasJS/CSS3. Informe
+reports/home_release_191_20260911.md. Público sigue190 hasta verificar despliegue.
+
+## 190 — PUBLICADO y comprobado: 87 bebidas
 
 56 añadidas sobre31 intactas:16cafés/tés,5jugos,8batidos,8refrescantes,50cócteles.
 37sinlicores/50con. Fuente comunitaria Open Drinks MIT fijada, fotos revisadas,
@@ -14,7 +25,13 @@ hash/identidad/fuente y recuperación. Endpoint heredado compatible con189.
 QA393px: segunda página,ABCfoto858/7pasos/ES→ENpaso2,cócteles3páginas,
 jugos5,filtrosrecuperan,sin errores ni overflow. No datos públicos modificados.
 HTML/APP190 JS192 CSS132 SW189 bebidasJS/CSS2. Informe
-reports/home_release_190_20260911.md. Público sigue189 hasta comprobar despliegue.
+reports/home_release_190_20260911.md. Commitf04f4792d2272fdea6f79d7438bd0a82dbb38aa5,
+Renderdep-dai2748ae00c73b7qu0g Live58.2s.502enreinicio→health200/ok;
+7assets200byte-idénticos. Público190sesiónconservada87/37/50,segunda página,
+jugos5/cafés16;piña3ingredientes/4pasos/foto600/lectorpaso2;affogato2/3foto554.
+Sin errores ni overflow393y765. QA21281yservidorfotospropio detenidos;8767libre,
+Node1635preexistente8787preservado;tabs10/11/12cerradas,viewportreset.
+Público abierto en cafés. No redeploy sólo por notas;demo/500revisadas pendientes.
 
 ## 189 — PUBLICADO y comprobado: 31 bebidas nuevas
 
