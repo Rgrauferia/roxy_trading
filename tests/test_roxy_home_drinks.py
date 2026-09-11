@@ -85,11 +85,14 @@ def test_real_selection_counts_provenance_and_small_public_payload():
                                   "license_url": "/assets/open-drinks-license.txt"}
     assert "raw_source" not in json.dumps(payload)
     for row in payload["drinks"]:
-        assert row["source_url"].startswith(catalog.SOURCE_BASE)
         assert row["image_url"].startswith(catalog.IMAGE_BASE)
         assert len(row["source_sha256"]) == 64
-        assert len(row["ingredients"]) == len(row["ingredients_es"]) > 0
-        assert len(row["steps"]) == len(row["steps_es"]) > 0
+        assert not {"ingredients", "ingredients_es", "steps", "steps_es", "raw_source"}.intersection(row)
+        detail = catalog.drink_detail(row["id"])["drink"]
+        assert detail["source_url"].startswith(catalog.SOURCE_BASE)
+        assert detail["source_sha256"] == row["source_sha256"]
+        assert len(detail["ingredients"]) == len(detail["ingredients_es"]) == row["ingredient_count"] > 0
+        assert len(detail["steps"]) == len(detail["steps_es"]) == row["step_count"] > 0
 
 
 def test_source_original_lines_and_translation_are_retained_verbatim_and_never_mutable_by_response(install):
@@ -99,13 +102,47 @@ def test_source_original_lines_and_translation_are_retained_verbatim_and_never_m
     payload = catalog.drink_catalog()
     assert payload["total"] == 5 and payload["counts"] == dict.fromkeys(catalog.CATEGORIES, 1)
     assert "must-not-leak" not in json.dumps(payload) and "raw_source" not in json.dumps(payload)
-    for actual, original in zip(payload["drinks"], rows):
+    for summary, original in zip(payload["drinks"], rows):
+        actual = catalog.drink_detail(summary["id"])["drink"]
+        assert "must-not-leak" not in json.dumps(actual) and "raw_source" not in actual
         for field in ("ingredients", "steps", "ingredients_es", "steps_es", "notes_es", "source_sha256"):
             assert actual[field] == original[field]
-    payload["drinks"][0]["ingredients"][0] = "bad mutation"
-    payload["drinks"][0]["steps_es"].append("wrong step")
-    assert catalog.drink_catalog()["drinks"][0]["ingredients"] == rows[0]["ingredients"]
-    assert catalog.drink_catalog()["drinks"][0]["steps_es"] == rows[0]["steps_es"]
+    detail = catalog.drink_detail(rows[0]["id"])
+    detail["drink"]["ingredients"][0] = "bad mutation"
+    detail["drink"]["steps_es"].append("wrong step")
+    assert catalog.drink_detail(rows[0]["id"])["drink"]["ingredients"] == rows[0]["ingredients"]
+    assert catalog.drink_detail(rows[0]["id"])["drink"]["steps_es"] == rows[0]["steps_es"]
+    payload["drinks"][0]["title"] = "bad mutation"
+    assert catalog.drink_catalog()["drinks"][0]["title"] == rows[0]["title"]
+
+
+def test_two_hundred_summaries_stay_lightweight_without_prefetching_details(install):
+    rows = [source_row(index) for index in range(200)]
+    install(rows)
+    payload = catalog.drink_catalog()
+    assert payload["total"] == 200
+    assert len(json.dumps(payload, ensure_ascii=False).encode()) < 150 * 1024
+    assert "Synthetic direction" not in json.dumps(payload)
+    assert catalog.drink_detail(rows[-1]["id"])["drink"]["steps"] == rows[-1]["steps"]
+
+
+def test_legacy_open_tabs_receive_a_compatible_bounded_selection(install):
+    rows = [source_row(index) for index in range(200)]
+    install(rows)
+    old = catalog.drink_catalog_legacy()
+    assert old["total"] == len(old["drinks"]) == sum(old["counts"].values()) == 60
+    assert old["available_total"] == 200
+    assert old["drinks"][0]["steps_es"] == rows[0]["steps_es"]
+    assert "raw_source" not in json.dumps(old)
+    assert catalog.drink_catalog()["total"] == 200
+
+
+@pytest.mark.parametrize("drink_id", [None, 1, "", "../unsafe", "a/b", "A", "a" * 101, "unknown-drink"])
+def test_unknown_or_invalid_detail_never_substitutes_a_recipe(install, drink_id):
+    path = install(); before = path.read_bytes()
+    with pytest.raises(catalog.DrinkNotFound, match="drink_not_found"):
+        catalog.drink_detail(drink_id)
+    assert path.read_bytes() == before
 
 
 @pytest.mark.parametrize("field,value", [
@@ -191,7 +228,7 @@ def test_duplicate_selection_fields_rejected(install, field):
 
 @pytest.mark.parametrize("data", [None, [], True, {}, {"version": True, "drinks": []},
     {"version": 2, "drinks": []}, {"version": 1, "drinks": None}, {"version": 1, "drinks": []},
-    {"version": 1, "source": source_metadata(), "drinks": [source_row(i) for i in range(61)]}])
+    {"version": 1, "source": source_metadata(), "drinks": [source_row(i) for i in range(catalog.MAX_ROWS + 1)]}])
 def test_invalid_container_never_becomes_empty_success(install, data):
     install(raw=json.dumps(data))
     with pytest.raises(catalog.DrinkCatalogUnavailable):
@@ -239,43 +276,62 @@ def api_client(tmp_path, monkeypatch, install):
         yield client, path
 
 
-def test_api_is_private_authenticated_same_household_and_get_only(api_client):
+@pytest.mark.parametrize("suffix", ["", "/summaries", "/synthetic-drink-1"])
+def test_api_is_private_authenticated_same_household_and_get_only(api_client, suffix):
     client, path = api_client; before = path.read_bytes()
-    response = client.get(BASE)
-    assert response.status_code == 200 and response.json()["total"] == 2
+    url = BASE + suffix
+    response = client.get(url)
+    assert response.status_code == 200
+    if suffix == "/synthetic-drink-1":
+        assert response.json()["drink"]["id"] == "synthetic-drink-1"
+    else:
+        assert response.json()["total"] == 2
+        if suffix == "/summaries":
+            assert "steps" not in response.text and "ingredients" not in response.text
     assert response.headers["Cache-Control"] == "private, no-store"
     assert response.headers["Vary"] == "Cookie, Authorization"
     assert "raw_source" not in response.text and "synthetic-drinks-api-key" not in response.text
     assert response.json()["can_add_to_shopping"] is False
-    assert client.get(BASE.replace("drinks_test", "other_home")).status_code == 403
+    assert client.get(url.replace("drinks_test", "other_home")).status_code == 403
     for method in ("post", "patch", "put", "delete"):
-        assert getattr(client, method)(BASE).status_code == 405
+        assert getattr(client, method)(url).status_code == 405
     client.cookies.clear()
-    assert client.get(BASE).status_code == 401
-    assert client.get(BASE, headers={"Authorization": "Bearer wrong"}).status_code == 403
+    assert client.get(url).status_code == 401
+    assert client.get(url, headers={"Authorization": "Bearer wrong"}).status_code == 403
     assert path.read_bytes() == before
 
 
-def test_damaged_release_api503_is_redacted_not_empty_or_generated(api_client):
+@pytest.mark.parametrize("suffix", ["", "/summaries", "/synthetic-drink-1"])
+def test_damaged_release_api503_is_redacted_not_empty_or_generated(api_client, suffix):
     client, path = api_client
     path.write_text('{"private-secret":"do-not-leak"', encoding="utf-8")
     catalog._catalog.cache_clear(); before = path.read_bytes()
-    response = client.get(BASE)
+    response = client.get(BASE + suffix)
     assert response.status_code == 503
     assert response.headers["Cache-Control"] == "private, no-store"
     assert "do-not-leak" not in response.text and str(path) not in response.text
     assert "drinks" not in response.json() and path.read_bytes() == before
 
 
-def test_api_keeps_home_rate_limit(api_client, monkeypatch):
+@pytest.mark.parametrize("suffix", ["", "/summaries", "/synthetic-drink-1"])
+def test_api_keeps_home_rate_limit(api_client, monkeypatch, suffix):
     client, _ = api_client; monkeypatch.setattr(service, "RATE_LIMIT_MAX", 1)
-    assert client.get(BASE).status_code == 200
-    response = client.get(BASE)
+    assert client.get(BASE + suffix).status_code == 200
+    response = client.get(BASE + suffix)
     assert response.status_code == 429 and response.headers["Cache-Control"] == "private, no-store"
 
 
+def test_detail_not_found_is_private_and_not_synthesized(api_client):
+    client, path = api_client; before = path.read_bytes()
+    response = client.get(BASE + "/not-in-selection")
+    assert response.status_code == 404
+    assert response.headers["Cache-Control"] == "private, no-store"
+    assert "drink" not in response.json() and path.read_bytes() == before
+
+
 @pytest.mark.parametrize("expired", [False, True])
-def test_active_or_expired_trial_can_read_bundled_drinks_without_modifying_account(api_client, tmp_path, expired):
+@pytest.mark.parametrize("suffix", ["", "/summaries", "/synthetic-drink-1"])
+def test_active_or_expired_trial_can_read_bundled_drinks_without_modifying_account(api_client, tmp_path, expired, suffix):
     client, path = api_client
     accounts = HomeAccountStore(tmp_path / "accounts.json")
     member = accounts.register_trial(username="drink-reader", display_name="Synthetic Reader",
@@ -285,7 +341,7 @@ def test_active_or_expired_trial_can_read_bundled_drinks_without_modifying_accou
             expires_at=(datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()))
     client.cookies.set(service.SESSION_COOKIE, service._member_session_cookie(member))
     before, source_before = accounts.path.read_bytes(), path.read_bytes()
-    url = BASE.replace("drinks_test", member["storage_user_id"])
+    url = BASE.replace("drinks_test", member["storage_user_id"]) + suffix
     assert trial_access_mode("GET", url) == "local" and trial_access_mode("POST", url) == "unavailable"
     assert client.get(url).status_code == 200 and client.get(BASE).status_code == 403
     assert accounts.path.read_bytes() == before and path.read_bytes() == source_before

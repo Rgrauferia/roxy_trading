@@ -1,0 +1,1655 @@
+[
+  {
+    "id": "appletini",
+    "title": "Appletini",
+    "title_es": "Appletini",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "1 1/2 fl oz vodka",
+      "1 fl oz green apple schnapps",
+      "1/4 fl oz lemon juice",
+      "1 cup ice cubes",
+      "1 apple slice"
+    ],
+    "steps": [
+      "Dip the apple slice in lemon juice to prevent it from turning yellow.",
+      "Combine all the liquid ingredients in a cocktail mixing cup. Fill it with ice and shake well.",
+      "Strain into a cocktail glass.",
+      "Garnish with the apple slice."
+    ],
+    "ingredients_es": [
+      "1 1/2 fl oz de vodka",
+      "1 fl oz de licor de manzana verde (schnapps)",
+      "1/4 fl oz de jugo de limón",
+      "1 taza de cubos de hielo",
+      "1 rodaja de manzana"
+    ],
+    "steps_es": [
+      "Sumerge la rodaja de manzana en jugo de limón para evitar que se ponga amarilla.",
+      "Combina todos los ingredientes líquidos en un recipiente para mezclar cócteles. Llénalo de hielo y agita bien.",
+      "Cuela en una copa de cóctel.",
+      "Decora con la rodaja de manzana."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/appletini.json",
+    "contributor": "aldermann",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/appletini.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de aldermann; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "357d957f90e5e7e929c764038507f379a0b63e17172ff5f4116ca6fe58fd356f",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra.",
+      "El original usa jugo de limón para la rodaja, pero no separa una cantidad adicional de la indicada para la bebida."
+    ],
+    "original_name": "Appletini",
+    "raw_source": "{\n    \"name\": \"Appletini\",\n    \"description\": \"A sweet and sour electric green drink with a sweet, delicious apple flavor\",\n    \"github\": \"aldermann\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"1 1/2\",\n            \"measure\": \"fl oz\",\n            \"ingredient\": \"vodka\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"fl oz\",\n            \"ingredient\": \"green apple schnapps\"\n        },\n        {\n            \"quantity\": \"1/4\",\n            \"measure\": \"fl oz\",\n            \"ingredient\": \"lemon juice\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"cup\",\n            \"ingredient\": \"ice cubes\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"\",\n            \"ingredient\": \"apple slice\"\n        }\n    ],\n    \"directions\": [\n        \"Dip the apple slice in lemon juice to prevent it from turning yellow.\",\n        \"Combine all the liquid ingredients in a cocktail mixing cup. Fill it with ice and shake well.\",\n        \"Strain into a cocktail glass.\",\n        \"Garnish with the apple slice.\"\n    ],\n    \"image\": \"appletini.jpg\",\n    \"keywords\": [\n        \"vodka\",\n        \"apple\",\n        \"alcoholic\",\n        \"vegan\"\n    ]\n}\n"
+  },
+  {
+    "id": "april-rain",
+    "title": "April Rain Cocktail",
+    "title_es": "April Rain",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "2 oz vodka",
+      "1/2 oz lime juice, freshly squeezed",
+      "1/2 oz dry vermouth",
+      "Garnish: lime peel"
+    ],
+    "steps": [
+      "Gather the ingredients.",
+      "Pour the vodka, lime juice, and dry vermouth in a cocktail shaker filled with ice cubes.",
+      "Shake well.",
+      "Strain into a chilled cocktail glass.",
+      "Garnish with a lime peel.",
+      "Serve and enjoy!"
+    ],
+    "ingredients_es": [
+      "2 oz de vodka",
+      "1/2 oz de jugo de lima recién exprimido",
+      "1/2 oz de vermut seco",
+      "Decoración: piel de lima"
+    ],
+    "steps_es": [
+      "Reúne los ingredientes.",
+      "Vierte el vodka, el jugo de lima y el vermut seco en una coctelera llena de cubos de hielo.",
+      "Agita bien.",
+      "Cuela en una copa de cóctel fría.",
+      "Decora con piel de lima.",
+      "¡Sirve y disfruta!"
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/april-rain.json",
+    "contributor": "Sai-Adarsh",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/april-rain.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de Sai-Adarsh; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "18bcb6ceea080ea53e4333ac2a3e4c45f33f262abc137ac4425f1ca28bede2fb",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra."
+    ],
+    "original_name": "April Rain Cocktail",
+    "raw_source": "{\n    \"name\": \"April Rain Cocktail\",\n    \"description\": \"Bright, refreshing, and just slightly dry, the April rain is a wonderful cocktail that's sure to put you in a spring mood.\",\n    \"github\": \"Sai-Adarsh\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"vodka\"\n        },\n        {\n            \"quantity\": \"1/2\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"lime juice, freshly squeezed\"\n        },\n        {\n            \"quantity\": \"1/2\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"dry vermouth\"\n        },\n        {\n            \"quantity\": \"\",\n            \"measure\": \"\",\n            \"ingredient\": \"Garnish: lime peel\"\n        }\n    ],\n    \"directions\": [\n        \"Gather the ingredients.\",\n        \"Pour the vodka, lime juice, and dry vermouth in a cocktail shaker filled with ice cubes.\",\n        \"Shake well.\",\n        \"Strain into a chilled cocktail glass.\",\n        \"Garnish with a lime peel.\",\n        \"Serve and enjoy!\"\n    ],\n    \"image\": \"april-rain.jpg\",\n    \"keywords\": [\n        \"alcoholic\",\n        \"vegan\",\n        \"savory\",\n        \"citrus\"\n    ]\n}\n"
+  },
+  {
+    "id": "aviation",
+    "title": "Aviation",
+    "title_es": "Aviation",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "45 ml gin",
+      "15 ml lemon juice",
+      "15 ml maraschino liqueur",
+      "15 ml creme de violette (optional)"
+    ],
+    "steps": [
+      "Add all ingredients into a cocktail shaker filled with ice.",
+      "Shake well and strain into a cocktail glass.",
+      "Garnish with a cherry."
+    ],
+    "ingredients_es": [
+      "45 ml de ginebra",
+      "15 ml de jugo de limón",
+      "15 ml de licor de marrasquino",
+      "15 ml de crema de violeta (opcional)"
+    ],
+    "steps_es": [
+      "Añade todos los ingredientes a una coctelera llena de hielo.",
+      "Agita bien y cuela en una copa de cóctel.",
+      "Decora con una cereza."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/aviation.json",
+    "contributor": "hganavak",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/aviation.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de hganavak; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "965d142d1e4961728c2b506161f76894a55050bcf324310d42dd273f0da921ed",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra.",
+      "La crema de violeta es opcional en la fuente; su presencia cambia el color de la bebida."
+    ],
+    "original_name": "Aviation",
+    "raw_source": "{\n    \"name\": \"Aviation\",\n    \"description\": \"A classic cocktail made with gin, maraschino liqueur, creme de violette (optional), and lemon juice. This drink is meant to be served straight, and in a cocktail glass.\",\n    \"github\": \"hganavak\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"45\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"gin\"\n        },\n        {\n            \"quantity\": \"15\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"lemon juice\"\n        },\n        {\n            \"quantity\": \"15\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"maraschino liqueur\"\n        },\n        {\n            \"quantity\": \"15\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"creme de violette (optional)\"\n        }\n    ],\n    \"directions\": [\n        \"Add all ingredients into a cocktail shaker filled with ice.\",\n        \"Shake well and strain into a cocktail glass.\",\n        \"Garnish with a cherry.\"\n    ],\n    \"image\": \"aviation.jpg\",\n    \"keywords\": [\n        \"alcoholic\",\n        \"citrus\",\n        \"fruit\"\n    ]\n}\n"
+  },
+  {
+    "id": "batanga",
+    "title": "Batanga",
+    "title_es": "Batanga",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "salt (for rimming the glass)",
+      "15 ml fresh lime juice",
+      "45 ml blanco tequila",
+      "120 ml cola",
+      "ice",
+      "1 lime wedge (garnish)"
+    ],
+    "steps": [
+      "Rim a highball glass with salt and fill with ice.",
+      "Add lime juice and tequila.",
+      "Top with cola and stir gently.",
+      "Garnish with a lime wedge."
+    ],
+    "ingredients_es": [
+      "Sal (para el borde del vaso)",
+      "15 ml de jugo de lima fresco",
+      "45 ml de tequila blanco",
+      "120 ml de refresco de cola",
+      "Hielo",
+      "1 gajo de lima (decoración)"
+    ],
+    "steps_es": [
+      "Cubre el borde de un vaso alto con sal y llénalo de hielo.",
+      "Añade el jugo de lima y el tequila.",
+      "Completa con el refresco de cola y remueve suavemente.",
+      "Decora con un gajo de lima."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/batanga.json",
+    "contributor": "alfg",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/batanga.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de alfg; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "885671ac772a5dc0ead29ade5eb15e75edcb240b7bf025a808bc58bb4e3abd81",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra."
+    ],
+    "original_name": "Batanga",
+    "raw_source": "{\n    \"name\": \"Batanga\",\n    \"description\": \"A tequila-and-cola highball with lime and a salted rim—easy, refreshing, and very photogenic.\",\n    \"github\": \"alfg\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"\",\n            \"measure\": \"\",\n            \"ingredient\": \"salt (for rimming the glass)\"\n        },\n        {\n            \"quantity\": \"15\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"fresh lime juice\"\n        },\n        {\n            \"quantity\": \"45\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"blanco tequila\"\n        },\n        {\n            \"quantity\": \"120\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"cola\"\n        },\n        {\n            \"quantity\": \"\",\n            \"measure\": \"\",\n            \"ingredient\": \"ice\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"\",\n            \"ingredient\": \"lime wedge (garnish)\"\n        }\n    ],\n    \"directions\": [\n        \"Rim a highball glass with salt and fill with ice.\",\n        \"Add lime juice and tequila.\",\n        \"Top with cola and stir gently.\",\n        \"Garnish with a lime wedge.\"\n    ],\n    \"image\": \"batanga.jpg\",\n    \"keywords\": [\n        \"alcoholic\",\n        \"cocktail\",\n        \"tequila\",\n        \"cola\",\n        \"lime\",\n        \"mexican\",\n        \"highball\",\n        \"simple\"\n    ]\n}"
+  },
+  {
+    "id": "bees-knees",
+    "title": "Bee's Knees",
+    "title_es": "Bee’s Knees",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "40 ml dry gin",
+      "10 ml lemon juice",
+      "1 tbsp honey"
+    ],
+    "steps": [
+      "Combine ingredients in a shaker.",
+      "Shake with ice until chilled.",
+      "Fine strain into a cocktail class."
+    ],
+    "ingredients_es": [
+      "40 ml de ginebra seca",
+      "10 ml de jugo de limón",
+      "1 cucharada de miel"
+    ],
+    "steps_es": [
+      "Combina los ingredientes en una coctelera.",
+      "Agita con hielo hasta que se enfríe.",
+      "Pasa por un colador fino a una copa de cóctel."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/bees-knees.json",
+    "contributor": "Donearm",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/bees-knees.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de Donearm; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "d909377b02811a07aebb6414fd3282ed9782e338e0d1a398e04cb1d6359c698f",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra.",
+      "El original escribe «cocktail class»; se entiende como copa de cóctel, sin cambiar ingredientes ni procedimiento."
+    ],
+    "original_name": "Bee's Knees",
+    "raw_source": "{\n    \"name\": \"Bee's Knees\",\n    \"description\": \"The recipe allegedly appears in a 1930 edition of San Francisco bartender and author Bill Boothby’s cocktail compendium World Drinks and How to Mix Them. However, other evidence suggests Frank Meier, a bartender at the Ritz Paris, was the cocktail’s original creator. It appears in Meier’s 1936 edition of The Artistry of Mixing Drinks.\",\n    \"github\": \"Donearm\",\n\n    \"ingredients\": [\n        {\n            \"quantity\": \"40\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"dry gin\"\n        },\n        {\n            \"quantity\": \"10\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"lemon juice\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"tbsp\",\n            \"ingredient\": \"honey\"\n        }\n    ],\n    \"directions\": [\n\t\t\"Combine ingredients in a shaker.\",\n\t\t\"Shake with ice until chilled.\",\n\t\t\"Fine strain into a cocktail class.\"\n    ],\n    \"image\": \"bees-knees.jpg\",\n        \"keywords\": [\n\t\t\"alcoholic\",\n\t\t\"dry gin\",\n\t\t\"gin\",\n\t\t\"lemon\",\n\t\t\"honey\"\n        ]\n    \n}\n"
+  },
+  {
+    "id": "bellini",
+    "title": "Bellini",
+    "title_es": "Bellini con frambuesa",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "2 fl oz peach juice",
+      "4 fl oz chilled sparkling wine",
+      "1 tablespoon raspberry juice"
+    ],
+    "steps": [
+      "Pour peach juice into a champagne flute.",
+      "Slowly pour sparkling wine over peach juice; let sit until liquids have blended for one minute.",
+      "Pour raspberry juice over champagne mixture."
+    ],
+    "ingredients_es": [
+      "2 fl oz de jugo de durazno",
+      "4 fl oz de vino espumoso frío",
+      "1 cucharada de jugo de frambuesa"
+    ],
+    "steps_es": [
+      "Vierte el jugo de durazno en una copa flauta.",
+      "Vierte lentamente el vino espumoso sobre el jugo de durazno; deja reposar durante un minuto hasta que se mezclen los líquidos.",
+      "Vierte el jugo de frambuesa sobre la mezcla de champán."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/bellini.json",
+    "contributor": "forsas",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/bellini.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de forsas; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "5f01a0edea44cc8927e438f46b3747d7d50a9a70b05fccd2916307974f6f00ce",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra.",
+      "Esta versión de Open Drinks usa jugos de durazno y frambuesa, no puré de durazno. El paso final dice champán, mientras la lista especifica vino espumoso."
+    ],
+    "original_name": "Bellini",
+    "raw_source": "{\n    \"name\": \"Bellini\",\n    \"description\": \"Bellini is a sparkling Italian cocktail.\",\n    \"github\": \"forsas\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"fl oz\",\n            \"ingredient\": \"peach juice\"\n        },\n        {\n            \"quantity\": \"4\",\n            \"measure\": \"fl oz\",\n            \"ingredient\": \"chilled sparkling wine\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"tablespoon\",\n            \"ingredient\": \"raspberry juice\"\n        }\n    ],\n    \"directions\": [\n        \"Pour peach juice into a champagne flute.\",\n        \"Slowly pour sparkling wine over peach juice; let sit until liquids have blended for one minute.\",\n        \"Pour raspberry juice over champagne mixture.\"\n    ],\n    \"image\": \"bellini.jpg\",\n    \"keywords\":[\n        \"cocktail\",\n        \"alcoholic\",\n        \"fruit\",\n        \"vegan\"\n    ]\n}\n"
+  },
+  {
+    "id": "bentley",
+    "title": "Bentley",
+    "title_es": "Bentley",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "45 ml applejack (or calvados)",
+      "45 ml Red Dubonnet",
+      "2 dashes Peychaud's Bitters, optional (or bitter orange)"
+    ],
+    "steps": [
+      "Pour ingredients in a shaker, add ice and shake.",
+      "Strain into an old fashioned glass.",
+      "Decorate with orange peel."
+    ],
+    "ingredients_es": [
+      "45 ml de applejack (o calvados)",
+      "45 ml de Dubonnet rojo",
+      "2 toques de amargo Peychaud’s, opcionales (o amargo de naranja)"
+    ],
+    "steps_es": [
+      "Vierte los ingredientes en una coctelera, añade hielo y agita.",
+      "Cuela en un vaso old fashioned.",
+      "Decora con piel de naranja."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/bentley.json",
+    "contributor": "Ludoo0d0a",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/bentley.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de Ludoo0d0a; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "e1f32c6b6abeab48d97f4b323f185f6422a71b11938a33891da14f6d638434e2",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra."
+    ],
+    "original_name": "Bentley",
+    "raw_source": "{\n    \"name\": \"Bentley\",\n    \"description\": \"This cocktail invented in 1920's in London refers to the famous brand of luxe car. It is referenced in Savoy Cocktail Book from 1930. The legend says that the Bentley Boys (rich and famous British drivers) invented this drink after a win at 24h Le Mans.\",\n    \"github\": \"Ludoo0d0a\",\n\n    \"ingredients\": [\n        {\n            \"quantity\": \"45\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"applejack (or calvados)\"\n        },\n        {\n            \"quantity\": \"45\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"Red Dubonnet\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"dashes\",\n            \"ingredient\": \"Peychaud's Bitters, optional (or bitter orange)\"\n        }\n    ],\n    \"directions\": [\n\t\t\"Pour ingredients in a shaker, add ice and shake.\",\n        \"Strain into an old fashioned glass.\",\n        \"Decorate with orange peel.\"\n    ],\n    \"image\": \"bentley.jpg\",\n        \"keywords\": [\n\t\t\"alcoholic\",\n\t\t\"applejack\",\n\t\t\"calvados\",\n        \"dubonnet\",\n        \"bentley\"\n        ]\n    \n}\n"
+  },
+  {
+    "id": "bikini-martini",
+    "title": "Bikini Martini",
+    "title_es": "Bikini Martini",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "1 fluid ounce coconut rum",
+      "3/4 fluid ounce vodka",
+      "1 fluid ounce pineapple juice",
+      "1 dash grenadine syrup"
+    ],
+    "steps": [
+      "Combine rum, vodka and pineapple juice in a drink shaker.",
+      "Shake firmly until frothy.",
+      "Pour in a martini glass.",
+      "Add a touch of grenadine in the middle. Garnish with an orange wheel."
+    ],
+    "ingredients_es": [
+      "1 onza líquida de ron de coco",
+      "3/4 de onza líquida de vodka",
+      "1 onza líquida de jugo de piña",
+      "1 toque de jarabe de granadina"
+    ],
+    "steps_es": [
+      "Combina el ron, el vodka y el jugo de piña en una coctelera.",
+      "Agita con fuerza hasta que quede espumoso.",
+      "Vierte en una copa de martini.",
+      "Añade un toque de granadina en el centro. Decora con una rodaja de naranja."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/bikini-martini.json",
+    "contributor": "kevinmel2000",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/bikini-martini.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de kevinmel2000; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "fd339fdf1136ef023a61f0624fbe2ea2765585eaa7e28bb7da59f76eef03dac0",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra.",
+      "El original no pide hielo al agitar; no se ha añadido ese paso."
+    ],
+    "original_name": "Bikini Martini",
+    "raw_source": "{\n    \"name\": \"Bikini Martini\",\n    \"description\": \"An awesome drink to sip by the pool! Garnish with an orange wheel.\",\n    \"github\": \"kevinmel2000\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"fluid ounce\",\n            \"ingredient\": \"coconut rum\"\n        },\n        {\n            \"quantity\": \"3/4\",\n            \"measure\": \"fluid ounce\",\n            \"ingredient\": \"vodka\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"fluid ounce\",\n            \"ingredient\": \"pineapple juice\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"dash\",\n            \"ingredient\": \"grenadine syrup\"\n        }\n    ],\n    \"directions\": [\n        \"Combine rum, vodka and pineapple juice in a drink shaker.\",\n        \"Shake firmly until frothy.\",\n        \"Pour in a martini glass.\",\n        \"Add a touch of grenadine in the middle. Garnish with an orange wheel.\"\n    ],\n    \"image\": \"bikini-martini.jpg\",\n    \"keywords\": [\n        \"vegan\",\n        \"alcoholic\",\n        \"fruit\",\n        \"sweet\"\n    ]\n}\n"
+  },
+  {
+    "id": "boulevardier",
+    "title": "Boulevardier",
+    "title_es": "Boulevardier",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "1 oz Bourbon",
+      "1 oz Campari",
+      "1 oz Sweet Vermouth",
+      "Orange peel"
+    ],
+    "steps": [
+      "Combine the spirits into a mixing glass with ice.",
+      "Stir until chilled. Strain into a coup glass without ice.",
+      "Garnish with an orange peel."
+    ],
+    "ingredients_es": [
+      "1 oz de bourbon",
+      "1 oz de Campari",
+      "1 oz de vermut dulce",
+      "Piel de naranja"
+    ],
+    "steps_es": [
+      "Combina las bebidas alcohólicas en un vaso mezclador con hielo.",
+      "Remueve hasta enfriar. Cuela en una copa coupé sin hielo.",
+      "Decora con piel de naranja."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/boulevardier.json",
+    "contributor": "Chrispy404",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/boulevardier.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de Chrispy404; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "d6f909ad49cb579fb461d2e4a65b523566154eb8a1568953d7492807b2b72d39",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra.",
+      "Comparte Campari y vermut con Negroni, pero esta preparación usa bourbon y se sirve colada sin hielo. No se cuenta otra traducción del Negroni."
+    ],
+    "original_name": "Boulevardier",
+    "raw_source": "{\n    \"name\": \"Boulevardier\",\n    \"description\": \"The Negroni but with bourbon! This strange creation is surprisingly brilliant and a wonderful choice if you’re interested in trying a new take on a traditional favorite.\",\n    \"github\": \"Chrispy404\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Bourbon\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Campari\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Sweet Vermouth\"\n        },\n        {\n            \"quantity\": \"\",\n            \"measure\": \"\",\n            \"ingredient\": \"Orange peel\"\n        }\n    ],\n    \"directions\": [\n        \"Combine the spirits into a mixing glass with ice.\",\n        \"Stir until chilled. Strain into a coup glass without ice.\",\n        \"Garnish with an orange peel.\"\n    ],\n    \"image\": \"boulevardier.jpg\",\n    \"keywords\": [\n        \"negroni\",\n        \"italian\",\n        \"bourbon\",\n        \"vegan\"\n    ]\n}\n"
+  },
+  {
+    "id": "bramble",
+    "title": "Bramble",
+    "title_es": "Bramble",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "35 ml gin",
+      "20 ml lemon juice",
+      "1 tsp sugar syrup",
+      "15 ml blackberry liqueur",
+      "Garnish – slice of lemon and a blackberry"
+    ],
+    "steps": [
+      "Shake the gin, lemon juice and sugar syrup in a cocktail shaker with a good handful of ice cubes.",
+      "Then strain into a rocks glass full of crushed ice.",
+      "Drizzle the crème de mure over the top so it ‘bleeds’ into the drink.",
+      "Garnish with the lemon slice and blackberry."
+    ],
+    "ingredients_es": [
+      "35 ml de ginebra",
+      "20 ml de jugo de limón",
+      "1 cucharadita de jarabe de azúcar",
+      "15 ml de licor de mora",
+      "Decoración: rodaja de limón y una mora"
+    ],
+    "steps_es": [
+      "Agita la ginebra, el jugo de limón y el jarabe de azúcar en una coctelera con un buen puñado de cubos de hielo.",
+      "Cuela en un vaso bajo lleno de hielo triturado.",
+      "Vierte lentamente la crème de mûre por encima para que se extienda por la bebida.",
+      "Decora con la rodaja de limón y la mora."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/bramble.json",
+    "contributor": "jammerstho",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/bramble.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de jammerstho; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "f1d0a85076262a212c8114ba0386e1f141f9bccbb1d9d315e8c2ba46dc124e5b",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra.",
+      "Crème de mûre es el licor de mora de la lista de ingredientes."
+    ],
+    "original_name": "Bramble",
+    "raw_source": "{\n    \"name\": \"Bramble\",\n    \"description\": \"The Bramble is a spring cocktail created by Dick Bradsell in 1980s London, England. Bradsell suggests finishing off the cocktail with some fresh red fruits and a slice of lemon.\",\n    \"github\": \"jammerstho\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"35\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"gin\"\n        },\n        {\n            \"quantity\": \"20\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"lemon juice\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"tsp\",\n            \"ingredient\": \"sugar syrup\"\n        },\n        {\n            \"quantity\": \"15\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"blackberry liqueur\"\n        },\n        {\n            \"quantity\": \"\",\n            \"measure\": \"\",\n            \"ingredient\": \"Garnish – slice of lemon and a blackberry\"\n        }\n    ],\n    \"directions\": [\n        \"Shake the gin, lemon juice and sugar syrup in a cocktail shaker with a good handful of ice cubes.\",\n        \"Then strain into a rocks glass full of crushed ice.\",\n        \"Drizzle the crème de mure over the top so it ‘bleeds’ into the drink.\",\n        \"Garnish with the lemon slice and blackberry.\"\n    ],\n    \"image\": \"bramble.jpg\",\n    \"keywords\": [\n        \"gin\",\n        \"sugar syrup\",\n        \"lemon juice\",\n        \"blackberry liqueur\",\n        \"alcoholic\",\n        \"vegan\"\n    ]\n}\n"
+  },
+  {
+    "id": "corpse-reviver-no2",
+    "title": "Corpse Reviver no.2",
+    "title_es": "Corpse Reviver n.º 2",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "22.5 ml Rutte Dry Gin",
+      "22.5 ml De Kuyper Triple Sec",
+      "22.5 ml Lillet Blanc",
+      "22.5 ml Freshly squeezed lemon juice",
+      "1 dash La Fee Parisienne absinthe"
+    ],
+    "steps": [
+      "Shake all the ingredients with ice and fine strain into a chilled glass."
+    ],
+    "ingredients_es": [
+      "22.5 ml de ginebra Rutte Dry Gin",
+      "22.5 ml de De Kuyper Triple Sec",
+      "22.5 ml de Lillet Blanc",
+      "22.5 ml de jugo de limón recién exprimido",
+      "1 toque de absenta La Fée Parisienne"
+    ],
+    "steps_es": [
+      "Agita todos los ingredientes con hielo y pásalos por un colador fino a una copa fría."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/corpse-reviver-no2.json",
+    "contributor": "slidd",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/corpse-reviver-no2.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de slidd; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "083bc6b2346bad1719cecfc24475334222ed409b3d31928d30bb46ed380b693c",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra.",
+      "El nombre es el del cóctel; no es un remedio ni un tratamiento para la resaca."
+    ],
+    "original_name": "Corpse Reviver no.2",
+    "raw_source": "{\n    \"name\": \"Corpse Reviver no.2\",\n    \"description\": \"The Corpse Reviver family of named cocktails are sometimes drunk as alcoholic hangover cures, of potency or characteristics to tongue in cheek be able to revive even a dead person. The Corpse Reviver no.2 as described in the Savoy Cocktail Book is the most commonly drunk of the corpse revivers.\",\n    \"github\": \"slidd\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"22.5\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"Rutte Dry Gin\"\n        },\n        {\n            \"quantity\": \"22.5\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"De Kuyper Triple Sec\"\n        },\n        {\n            \"quantity\": \"22.5\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"Lillet Blanc\"\n        },\n        {\n            \"quantity\": \"22.5\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"Freshly squeezed lemon juice\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"dash\",\n            \"ingredient\": \"La Fee Parisienne absinthe\"\n        }\n    ],\n    \"directions\": [\n        \"Shake all the ingredients with ice and fine strain into a chilled glass.\"\n    ],\n    \"image\": \"corpse-reviver-no2.jpg\",\n    \"keywords\": [\n        \"cocktail\",\n        \"gin\",\n        \"hangover\",\n        \"lemon\",\n        \"alcoholic\",\n        \"absinthe\",\n        \"vegan\"\n    ]\n}\n"
+  },
+  {
+    "id": "debonair",
+    "title": "Debonair",
+    "title_es": "Debonair",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "30 ml Ginger Liqueur",
+      "75 ml Whiskey Scotch Single Malt"
+    ],
+    "steps": [
+      "Stir all ingredients with ice.",
+      "Strain into a chilled glass.",
+      "Garnish with a lemon twist"
+    ],
+    "ingredients_es": [
+      "30 ml de licor de jengibre",
+      "75 ml de whisky escocés de malta (single malt)"
+    ],
+    "steps_es": [
+      "Remueve todos los ingredientes con hielo.",
+      "Cuela en una copa fría.",
+      "Decora con una tira retorcida de piel de limón."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/debonair.json",
+    "contributor": "lazav94",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/debonair.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de lazav94; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "fddd4d9f01d51edd8ed40a910a90b5b32b93597ae170aff7211b78f62e27ccce",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra."
+    ],
+    "original_name": "Debonair",
+    "raw_source": "{\n    \"name\": \"Debonair\",\n    \"description\": \"Created in the 1990s by Gary Regan this rich, sophisticated Single Malt Scotch-based drink has a wonderful zing of spice from the Ginger Liqueur.\",\n    \"github\": \"lazav94\",\n    \"ingredients\": [{\n            \"quantity\": \"30\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"Ginger Liqueur\"\n        },\n        {\n            \"quantity\": \"75\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"Whiskey Scotch Single Malt\"\n        }\n    ],\n    \"directions\": [\n        \"Stir all ingredients with ice.\",\n        \"Strain into a chilled glass.\",\n        \"Garnish with a lemon twist\"\n    ],\n    \"image\": \"debonair.jpg\",\n    \"keywords\": [\n        \"alcoholic\",\n        \"whiskey\"\n    ]\n}"
+  },
+  {
+    "id": "devils-own",
+    "title": "Devil's Own",
+    "title_es": "Devil’s Own",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "1 dash Angostura Bitters",
+      "30 ml Dry Vermouth",
+      "30 ml Cointreau",
+      "30 ml Gin"
+    ],
+    "steps": [
+      "Combine all ingredients in a mixing glass with ice.",
+      "Stir well and strain into a Coupe glass.",
+      "Garnish with a lemon twist"
+    ],
+    "ingredients_es": [
+      "1 toque de amargo Angostura",
+      "30 ml de vermut seco",
+      "30 ml de Cointreau",
+      "30 ml de ginebra"
+    ],
+    "steps_es": [
+      "Combina todos los ingredientes en un vaso mezclador con hielo.",
+      "Remueve bien y cuela en una copa coupé.",
+      "Decora con una tira retorcida de piel de limón."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/devils-own.json",
+    "contributor": "lazav94",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/devils-own.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de lazav94; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "af9105c4112d6c3098263ec4309d757ba9626858df77ac3535eeb0e065663945",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra."
+    ],
+    "original_name": "Devil's Own",
+    "raw_source": "{\n  \"name\": \"Devil's Own\",\n  \"description\": \"You might imagine that a cocktail called the Devil’s Own would be dark and somewhat depressing but in fact, it’s light and extremely refreshing. Created by Colin Symons in the UK in the 1930’s the drinks has Cointreau, Gin, Dry Vermouth & Aromatic Bitters.\",\n  \"github\": \"lazav94\",\n  \"ingredients\": [\n      {\n          \"quantity\": \"1\",\n          \"measure\": \"dash\",\n          \"ingredient\": \"Angostura Bitters\"\n      },\n      {\n          \"quantity\": \"30\",\n          \"measure\": \"ml\",\n          \"ingredient\": \"Dry Vermouth\"\n      },\n      {\n          \"quantity\": \"30\",\n          \"measure\": \"ml\",\n          \"ingredient\": \"Cointreau\"\n      },\n      {\n        \"quantity\": \"30\",\n        \"measure\": \"ml\",\n        \"ingredient\": \"Gin\"\n    }\n  ],\n  \"directions\": [\n      \"Combine all ingredients in a mixing glass with ice.\",\n      \"Stir well and strain into a Coupe glass.\",\n      \"Garnish with a lemon twist\"\n  ],\n  \"image\": \"devils-own.jpg\",\n  \"keywords\": [\n      \"alcoholic\",\n      \"gin\",\n      \"vermouth\"\n  ]\n}\n"
+  },
+  {
+    "id": "french-75",
+    "title": "French 75",
+    "title_es": "French 75",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "ice",
+      "2 dashes simple syrup",
+      "2 ounces French Champagne",
+      "1/2 ounce fresh lemon juice",
+      "1 ounce gin"
+    ],
+    "steps": [
+      "Combine gin, syrup and lemon juice in a cocktail shaker filled with ice.",
+      "Shake vigorously and strain into a chilled Champagne glass.",
+      "Top up with Champagne and stir gently."
+    ],
+    "ingredients_es": [
+      "Hielo",
+      "2 toques de jarabe simple",
+      "2 onzas de champán francés",
+      "1/2 onza de jugo de limón fresco",
+      "1 onza de ginebra"
+    ],
+    "steps_es": [
+      "Combina la ginebra, el jarabe y el jugo de limón en una coctelera llena de hielo.",
+      "Agita enérgicamente y cuela en una copa de champán fría.",
+      "Completa con el champán y remueve suavemente."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/french-75.json",
+    "contributor": "maxPiroddi",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/french75.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de maxPiroddi; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "d3fbe5e69b6572208658837bc645da5d7ed9dde40c6c0315751f5b4c15e8ee47",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra."
+    ],
+    "original_name": "French 75",
+    "raw_source": "{\n    \"name\": \"French 75\",\n    \"description\": \"The French 75 is a Parisian cocktail first served during World War 1, renowned for having \\\"Such a kick it felt like being shelled by a field gun.\\\"\",\n    \"github\": \"maxPiroddi\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"\",\n            \"measure\": \"\",\n            \"ingredient\": \"ice\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"dashes\",\n            \"ingredient\": \"simple syrup\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"ounces\",\n            \"ingredient\": \"French Champagne\"\n        },\n        {\n            \"quantity\": \"1/2\",\n            \"measure\": \"ounce\",\n            \"ingredient\": \"fresh lemon juice\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"ounce\",\n            \"ingredient\": \"gin\"\n        }\n    ],\n    \"directions\": [\n        \"Combine gin, syrup and lemon juice in a cocktail shaker filled with ice.\",\n        \"Shake vigorously and strain into a chilled Champagne glass.\",\n        \"Top up with Champagne and stir gently.\"\n    ],\n    \"image\": \"french75.jpg\",\n    \"keywords\":[\n        \"alcoholic\",\n        \"gin\",\n        \"vegan\",\n        \"strong\"\n    ]\n}\n"
+  },
+  {
+    "id": "french-pearl",
+    "title": "French Pearl",
+    "title_es": "French Pearl",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "2 oz Gin",
+      "3/4 oz Simple Syrup",
+      "3/4 oz Fresh Lime Juice",
+      "1 Large Mint Leaf",
+      "1 Dash Absinthe"
+    ],
+    "steps": [
+      "Add gin, simple syrup, and lime juice into a cocktail shaker.",
+      "Add ice and shake well untill cocktail is cool.",
+      "Pour cocktail into a coupe glass, add a dash of absinthe.",
+      "Clap the mint leaf and float it on top of the cocktail."
+    ],
+    "ingredients_es": [
+      "2 oz de ginebra",
+      "3/4 oz de jarabe simple",
+      "3/4 oz de jugo de lima fresco",
+      "1 hoja grande de menta",
+      "1 toque de absenta"
+    ],
+    "steps_es": [
+      "Añade la ginebra, el jarabe simple y el jugo de lima a una coctelera.",
+      "Añade hielo y agita bien hasta que el cóctel se enfríe.",
+      "Vierte el cóctel en una copa coupé y añade un toque de absenta.",
+      "Da una palmada a la hoja de menta entre las manos y déjala flotar sobre el cóctel."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/french-pearl.json",
+    "contributor": "BenjaminCivitico",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/french-pearl.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de BenjaminCivitico; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "2d097d6d7cedd4294359825476f9ba012d1c2b5907119a9190d9db2a17725e67",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra."
+    ],
+    "original_name": "French Pearl",
+    "raw_source": "{\n    \"name\": \"French Pearl\",\n    \"description\": \"A refreshingly tart drink suitable for a hot summer day. Great for gin lovers.\",\n    \"github\": \"BenjaminCivitico\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Gin\"\n        },\n        {\n            \"quantity\": \"3/4\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Simple Syrup\"\n        },\n        {\n            \"quantity\": \"3/4\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Fresh Lime Juice\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"Large\",\n            \"ingredient\": \"Mint Leaf\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"Dash\",\n            \"ingredient\": \"Absinthe\"\n        }\n    ],\n    \"directions\": [\n        \"Add gin, simple syrup, and lime juice into a cocktail shaker.\",\n        \"Add ice and shake well untill cocktail is cool.\",\n        \"Pour cocktail into a coupe glass, add a dash of absinthe.\",\n        \"Clap the mint leaf and float it on top of the cocktail.\"\n    ],\n    \"image\": \"french-pearl.jpg\",\n    \"keywords\": [\n        \"lime\",\n        \"french\",\n        \"mint leaves\",\n        \"gin\",\n        \"alcoholic\",\n        \"simple syrup\",\n        \"absinthe\",\n        \"sour\",\n        \"tart\",\n        \"summer\"\n    ]\n}\n"
+  },
+  {
+    "id": "gimlet",
+    "title": "Gimlet",
+    "title_es": "Gimlet",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "2 oz gin",
+      "1/2 oz simple syrup",
+      "1/2 oz fresh lime juice",
+      "Fresh lime wedge or wheel"
+    ],
+    "steps": [
+      "Fill a mixing glass with ice, then add the gin, simple syrup and lime juice.",
+      "Stir the ice and the ingredients with a bar spoon for a few minutes.",
+      "Strain the cocktail into a chilled martini or cocktail glass.",
+      "Garnish with the lime wedge/wheel."
+    ],
+    "ingredients_es": [
+      "2 oz de ginebra",
+      "1/2 oz de jarabe simple",
+      "1/2 oz de jugo de lima fresco",
+      "Gajo o rodaja de lima fresca"
+    ],
+    "steps_es": [
+      "Llena un vaso mezclador de hielo y añade la ginebra, el jarabe simple y el jugo de lima.",
+      "Remueve el hielo y los ingredientes con una cuchara de bar durante unos minutos.",
+      "Cuela el cóctel en una copa de martini o de cóctel fría.",
+      "Decora con el gajo o la rodaja de lima."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/gimlet.json",
+    "contributor": "arxcdr",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/gimlet.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de arxcdr; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "04c0791c646ba5e71268644882c974a00ac39e88bde9c19254a26ea6cccdde60",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra."
+    ],
+    "original_name": "Gimlet",
+    "raw_source": "{\n    \"name\": \"Gimlet\",\n    \"description\": \"A refreshing classic cocktail made with gin, lime juice and simple syrup. Perfect for the summer.\",\n    \"github\": \"arxcdr\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"gin\"\n        },\n        {\n            \"quantity\": \"1/2\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"simple syrup\"\n        },\n        {\n            \"quantity\": \"1/2\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"fresh lime juice\"\n        },\n        {\n            \"quantity\": \"\",\n            \"measure\": \"\",\n            \"ingredient\": \"Fresh lime wedge or wheel\"\n        }\n    ],\n    \"directions\": [\n        \"Fill a mixing glass with ice, then add the gin, simple syrup and lime juice.\",\n        \"Stir the ice and the ingredients with a bar spoon for a few minutes.\",\n        \"Strain the cocktail into a chilled martini or cocktail glass.\",\n        \"Garnish with the lime wedge/wheel.\"\n    ],\n    \"image\": \"gimlet.jpg\",\n    \"keywords\": [\n        \"gin\",\n        \"lime juice\",\n        \"alcoholic\",\n        \"vegan\"\n    ]\n}\n"
+  },
+  {
+    "id": "hugo",
+    "title": "Hugo",
+    "title_es": "Hugo",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "10 cl Prosecco",
+      "2-3 cl Elderflower syrup",
+      "5 cl Soda water",
+      "2 leaves Mint",
+      "1 piece Lime",
+      "as needed Ice cubes"
+    ],
+    "steps": [
+      "Lightly press the mint leaves and add them to a glass.",
+      "Pour in the elderflower syrup, Prosecco, and soda water.",
+      "Garnish with a lime slice and add ice cubes.",
+      "Gently stir and enjoy your refreshing Hugo cocktail."
+    ],
+    "ingredients_es": [
+      "10 cl de prosecco",
+      "2–3 cl de jarabe de flor de saúco",
+      "5 cl de agua con gas",
+      "2 hojas de menta",
+      "1 trozo de lima",
+      "Cubos de hielo, según se necesiten"
+    ],
+    "steps_es": [
+      "Presiona ligeramente las hojas de menta y colócalas en un vaso.",
+      "Vierte el jarabe de flor de saúco, el prosecco y el agua con gas.",
+      "Decora con una rodaja de lima y añade cubos de hielo.",
+      "Remueve suavemente y disfruta de tu refrescante cóctel Hugo."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/hugo.json",
+    "contributor": "Fab1anlocher",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/hugo.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de Fab1anlocher; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "f8cd0214e4ca5151b0150af70812a6f9bb92d0f26b69287103033ac3bf06e0ab",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra."
+    ],
+    "original_name": "Hugo",
+    "raw_source": "{\n    \"name\": \"Hugo\",\n    \"description\": \"A refreshing summer cocktail with elderflower syrup, mint, and Prosecco.\",\n    \"github\": \"Fab1anlocher\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"10\",\n            \"measure\": \"cl\",\n            \"ingredient\": \"Prosecco\"\n        },\n        {\n            \"quantity\": \"2-3\",\n            \"measure\": \"cl\",\n            \"ingredient\": \"Elderflower syrup\"\n        },\n        {\n            \"quantity\": \"5\",\n            \"measure\": \"cl\",\n            \"ingredient\": \"Soda water\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"leaves\",\n            \"ingredient\": \"Mint\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"piece\",\n            \"ingredient\": \"Lime\"\n        },\n        {\n            \"quantity\": \"as needed\",\n            \"measure\": \"\",\n            \"ingredient\": \"Ice cubes\"\n        }\n    ],\n    \"directions\": [\n        \"Lightly press the mint leaves and add them to a glass.\",\n        \"Pour in the elderflower syrup, Prosecco, and soda water.\",\n        \"Garnish with a lime slice and add ice cubes.\",\n        \"Gently stir and enjoy your refreshing Hugo cocktail.\"\n    ],\n    \"image\": \"hugo.jpg\",\n    \"keywords\": [\n        \"summer cocktail\",\n        \"Prosecco\",\n        \"mint\",\n        \"refreshing\"\n    ]\n}\n"
+  },
+  {
+    "id": "income-tax",
+    "title": "Income Tax",
+    "title_es": "Income Tax",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "1 1/2 oz gin",
+      "3/4 oz dry vermouth",
+      "3/4 oz sweet vermouth",
+      "3/4 oz orange juice",
+      "2 dashes Angostura bitters"
+    ],
+    "steps": [
+      "Add gin, dry vermouth, sweet vermouth, orange juice, bitters, and ice in a shaker.",
+      "Shake until chilled.",
+      "Strain into a cocktail glass.",
+      "Garnish with orange peel if desired."
+    ],
+    "ingredients_es": [
+      "1 1/2 oz de ginebra",
+      "3/4 oz de vermut seco",
+      "3/4 oz de vermut dulce",
+      "3/4 oz de jugo de naranja",
+      "2 toques de amargo Angostura"
+    ],
+    "steps_es": [
+      "Añade la ginebra, el vermut seco, el vermut dulce, el jugo de naranja, el amargo y hielo a una coctelera.",
+      "Agita hasta enfriar.",
+      "Cuela en una copa de cóctel.",
+      "Decora con piel de naranja si lo deseas."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/income-tax.json",
+    "contributor": "troy-johnson",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/income-tax.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de troy-johnson; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "b9b08a36210ad66a47d6567b8d266e645901f0d60a47f9024651e2d2f8666ef8",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra."
+    ],
+    "original_name": "Income Tax",
+    "raw_source": "{\n  \"name\": \"Income Tax\",\n  \"description\": \"A citrusy gin cocktail.\",\n  \"github\": \"troy-johnson\",\n  \"ingredients\": [\n    {\n      \"quantity\": \"1 1/2\",\n      \"measure\": \"oz\",\n      \"ingredient\": \"gin\"\n    },\n    {\n      \"quantity\": \"3/4\",\n      \"measure\": \"oz\",\n      \"ingredient\": \"dry vermouth\"\n    },\n    {\n      \"quantity\": \"3/4\",\n      \"measure\": \"oz\",\n      \"ingredient\": \"sweet vermouth\"\n    },\n    {\n      \"quantity\": \"3/4\",\n      \"measure\": \"oz\",\n      \"ingredient\": \"orange juice\"\n    },\n    {\n      \"quantity\": \"2\",\n      \"measure\": \"dashes\",\n      \"ingredient\": \"Angostura bitters\"\n    }\n  ],\n  \"directions\": [\n    \"Add gin, dry vermouth, sweet vermouth, orange juice, bitters, and ice in a shaker.\",\n    \"Shake until chilled.\",\n    \"Strain into a cocktail glass.\",\n    \"Garnish with orange peel if desired.\"\n  ],\n  \"image\": \"income-tax.jpg\",\n  \"keywords\": [\n    \"gin\",\n    \"vermouth\",\n    \"bitters\",\n    \"orange juice\",\n    \"citrus\",\n    \"vegan\"\n  ]\n}\n"
+  },
+  {
+    "id": "limoncello-spritz",
+    "title": "Limoncello Spritz",
+    "title_es": "Limoncello Spritz",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "60 ml limoncello",
+      "90 ml prosecco (chilled)",
+      "30 ml soda water",
+      "ice",
+      "1 lemon slice (garnish)",
+      "mint sprig (optional garnish)"
+    ],
+    "steps": [
+      "Fill a wine glass with ice.",
+      "Add limoncello and prosecco.",
+      "Top with soda water and stir gently.",
+      "Garnish with a lemon slice (and mint if you like)."
+    ],
+    "ingredients_es": [
+      "60 ml de limoncello",
+      "90 ml de prosecco frío",
+      "30 ml de agua con gas",
+      "Hielo",
+      "1 rodaja de limón (decoración)",
+      "Ramita de menta (decoración opcional)"
+    ],
+    "steps_es": [
+      "Llena una copa de vino con hielo.",
+      "Añade el limoncello y el prosecco.",
+      "Completa con el agua con gas y remueve suavemente.",
+      "Decora con una rodaja de limón (y menta, si te gusta)."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/limoncello-spritz.json",
+    "contributor": "alfg",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/limoncello-spritz.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de alfg; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "abcb4233e116ae1b6887330a3391979616721dd9e7f6d5109ccb7b0bbbb723b2",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra."
+    ],
+    "original_name": "Limoncello Spritz",
+    "raw_source": "{\n    \"name\": \"Limoncello Spritz\",\n    \"description\": \"A sunny spritz made with limoncello, prosecco, and a splash of soda water.\",\n    \"github\": \"alfg\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"60\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"limoncello\"\n        },\n        {\n            \"quantity\": \"90\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"prosecco (chilled)\"\n        },\n        {\n            \"quantity\": \"30\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"soda water\"\n        },\n        {\n            \"quantity\": \"\",\n            \"measure\": \"\",\n            \"ingredient\": \"ice\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"\",\n            \"ingredient\": \"lemon slice (garnish)\"\n        },\n        {\n            \"quantity\": \"\",\n            \"measure\": \"\",\n            \"ingredient\": \"mint sprig (optional garnish)\"\n        }\n    ],\n    \"directions\": [\n        \"Fill a wine glass with ice.\",\n        \"Add limoncello and prosecco.\",\n        \"Top with soda water and stir gently.\",\n        \"Garnish with a lemon slice (and mint if you like).\"\n    ],\n    \"image\": \"limoncello-spritz.jpg\",\n    \"keywords\": [\n        \"alcoholic\",\n        \"cocktail\",\n        \"spritz\",\n        \"limoncello\",\n        \"prosecco\",\n        \"soda water\",\n        \"lemon\",\n        \"summer\"\n    ]\n}"
+  },
+  {
+    "id": "pink-gin",
+    "title": "Pink Gin",
+    "title_es": "Pink Gin",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "2 oz Gin",
+      "3 Dashes Angostura bitters"
+    ],
+    "steps": [
+      "Add gin and bitters to a cocktail shaker.",
+      "Add ice and stir untill gin is chilled.",
+      "Pour cocktail into a martini glass and garnish as desired."
+    ],
+    "ingredients_es": [
+      "2 oz de ginebra",
+      "3 toques de amargo Angostura"
+    ],
+    "steps_es": [
+      "Añade la ginebra y el amargo a una coctelera.",
+      "Añade hielo y remueve hasta que la ginebra se enfríe.",
+      "Vierte el cóctel en una copa de martini y decora a tu gusto."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/pink-gin.json",
+    "contributor": "BenjaminCivitico",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/pink-gin.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de BenjaminCivitico; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "b8ed0c96e5c174c755c29997f64660e72fa7fa1743af588389f45b6328054474",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra.",
+      "El color procede del amargo en esta receta; no lleva frutas rojas ni ginebra rosada. La decoración no está especificada por la fuente."
+    ],
+    "original_name": "Pink Gin",
+    "raw_source": "{\n    \"name\": \"Pink Gin\",\n    \"description\": \"A deliciously spiced spin on drinking gin. A great way to enhance a sweet gin.\",\n    \"github\": \"BenjaminCivitico\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Gin\"\n        },\n        {\n            \"quantity\": \"3\",\n            \"measure\": \"Dashes\",\n            \"ingredient\": \"Angostura bitters\"\n        }\n    ],\n    \"directions\": [\n        \"Add gin and bitters to a cocktail shaker.\",\n        \"Add ice and stir untill gin is chilled.\",\n        \"Pour cocktail into a martini glass and garnish as desired.\"\n    ],\n    \"image\": \"pink-gin.jpg\",\n    \"keywords\": [\n        \"gin\",\n        \"Deadwood\",\n        \"classic\",\n        \"bitter\",\n        \"sour\",\n        \"tart\",\n        \"summer\"\n    ]\n}\n"
+  },
+  {
+    "id": "ranch-water",
+    "title": "Ranch Water",
+    "title_es": "Ranch Water",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "60 ml blanco tequila",
+      "22.5 ml fresh lime juice",
+      "120 ml Topo Chico (or sparkling mineral water)",
+      "ice",
+      "1 lime wedge (garnish)"
+    ],
+    "steps": [
+      "Fill a highball glass with ice.",
+      "Add tequila and lime juice.",
+      "Top with chilled Topo Chico (or sparkling water).",
+      "Stir gently and garnish with a lime wedge."
+    ],
+    "ingredients_es": [
+      "60 ml de tequila blanco",
+      "22.5 ml de jugo de lima fresco",
+      "120 ml de Topo Chico (o agua mineral con gas)",
+      "Hielo",
+      "1 gajo de lima (decoración)"
+    ],
+    "steps_es": [
+      "Llena un vaso alto con hielo.",
+      "Añade el tequila y el jugo de lima.",
+      "Completa con el Topo Chico frío (o agua con gas).",
+      "Remueve suavemente y decora con un gajo de lima."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/ranch-water.json",
+    "contributor": "alfg",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/ranch-water.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de alfg; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "4866e54df724685c8c9d05b730e70484318f758b00dd99a619099f28064f9fa2",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra."
+    ],
+    "original_name": "Ranch Water",
+    "raw_source": "{\n    \"name\": \"Ranch Water\",\n    \"description\": \"A crisp, bubbly tequila highball with fresh lime and sparkling mineral water (often Topo Chico).\",\n    \"github\": \"alfg\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"60\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"blanco tequila\"\n        },\n        {\n            \"quantity\": \"22.5\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"fresh lime juice\"\n        },\n        {\n            \"quantity\": \"120\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"Topo Chico (or sparkling mineral water)\"\n        },\n        {\n            \"quantity\": \"\",\n            \"measure\": \"\",\n            \"ingredient\": \"ice\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"\",\n            \"ingredient\": \"lime wedge (garnish)\"\n        }\n    ],\n    \"directions\": [\n        \"Fill a highball glass with ice.\",\n        \"Add tequila and lime juice.\",\n        \"Top with chilled Topo Chico (or sparkling water).\",\n        \"Stir gently and garnish with a lime wedge.\"\n    ],\n    \"image\": \"ranch-water.jpg\",\n    \"keywords\": [\n        \"alcoholic\",\n        \"cocktail\",\n        \"tequila\",\n        \"sparkling water\",\n        \"topo chico\",\n        \"highball\",\n        \"lime\",\n        \"summer\"\n    ]\n}"
+  },
+  {
+    "id": "sazerac",
+    "title": "Sazerac",
+    "title_es": "Sazerac",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "1.5 oz Rye Whiskey",
+      "1/8 oz Absinthe",
+      "2 dashes Peychaud's Bitters",
+      "2 dashes Angostura Bitters",
+      "1 cube Sugar Cube (white)",
+      "1 Peel Lemon"
+    ],
+    "steps": [
+      "Place the sugar cube at the bottom and add bitters and splash of whiskey in a mixing glass; muddle until mixed.",
+      "Add the remaining whiskey and ice then stir.",
+      "Add Absinthe in a separate, chilled old-fashioned glassand turn glass to coat the inside; pour out any excess",
+      "Strain stirred cocktail into the old-fashioned glass and garnish with lemon peel."
+    ],
+    "ingredients_es": [
+      "1.5 oz de whisky de centeno",
+      "1/8 oz de absenta",
+      "2 toques de amargo Peychaud’s",
+      "2 toques de amargo Angostura",
+      "1 terrón de azúcar blanco",
+      "1 tira de piel de limón"
+    ],
+    "steps_es": [
+      "Coloca el terrón de azúcar en el fondo de un vaso mezclador y añade los amargos y un chorrito del whisky; machaca hasta mezclar.",
+      "Añade el resto del whisky y hielo, y remueve.",
+      "Añade la absenta a otro vaso old fashioned frío y gíralo para cubrir el interior; desecha el exceso.",
+      "Cuela el cóctel removido en el vaso old fashioned y decora con la piel de limón."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/sazerac.json",
+    "contributor": "SamuelPai",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/sazerac.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de SamuelPai; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "b2ab3dd4152aeefa6855ae1485d16d08c72927a36de3e3b60bbf13f31ce2f85e",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra."
+    ],
+    "original_name": "Sazerac",
+    "raw_source": "{\n    \"name\": \"Sazerac\",\n    \"description\": \"Originated in New Orleans, the Sazerac is known as the official drink of Louisiana. Typically served straight up, drinking this will transport you straight to NOLA.\",\n    \"github\": \"SamuelPai\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"1.5\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Rye Whiskey\"\n        },\n        {\n            \"quantity\": \"1/8\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Absinthe\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"dashes\",\n            \"ingredient\": \"Peychaud's Bitters\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"dashes\",\n            \"ingredient\": \"Angostura Bitters\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"cube\",\n            \"ingredient\": \"Sugar Cube (white)\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"Peel\",\n            \"ingredient\": \"Lemon\"\n        }\n    ],\n    \"directions\": [\n        \"Place the sugar cube at the bottom and add bitters and splash of whiskey in a mixing glass; muddle until mixed.\",\n        \"Add the remaining whiskey and ice then stir.\",\n        \"Add Absinthe in a separate, chilled old-fashioned glassand turn glass to coat the inside; pour out any excess\",\n        \"Strain stirred cocktail into the old-fashioned glass and garnish with lemon peel.\"\n    ],\n    \"image\": \"sazerac.jpg\", \n    \"keywords\": [\n        \"rye\",\n        \"absinthe\",\n        \"angostura bitters\",\n        \"whiskey\",\n        \"absinthe\",\n        \"lemon\"\n    ]\n}\n"
+  },
+  {
+    "id": "screwdriver",
+    "title": "Screwdriver",
+    "title_es": "Screwdriver",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "1.5 oz vodka",
+      "5 oz orange juice",
+      "1 slice orange",
+      "Ice cubes"
+    ],
+    "steps": [
+      "Fill a long drink glass with ice cubes.",
+      "Add all ingredients.",
+      "garnish with orange."
+    ],
+    "ingredients_es": [
+      "1.5 oz de vodka",
+      "5 oz de jugo de naranja",
+      "1 rodaja de naranja",
+      "Cubos de hielo"
+    ],
+    "steps_es": [
+      "Llena un vaso alto con cubos de hielo.",
+      "Añade todos los ingredientes.",
+      "Decora con naranja."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/screwdriver.json",
+    "contributor": "LucasG04",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/screwdriver.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de LucasG04; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "8b5457549e540e9879216b628c82ad0f07d32dc39436fe9e3e55b566cc397044",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra."
+    ],
+    "original_name": "Screwdriver",
+    "raw_source": "{\n    \"name\": \"Screwdriver\",\n    \"description\": \"A screwdriver is a popular alcoholic highball drink. The drink has many variations which have different names in different parts of the world.\",\n    \"github\": \"LucasG04\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"1.5\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"vodka\"\n        },\n        {\n            \"quantity\": \"5\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"orange juice\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"\",\n            \"ingredient\": \"slice orange\"\n        },\n        {\n            \"quantity\": \"\",\n            \"measure\": \"\",\n            \"ingredient\": \"Ice cubes\"\n        }\n    ],\n    \"directions\": [\n        \"Fill a long drink glass with ice cubes.\",\n        \"Add all ingredients.\",\n        \"garnish with orange.\"\n    ],\n    \"image\": \"screwdriver.jpg\",\n    \"keywords\": [\n        \"orange juice\",\n        \"vodka\"\n    ]\n}"
+  },
+  {
+    "id": "stinger",
+    "title": "Stinger",
+    "title_es": "Stinger",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "1.5 oz brandy",
+      ".5 oz white creme de menthe",
+      "1 mint leaf"
+    ],
+    "steps": [
+      "Pour liquid ingredients over ice. Stir.",
+      "Garnish with fresh mint leaf (optional).",
+      "You can use cognac in place of brandy"
+    ],
+    "ingredients_es": [
+      "1.5 oz de brandy",
+      ".5 oz de crema de menta blanca",
+      "1 hoja de menta"
+    ],
+    "steps_es": [
+      "Vierte los ingredientes líquidos sobre hielo. Remueve.",
+      "Decora con la hoja de menta fresca (opcional).",
+      "Puedes usar coñac en lugar de brandy."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/stinger.json",
+    "contributor": "kristina-hager",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/stinger.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de kristina-hager; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "82b6dc22537876eb78df6fdb32af9125adf4e1c105a264aa2e0a89f81d55f851",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra."
+    ],
+    "original_name": "Stinger",
+    "raw_source": "{\n    \"name\": \"Stinger\",\n    \"description\": \"Nice after meal cocktail. A classic.\",\n    \"github\": \"kristina-hager\",\n\n    \"ingredients\": [\n        {\n            \"quantity\": \"1.5\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"brandy\"\n        },\n        {\n            \"quantity\": \".5\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"white creme de menthe\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"\",\n            \"ingredient\": \"mint leaf\"\n        }\n    ],\n    \"directions\": [\n\t\t\"Pour liquid ingredients over ice. Stir.\",\n\t\t\"Garnish with fresh mint leaf (optional).\",\n\t\t\"You can use cognac in place of brandy\"\n    ],\n    \"image\": \"stinger.jpg\",\n    \"keywords\": [\n\t\t\"brandy\",\n\t\t\"classic\",\n\t\t\"simple\",\n\t\t\"alcoholic\"\n    ]\n    \n}\n"
+  },
+  {
+    "id": "the-last-word",
+    "title": "The Last Word",
+    "title_es": "The Last Word",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "22.5 ml gin",
+      "22.5 ml green Chartreuse",
+      "22.5 ml maraschino liqueur (e.g., Luxardo)",
+      "22.5 ml fresh lime juice",
+      "ice",
+      "brandied cherry (optional garnish)"
+    ],
+    "steps": [
+      "Add gin, green Chartreuse, maraschino liqueur, and lime juice to a shaker with ice.",
+      "Shake hard until very cold.",
+      "Strain into a chilled coupe glass.",
+      "Garnish with a brandied cherry if desired."
+    ],
+    "ingredients_es": [
+      "22.5 ml de ginebra",
+      "22.5 ml de Chartreuse verde",
+      "22.5 ml de licor de marrasquino (por ejemplo, Luxardo)",
+      "22.5 ml de jugo de lima fresco",
+      "Hielo",
+      "Cereza al brandy (decoración opcional)"
+    ],
+    "steps_es": [
+      "Añade la ginebra, el Chartreuse verde, el licor de marrasquino y el jugo de lima a una coctelera con hielo.",
+      "Agita con fuerza hasta que esté muy frío.",
+      "Cuela en una copa coupé fría.",
+      "Decora con una cereza al brandy si lo deseas."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/the-last-word.json",
+    "contributor": "alfg",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/the-last-word.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de alfg; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "2f2c0de8ffd1766f20db5e0217edd18de80371402038cfd3425d4595ace5f9e2",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra."
+    ],
+    "original_name": "The Last Word",
+    "raw_source": "{\n    \"name\": \"The Last Word\",\n    \"description\": \"A classic equal-parts gin cocktail with green Chartreuse, maraschino liqueur, and lime juice.\",\n    \"github\": \"alfg\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"22.5\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"gin\"\n        },\n        {\n            \"quantity\": \"22.5\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"green Chartreuse\"\n        },\n        {\n            \"quantity\": \"22.5\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"maraschino liqueur (e.g., Luxardo)\"\n        },\n        {\n            \"quantity\": \"22.5\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"fresh lime juice\"\n        },\n        {\n            \"quantity\": \"\",\n            \"measure\": \"\",\n            \"ingredient\": \"ice\"\n        },\n        {\n            \"quantity\": \"\",\n            \"measure\": \"\",\n            \"ingredient\": \"brandied cherry (optional garnish)\"\n        }\n    ],\n    \"directions\": [\n        \"Add gin, green Chartreuse, maraschino liqueur, and lime juice to a shaker with ice.\",\n        \"Shake hard until very cold.\",\n        \"Strain into a chilled coupe glass.\",\n        \"Garnish with a brandied cherry if desired.\"\n    ],\n    \"image\": \"the-last-word.jpg\",\n    \"keywords\": [\n        \"alcoholic\",\n        \"cocktail\",\n        \"gin\",\n        \"green chartreuse\",\n        \"maraschino\",\n        \"lime\",\n        \"equal parts\",\n        \"classic\"\n    ]\n}"
+  },
+  {
+    "id": "vieux-carre",
+    "title": "Vieux Carre",
+    "title_es": "Vieux Carré",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      ".75 oz rye whiskey",
+      ".75 oz cognac",
+      ".75 oz sweet vermouth",
+      ".5 tsp Benedictine",
+      "1 dash angostura bitters",
+      "1 dash Peychaud bitters",
+      "lemon peel"
+    ],
+    "steps": [
+      "Combine liquid ingredients in an ice-filled shaker",
+      "Shake for approximately 20 seconds.",
+      "Add ice to an Old Fashioned glass. Larger ice cubes are better here.",
+      "Strain into the Old Fashioned glass",
+      "Zest the drink and glass with the lemon peel and then twist and place in glass."
+    ],
+    "ingredients_es": [
+      ".75 oz de whisky de centeno",
+      ".75 oz de coñac",
+      ".75 oz de vermut dulce",
+      ".5 cucharadita de Bénédictine",
+      "1 toque de amargo Angostura",
+      "1 toque de amargo Peychaud’s",
+      "Piel de limón"
+    ],
+    "steps_es": [
+      "Combina los ingredientes líquidos en una coctelera llena de hielo.",
+      "Agita durante aproximadamente 20 segundos.",
+      "Añade hielo a un vaso old fashioned. Aquí son mejores los cubos grandes.",
+      "Cuela en el vaso old fashioned.",
+      "Aromatiza la bebida y el vaso con la piel de limón, luego retuércela y colócala en el vaso."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/vieux-carre.json",
+    "contributor": "kristina-hager",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/vieux-carre.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de kristina-hager; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "109afcb250f1bd4f93b51773fe394e692e50055cb18c3aa21a8f95f4f7d1d964",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra.",
+      "Esta versión de la fuente se agita; no se ha sustituido por otra técnica de una receta distinta."
+    ],
+    "original_name": "Vieux Carre",
+    "raw_source": "{\n    \"name\": \"Vieux Carre\",\n    \"description\": \"The Vieux Carre is a rye whiskey based cocktail, somewhere between an Old Fashioned and a Manhattan.\",\n    \"github\": \"kristina-hager\",\n    \"ingredients\": [\n        {\n            \"quantity\": \".75\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"rye whiskey\"\n        },\n        {\n            \"quantity\": \".75\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"cognac\"\n        },\n        {\n            \"quantity\": \".75\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"sweet vermouth\"\n        },\n        {\n            \"quantity\": \".5\",\n            \"measure\": \"tsp\",\n            \"ingredient\": \"Benedictine\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"dash\",\n            \"ingredient\": \"angostura bitters\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"dash\",\n            \"ingredient\": \"Peychaud bitters\"\n        },\n        {\n            \"quantity\": \"\",\n            \"measure\": \"\",\n            \"ingredient\": \"lemon peel\"\n        }\n    ],\n    \"directions\": [\n        \"Combine liquid ingredients in an ice-filled shaker\",\n        \"Shake for approximately 20 seconds.\",\n        \"Add ice to an Old Fashioned glass. Larger ice cubes are better here.\",\n        \"Strain into the Old Fashioned glass\",\n        \"Zest the drink and glass with the lemon peel and then twist and place in glass.\"\n    ],\n    \"image\": \"vieux-carre.jpg\",\n    \"keywords\": [\n        \"alcoholic\",\n        \"bourbon\",\n        \"bitters\"\n    ]\n}\n"
+  },
+  {
+    "id": "white-russian",
+    "title": "White Russian",
+    "title_es": "White Russian",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "ice",
+      "3/4 oz coffee liqueur",
+      "1 1/2 oz vodka",
+      "3/4 oz fresh cream"
+    ],
+    "steps": [
+      "Pour coffee liqueur and vodka into an Old Fashioned glass filled with ice.",
+      "Float fresh cream on top and stir slowly."
+    ],
+    "ingredients_es": [
+      "Hielo",
+      "3/4 oz de licor de café",
+      "1 1/2 oz de vodka",
+      "3/4 oz de crema de leche fresca"
+    ],
+    "steps_es": [
+      "Vierte el licor de café y el vodka en un vaso old fashioned lleno de hielo.",
+      "Deja flotar la crema fresca por encima y remueve lentamente."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/white-russian.json",
+    "contributor": "the-bose",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/whiterussian.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de the-bose; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "ce9ae6e4de3c1d6fe716996486c42aa5f643b9c9de7541870e69f3158e26d126",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra."
+    ],
+    "original_name": "White Russian",
+    "raw_source": "{\n    \"name\": \"White Russian\",\n    \"description\": \"The White Russian is a three-ingredient cocktail based on the erstwhile Black Russian, which turns white on the addition of cream.\",\n    \"github\": \"the-bose\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"\",\n            \"measure\": \"\",\n            \"ingredient\": \"ice\"\n        },\n        {\n            \"quantity\": \"3/4\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"coffee liqueur\"\n        },\n        {\n            \"quantity\": \"1 1/2\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"vodka\"\n        },\n        {\n            \"quantity\": \"3/4\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"fresh cream\"\n        }\n    ],\n    \"directions\": [\n        \"Pour coffee liqueur and vodka into an Old Fashioned glass filled with ice.\",\n        \"Float fresh cream on top and stir slowly.\"\n    ],\n    \"image\": \"whiterussian.jpg\",\n    \"keywords\": [\n        \"alcoholic\",\n        \"milk\",\n        \"cocktail\"\n    ]\n}"
+  },
+  {
+    "id": "across-the-pacific",
+    "title": "Across the Pacific",
+    "title_es": "Across the Pacific",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "30 ml Blended Aged Rum",
+      "15 ml Jamaican Rum",
+      "15 ml Averna Amaro",
+      "22.5 ml Lime Juice",
+      "22.5 ml Orgeat Syrup"
+    ],
+    "steps": [
+      "Add all ingredients into a shaker with one ice cube.",
+      "Shake until the ice melts and mixture is frothy.",
+      "Pour into a rocks glass filled with crushed ice.",
+      "Garnish with a lime wheel and grated nutmeg."
+    ],
+    "ingredients_es": [
+      "30 ml de mezcla de rones añejos",
+      "15 ml de ron jamaicano",
+      "15 ml de amaro Averna",
+      "22.5 ml de jugo de lima",
+      "22.5 ml de jarabe de almendra (orgeat)"
+    ],
+    "steps_es": [
+      "Añade todos los ingredientes a una coctelera con un cubo de hielo.",
+      "Agita hasta que se derrita el hielo y la mezcla quede espumosa.",
+      "Vierte en un vaso bajo lleno de hielo triturado.",
+      "Decora con una rodaja de lima y nuez moscada rallada."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/across-the-pacific.json",
+    "contributor": "lazav94",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/across-the-pacific.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de lazav94; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "92d62275284dd7c4da5389948c22d2c03698f6e867cfd24ec72abe1c9512b4bf",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra.",
+      "La guarnición de nuez moscada aparece en el paso final sin cantidad; no se añade una cantidad ficticia a la lista."
+    ],
+    "original_name": "Across the Pacific",
+    "raw_source": "{\n    \"name\": \"Across the Pacific\",\n    \"description\": \"A cocktail creation of Meaghan Dorman, bar director of Dear Irving and The Raines Law Room, New York. The Across the Pacific is another bitter tiki creation. The Averna Amaro brings dried fruit and raisin notes to the tropical, split-rum base cocktail.\",\n    \"github\": \"lazav94\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"30\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"Blended Aged Rum\"\n        },\n        {\n            \"quantity\": \"15\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"Jamaican Rum\"\n        },\n        {\n            \"quantity\": \"15\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"Averna Amaro\"\n        },\n        {\n            \"quantity\": \"22.5\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"Lime Juice\"\n        },\n        {\n            \"quantity\": \"22.5\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"Orgeat Syrup\"\n        }\n    ],\n    \"directions\": [\n        \"Add all ingredients into a shaker with one ice cube.\",\n        \"Shake until the ice melts and mixture is frothy.\",\n        \"Pour into a rocks glass filled with crushed ice.\",\n        \"Garnish with a lime wheel and grated nutmeg.\"\n    ],\n    \"image\": \"across-the-pacific.jpg\",\n    \"keywords\": [\n        \"alcoholic\",\n        \"rum\",\n        \"amaro\",\n        \"vegan\"\n    ]\n}\n"
+  },
+  {
+    "id": "blue-lady",
+    "title": "Blue Lady",
+    "title_es": "Blue Lady",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "3 oz Blue Curaçao",
+      "1.5 oz Light rum",
+      "1.5 oz Lemon juice"
+    ],
+    "steps": [
+      "Pour ingredients in a cocktail shaker.",
+      "Add ice.",
+      "Shake vigorously.",
+      "Strain into chilled cocktail glasses."
+    ],
+    "ingredients_es": [
+      "3 oz de curaçao azul",
+      "1.5 oz de ron blanco",
+      "1.5 oz de jugo de limón"
+    ],
+    "steps_es": [
+      "Vierte los ingredientes en una coctelera.",
+      "Añade hielo.",
+      "Agita enérgicamente.",
+      "Cuela en copas de cóctel frías."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/blue-lady.json",
+    "contributor": "alessandrojcm",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/blue-lady.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de alessandrojcm; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "0c72e87d4cdbcc8536819a0a535a33cb2aba80ad526926947dd93f832cfac63f",
+    "notes_es": [
+      "La descripción original declara 2 raciones. Se conserva el lote completo sin escalado automático.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra."
+    ],
+    "original_name": "Blue Lady",
+    "raw_source": "{\n  \"name\": \"Blue Lady\",\n  \"description\": \"A delicious blue Curacao & light rum mix (serves 2.)\",\n  \"github\": \"alessandrojcm\",\n  \"ingredients\": [\n    {\n      \"quantity\": \"3\",\n      \"measure\": \"oz\",\n      \"ingredient\": \"Blue Curaçao\"\n    },\n    {\n      \"quantity\": \"1.5\",\n      \"measure\": \"oz\",\n      \"ingredient\": \"Light rum\"\n    },\n    {\n      \"quantity\": \"1.5\",\n      \"measure\": \"oz\",\n      \"ingredient\": \"Lemon juice\"\n    }\n  ],\n  \"directions\": [\n    \"Pour ingredients in a cocktail shaker.\",\n    \"Add ice.\",\n    \"Shake vigorously.\",\n    \"Strain into chilled cocktail glasses.\"\n  ],\n  \"image\": \"blue-lady.jpg\",\n  \"keywords\": [\n    \"rum\",\n    \"blue\",\n    \"blue curaçao\",\n    \"curaçao\",\n    \"lemon\",\n    \"fresh\",\n    \"vegan\",\n    \"alcoholic\"\n  ]\n}\n"
+  },
+  {
+    "id": "bombeirinho",
+    "title": "Bombeirinho",
+    "title_es": "Bombeirinho",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "1 oz Red Gooseberry Liquor",
+      "1 oz White Cachaça (Cachaça Branca)",
+      "1/2 Lemon",
+      "Ice, optional"
+    ],
+    "steps": [
+      "Put the ice in the cup.",
+      "Add the cachaça first and then add the Red Gooseberry Liquor.",
+      "Squeeze the lemon.",
+      "Mix all the ingredients until they form one red color drink.",
+      "Serve in a rounded cup of glass.",
+      "(Optional) Add some lemon peel at the top of the drink."
+    ],
+    "ingredients_es": [
+      "1 oz de licor de grosella roja",
+      "1 oz de cachaça blanca",
+      "1/2 limón",
+      "Hielo, opcional"
+    ],
+    "steps_es": [
+      "Pon el hielo en el vaso.",
+      "Añade primero la cachaça y después el licor de grosella roja.",
+      "Exprime el limón.",
+      "Mezcla todos los ingredientes hasta obtener una bebida de color rojo uniforme.",
+      "Sirve en un vaso de vidrio redondeado.",
+      "Opcional: añade un poco de piel de limón sobre la bebida."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/bombeirinho.json",
+    "contributor": "rzorzal",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/bombeirinho.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de rzorzal; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "f8811efc5f51c76388d9a4126078986752dea051b6185a9954cecaddc247520c",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra.",
+      "Se conserva la denominación «Red Gooseberry Liquor» del original como licor de grosella roja; no se sustituye por jarabe sin alcohol."
+    ],
+    "original_name": "Bombeirinho",
+    "raw_source": "{\n    \"name\": \"Bombeirinho\",\n    \"description\": \"The most famous drink at pubs in Brazil, very simple to prepare and it taste like sugar when drunk.\",\n    \"github\": \"rzorzal\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Red Gooseberry Liquor\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"White Cachaça (Cachaça Branca)\"\n        },\n        {\n            \"quantity\": \"1/2\",\n            \"measure\": \"\",\n            \"ingredient\": \"Lemon\"\n        },\n        {\n            \"quantity\": \"\",\n            \"measure\": \"\",\n            \"ingredient\": \"Ice, optional\"\n        }\n    ],\n    \"directions\": [\n        \"Put the ice in the cup.\",\n        \"Add the cachaça first and then add the Red Gooseberry Liquor.\",\n        \"Squeeze the lemon.\",\n        \"Mix all the ingredients until they form one red color drink.\",\n        \"Serve in a rounded cup of glass.\",\n        \"(Optional) Add some lemon peel at the top of the drink.\"\n    ],\n    \"image\": \"bombeirinho.jpg\",\n    \"keywords\": [\n        \"red\",\n\t\"gooseberry\",\n\t\"liqueur\",\n        \"cachaça\",\n        \"lemon\",\n        \"alcoholic\",\n        \"vegan\"\n\t]\n}\n"
+  },
+  {
+    "id": "cape-codder",
+    "title": "Cape Codder",
+    "title_es": "Cape Codder",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "2 oz Vodka",
+      "4 oz Cranberry Juice",
+      "1 slice lime",
+      "Ice"
+    ],
+    "steps": [
+      "Fill a highball glass with ice.",
+      "Add vodka, cranberry juice, and squeeze of lime.",
+      "Stir well.",
+      "Garnish with lime wedge and/or a few cranberries, if available."
+    ],
+    "ingredients_es": [
+      "2 oz de vodka",
+      "4 oz de jugo de arándano rojo",
+      "1 rodaja de lima",
+      "Hielo"
+    ],
+    "steps_es": [
+      "Llena un vaso alto con hielo.",
+      "Añade el vodka, el jugo de arándano rojo y un poco de jugo exprimido de la lima.",
+      "Remueve bien.",
+      "Decora con un gajo de lima y/o unos arándanos rojos, si los tienes."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/cape-codder.json",
+    "contributor": "r-i-c-h",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/cape-codder.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de r-i-c-h; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "ba8f8f954dd65bad268c729004b173edb68b28405f81864ee7167a2fa062efa0",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra.",
+      "El procedimiento usa lima exprimida y guarnición; la lista original sólo indica una rodaja y no separa cantidades adicionales. Los arándanos rojos de decoración son opcionales en el último paso."
+    ],
+    "original_name": "Cape Codder",
+    "raw_source": "{\n  \"name\": \"Cape Codder\",\n  \"description\": \"More commonly known as a Vodka-Cranberry, it is a simple refreshing beverage originally created by the Ocean Spray cranberry growing company as the 'Red Devil'.\",\n  \"github\": \"r-i-c-h\",\n  \"ingredients\": [\n    {\n      \"quantity\": \"2\",\n      \"measure\": \"oz\",\n      \"ingredient\": \"Vodka\"\n    },\n    {\n      \"quantity\": \"4\",\n      \"measure\": \"oz\",\n      \"ingredient\": \"Cranberry Juice\"\n    },\n    {\n      \"quantity\": \"1\",\n      \"measure\": \"slice\",\n      \"ingredient\": \"lime\"\n    },\n    {\n      \"quantity\": \"\",\n      \"measure\": \"\",\n      \"ingredient\": \"Ice\"\n    }\n  ],\n  \"directions\": [\n    \"Fill a highball glass with ice.\",\n    \"Add vodka, cranberry juice, and squeeze of lime.\",\n    \"Stir well.\",\n    \"Garnish with lime wedge and/or a few cranberries, if available.\"\n  ],\n  \"image\": \"cape-codder.jpg\",\n  \"keywords\": [\n    \"vodka\",\n    \"cranberry\",\n    \"lime\",\n    \"vegan\"\n  ]\n}\n"
+  },
+  {
+    "id": "clavis-riga",
+    "title": "Clavis Riga",
+    "title_es": "Clavis Riga",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "20 ml Riga Black Balsam",
+      "10 ml Rhubarb liqueur",
+      "55 ml Apple juice",
+      "5 ml Pomegranate syrup",
+      "5 ml White chocolate syrup",
+      "Orange peel"
+    ],
+    "steps": [
+      "Pour ingredients into a ice cooled mixing glass.",
+      "Mix, then strain into a cocktail glass.",
+      "Decorate with the orange peel."
+    ],
+    "ingredients_es": [
+      "20 ml de Riga Black Balsam",
+      "10 ml de licor de ruibarbo",
+      "55 ml de jugo de manzana",
+      "5 ml de jarabe de granada",
+      "5 ml de jarabe de chocolate blanco",
+      "Piel de naranja"
+    ],
+    "steps_es": [
+      "Vierte los ingredientes en un vaso mezclador enfriado con hielo.",
+      "Mezcla y cuela en una copa de cóctel.",
+      "Decora con la piel de naranja."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/clavis-riga.json",
+    "contributor": "danielhouston",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/clavis-riga.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de danielhouston; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "e36b178bd44573d665249ef82bbc6468b84264390fb0ebaaeb2b7957b2afea4b",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra."
+    ],
+    "original_name": "Clavis Riga",
+    "raw_source": "{\n    \"name\": \"Clavis Riga\",\n    \"description\": \"Clavis Riga, or Key of Riga, is the offical cocktail of Latvia, using one of it's national drinks, Riga Black Balsam.\",\n    \"github\": \"danielhouston\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"20\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"Riga Black Balsam\"\n        },\n        {\n            \"quantity\": \"10\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"Rhubarb liqueur\"\n        },\n        {\n            \"quantity\": \"55\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"Apple juice\"\n        },\n        {\n            \"quantity\": \"5\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"Pomegranate syrup\"\n        },\n        {\n            \"quantity\": \"5\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"White chocolate syrup\"\n        },\n        {\n            \"quantity\": \"\",\n            \"measure\": \"\",\n            \"ingredient\": \"Orange peel\"\n        }\n    ],\n    \"directions\": [\n        \"Pour ingredients into a ice cooled mixing glass.\",\n        \"Mix, then strain into a cocktail glass.\",\n        \"Decorate with the orange peel.\"\n    ],\n    \"image\": \"clavis-riga.jpg\",\n    \"keywords\": [\n        \"cocktail\",\n        \"alcoholic\"\n    ]\n}\n"
+  },
+  {
+    "id": "creole-cream",
+    "title": "Creole Cream",
+    "title_es": "Creole Cream",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "4 cl Light rum",
+      "2 cl White vermouth",
+      "1 cl Grenadine",
+      "1 dash Lemon juice",
+      "1 dash Angostura bitters",
+      "1 or 2 Olives"
+    ],
+    "steps": [
+      "Put rum, vermouth, grenadine and lemon juice into a cocktail shaker and stir with crushed ice.",
+      "Pour into a martini glass.",
+      "Add a dash of Angostura and one or two olives."
+    ],
+    "ingredients_es": [
+      "4 cl de ron blanco",
+      "2 cl de vermut blanco",
+      "1 cl de granadina",
+      "1 toque de jugo de limón",
+      "1 toque de amargo Angostura",
+      "1 o 2 aceitunas"
+    ],
+    "steps_es": [
+      "Pon el ron, el vermut, la granadina y el jugo de limón en una coctelera y remueve con hielo triturado.",
+      "Vierte en una copa de martini.",
+      "Añade un toque de Angostura y una o dos aceitunas."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/creole-cream.json",
+    "contributor": "WilliamAboucaya",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/creole-cream.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de WilliamAboucaya; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "92102fc60f6e95a308ee014ed5e8bdd498e234d1c594c51673d2c5f5533bd221",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra.",
+      "Pese a su nombre, esta receta no contiene crema de leche."
+    ],
+    "original_name": "Creole Cream",
+    "raw_source": "{\n    \"name\": \"Creole Cream\",\n    \"description\": \"Cocktail created for the British show \\\"The Persuaders!\\\", you might like it if you enjoy Martini and sweet flavors!\",\n    \"github\": \"WilliamAboucaya\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"4\",\n            \"measure\": \"cl\",\n            \"ingredient\": \"Light rum\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"cl\",\n            \"ingredient\": \"White vermouth\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"cl\",\n            \"ingredient\": \"Grenadine\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"dash\",\n            \"ingredient\": \"Lemon juice\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"dash\",\n            \"ingredient\": \"Angostura bitters\"\n        },\n        {\n            \"quantity\": \"1 or 2\",\n            \"measure\": \"\",\n            \"ingredient\": \"Olives\"\n        }\n    ],\n    \"directions\": [\n        \"Put rum, vermouth, grenadine and lemon juice into a cocktail shaker and stir with crushed ice.\",\n        \"Pour into a martini glass.\",\n        \"Add a dash of Angostura and one or two olives.\"\n    ],\n    \"image\": \"creole-cream.jpg\",\n    \"keywords\": [\n        \"rum\",\n        \"vermouth\",\n        \"syrup\",\n        \"olives\",\n        \"alcoholic\",\n        \"vegan\"\n    ]\n}\n"
+  },
+  {
+    "id": "green-beast",
+    "title": "Green Beast",
+    "title_es": "Green Beast",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "2 cl Absinthe",
+      "2 cl Simple sugar syrup",
+      "2 cl Lime juice",
+      "6 cl Water",
+      "1 slice Cucumber"
+    ],
+    "steps": [
+      "Pour the ingredients into a whiskey glass and stir.",
+      "Add 2 ice cubes.",
+      "Serve."
+    ],
+    "ingredients_es": [
+      "2 cl de absenta",
+      "2 cl de jarabe simple de azúcar",
+      "2 cl de jugo de lima",
+      "6 cl de agua",
+      "1 rodaja de pepino"
+    ],
+    "steps_es": [
+      "Vierte los ingredientes en un vaso de whisky y remueve.",
+      "Añade 2 cubos de hielo.",
+      "Sirve."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/green-beast.json",
+    "contributor": "joshuaMart",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/green-beast.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de joshuaMart; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "b700602abea3f424c7fb9d09c0275b927aabd50d239cb5bb5d9c32d0d3894e86",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra."
+    ],
+    "original_name": "Green Beast",
+    "raw_source": "{\n    \"name\": \"Green Beast\",\n    \"description\": \"Punch is not only based on rum. The proof is in this one, created in the 2000s by a French barman, Charles Vexenat, for the great (legal) return of French absinthe in our glasses.\",\n    \"github\": \"joshuaMart\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"cl\",\n            \"ingredient\": \"Absinthe\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"cl\",\n            \"ingredient\": \"Simple sugar syrup\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"cl\",\n            \"ingredient\": \"Lime juice\"\n        },\n        {\n            \"quantity\": \"6\",\n            \"measure\": \"cl\",\n            \"ingredient\": \"Water\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"slice\",\n            \"ingredient\": \"Cucumber\"\n        }\n    ],\n    \"directions\": [\n        \"Pour the ingredients into a whiskey glass and stir.\",\n        \"Add 2 ice cubes.\",\n        \"Serve.\"\n    ],\n    \"image\": \"green-beast.jpg\",\n    \"keywords\": [\n        \"absinthe\",\n        \"lime\",\n        \"cucumber\"\n    ]\n} \n"
+  },
+  {
+    "id": "irish-blues",
+    "title": "Irish Blues",
+    "title_es": "Irish Blues",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "1 oz Blueberry Vodka",
+      "1 oz Irish Cream",
+      "1 tbsp Cointreau",
+      "1/4 oz Light cream",
+      "1 Cherry"
+    ],
+    "steps": [
+      "Shake all ingredients with ice in a cocktail shaker.",
+      "Strain into a rocks glass full of ice.",
+      "Garnish with a cherry."
+    ],
+    "ingredients_es": [
+      "1 oz de vodka de arándano azul",
+      "1 oz de crema irlandesa",
+      "1 cucharada de Cointreau",
+      "1/4 oz de crema de leche ligera",
+      "1 cereza"
+    ],
+    "steps_es": [
+      "Agita todos los ingredientes con hielo en una coctelera.",
+      "Cuela en un vaso bajo lleno de hielo.",
+      "Decora con una cereza."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/irish-blues.json",
+    "contributor": "primes2h",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/irish-blues.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de primes2h; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "bbe952955ecf03e1d049cfcdb0bd5c9d2cd30479c15e2ca44f7eee14c45275b5",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra."
+    ],
+    "original_name": "Irish Blues",
+    "raw_source": "{\n    \"name\": \"Irish Blues\",\n    \"description\": \"The Irish Blues is a brown drink made from Smirnoff blueberry vodka, Bailey's Irish cream, Cointreau orange liqueur and light cream, and served over ice in a rocks glass.\",\n    \"github\": \"primes2h\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Blueberry Vodka\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Irish Cream\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"tbsp\",\n            \"ingredient\": \"Cointreau\"\n        },\n        {\n            \"quantity\": \"1/4\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Light cream\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"\",\n            \"ingredient\": \"Cherry\"\n        }\n    ],\n    \"directions\": [\n        \"Shake all ingredients with ice in a cocktail shaker.\",\n        \"Strain into a rocks glass full of ice.\",\n        \"Garnish with a cherry.\"\n    ],\n    \"image\": \"irish-blues.jpg\",\n    \"keywords\": [\n        \"vodka\",\n        \"liqueur\",\n        \"cherry\",\n        \"alcoholic\",\n        \"cream\"\n    ]\n}\n"
+  },
+  {
+    "id": "irish-coffee",
+    "title": "Irish Coffee",
+    "title_es": "Irish Coffee",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "1 1/2 to 2 ounces Irish whiskey,",
+      "4 ounces fresh-brewed coffee",
+      "1/2 to 1 ounce sugar syrup",
+      "Heavy cream"
+    ],
+    "steps": [
+      "Whip the cream until thick, but not stiff.",
+      "Combine the whiskey, sugar syrup and coffee In a pre-warmed toddy mug, irish coffee glass or sturdy wine glass (for more richness of flavor without added sweetness, try making the simple syrup using brown sugar or demerara sugar).",
+      "Stir to mix and gently spoon between 1/2 - 1 inch of cream atop the coffee mixture."
+    ],
+    "ingredients_es": [
+      "1 1/2–2 onzas de whisky irlandés",
+      "4 onzas de café recién preparado",
+      "1/2–1 onza de jarabe de azúcar",
+      "Crema de leche espesa"
+    ],
+    "steps_es": [
+      "Bate la crema hasta que espese, pero sin que quede firme.",
+      "Combina el whisky, el jarabe de azúcar y el café en una taza para toddy precalentada, un vaso de Irish Coffee o una copa de vino resistente; para un sabor más intenso sin dulzor añadido, prueba a preparar el jarabe simple con azúcar morena o demerara.",
+      "Remueve para mezclar y deposita suavemente con una cuchara una capa de crema de entre 1/2 y 1 pulgada sobre la mezcla de café."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/irish-coffee.json",
+    "contributor": "vanoux",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/irish-coffee.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de vanoux; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "7216f3b16f2e347fb973daadc7e89d80c6e59aa99124a86270b37a3e2cac2de2",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra.",
+      "La fuente no da un volumen de crema en la lista: indica una capa de 1/2–1 pulgada en el paso final. Los rangos de whisky y jarabe se conservan sin escoger un valor por ti."
+    ],
+    "original_name": "Irish Coffee",
+    "raw_source": "{\n    \"name\": \"Irish Coffee\",\n    \"description\": \"Irish coffee is a cocktail of coffee, sugar, whiskey and cream. This drink was created by Joseph Sheridan in the late 1930s in Foynes, Ireland.\",\n    \"github\": \"vanoux\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"1 1/2 to 2\",\n            \"measure\": \"ounces\",\n            \"ingredient\": \"Irish whiskey,\"\n        },\n        {\n            \"quantity\": \"4\",\n            \"measure\": \"ounces\",\n            \"ingredient\": \"fresh-brewed coffee\"\n        },\n        {\n            \"quantity\": \"1/2 to 1\",\n            \"measure\": \"ounce\",\n            \"ingredient\": \"sugar syrup\"\n        },\n        {\n            \"quantity\": \"\",\n            \"measure\": \"\",\n            \"ingredient\": \"Heavy cream\"\n        }\n    ],\n    \"directions\": [\n        \"Whip the cream until thick, but not stiff.\",\n        \"Combine the whiskey, sugar syrup and coffee In a pre-warmed toddy mug, irish coffee glass or sturdy wine glass (for more richness of flavor without added sweetness, try making the simple syrup using brown sugar or demerara sugar).\",\n        \"Stir to mix and gently spoon between 1/2 - 1 inch of cream atop the coffee mixture.\"\n    ],\n    \"image\": \"irish-coffee.jpg\",\n    \"keywords\": [\n        \"whiskey\",\n        \"coffee\",\n        \"heavy cream\",\n        \"sugar syrup\",\n        \"alcoholic\"\n\t]\n}\n"
+  },
+  {
+    "id": "port-tonic",
+    "title": "Port & Tonic",
+    "title_es": "Oporto con tónica",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "2 oz White dry Port",
+      "2 oz Tonic Water",
+      "Cubed Ice",
+      "1 leaf Peppermint",
+      "1 slice Orange, Lemon, or Lime"
+    ],
+    "steps": [
+      "Add ice, Port and Tonic to glass",
+      "Mix well with spoon.",
+      "Add peppermint leaf and  garnish with your choice of citrus wedge."
+    ],
+    "ingredients_es": [
+      "2 oz de oporto blanco seco",
+      "2 oz de agua tónica",
+      "Cubos de hielo",
+      "1 hoja de menta piperita",
+      "1 rodaja de naranja, limón o lima"
+    ],
+    "steps_es": [
+      "Añade el hielo, el oporto y la tónica al vaso.",
+      "Mezcla bien con una cuchara.",
+      "Añade la hoja de menta piperita y decora con el gajo cítrico que prefieras."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/port-tonic.json",
+    "contributor": "lldh",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/port-tonic.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de lldh; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "37d1e547a484706aedaf2954c0a3b2cc433a27426809aae205318b005544f174",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra.",
+      "La lista habla de rodaja y el paso de gajo: se conserva esa diferencia del original sin añadir una segunda pieza."
+    ],
+    "original_name": "Port & Tonic",
+    "raw_source": "{\n  \"name\": \"Port & Tonic\",\n  \"description\": \"A very refreshing and simple drink perfect for hot summer days.\",\n  \"github\": \"lldh\",\n  \"ingredients\": [\n    {\n      \"quantity\": \"2\",\n      \"measure\": \"oz\",\n      \"ingredient\": \"White dry Port\"\n    },\n    {\n      \"quantity\": \"2\",\n      \"measure\": \"oz\",\n      \"ingredient\": \"Tonic Water\"\n    },\n    {\n      \"quantity\": \"\",\n      \"measure\": \"\",\n      \"ingredient\": \"Cubed Ice\"\n    },\n    {\n      \"quantity\": \"1 leaf\",\n      \"measure\": \"\",\n      \"ingredient\": \"Peppermint\"\n    },\n    {\n      \"quantity\": \"1\",\n      \"measure\": \"slice\",\n      \"ingredient\": \"Orange, Lemon, or Lime\"\n    }\n  ],\n  \"directions\": [\n    \"Add ice, Port and Tonic to glass\",\n    \"Mix well with spoon.\",\n    \"Add peppermint leaf and  garnish with your choice of citrus wedge.\"\n  ],\n  \"image\": \"port-tonic.jpg\",\n  \"keywords\": [\"port\", \"tonic\"]\n}\n"
+  },
+  {
+    "id": "two-one-two",
+    "title": "Two-One-Two",
+    "title_es": "Two-One-Two",
+    "category": "cocktail",
+    "alcoholic": true,
+    "ingredients": [
+      "2 oz Reposado tequila",
+      "1 oz Aperol",
+      "2 oz Grapefruit juice"
+    ],
+    "steps": [
+      "Combine all ingredients in a shaker and shake",
+      "Double strain into chilled glass filled with ice.",
+      "Optionally top with soda.",
+      "Optionally add grapefruit or orange peel for garnish"
+    ],
+    "ingredients_es": [
+      "2 oz de tequila reposado",
+      "1 oz de Aperol",
+      "2 oz de jugo de toronja"
+    ],
+    "steps_es": [
+      "Combina todos los ingredientes en una coctelera y agita.",
+      "Pasa por doble colador a un vaso frío lleno de hielo.",
+      "Opcionalmente, completa con agua con gas.",
+      "Opcionalmente, añade piel de toronja o naranja para decorar."
+    ],
+    "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/two-one-two.json",
+    "contributor": "lazav94",
+    "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/two-one-two.jpg",
+    "image_credit": "Contenido de Open Drinks, contribución de lazav94; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+    "source_sha256": "7fd1885184dc44256557dfffa10ad774d6c97de12ff27dbe9634699b9510f918",
+    "notes_es": [
+      "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+      "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+      "Se conservan las medidas de la fuente. El hielo y las guarniciones que sólo aparecen en los pasos no tienen una cantidad inventada ni se envían automáticamente a Compra.",
+      "El agua con gas y la piel de cítrico son opcionales en el procedimiento; no se indica cantidad. El original no especifica hielo dentro de la coctelera, sólo en el vaso de servicio."
+    ],
+    "original_name": "Two-One-Two",
+    "raw_source": "{\n    \"name\": \"Two-One-Two\",\n    \"description\": \"The 212, from beverage consultants Aisha Sharpe and Willy Shine, is a wonderfully refreshing long drink that's as easy to make as it is to sip. The 212 refers to the Manhattan area code, but also to the drink's proportions.\",\n    \"github\": \"lazav94\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Reposado tequila\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Aperol\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Grapefruit juice\"\n        }\n    ],\n    \"directions\": [\n        \"Combine all ingredients in a shaker and shake\",\n        \"Double strain into chilled glass filled with ice.\",\n        \"Optionally top with soda.\",\n        \"Optionally add grapefruit or orange peel for garnish\"\n    ],\n    \"image\": \"two-one-two.jpg\",\n    \"keywords\": [\n        \"alcoholic\",\n        \"aperol\",\n        \"grapefruit\"\n    ]\n}\n"
+  }
+]

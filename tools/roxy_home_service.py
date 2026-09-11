@@ -37,7 +37,7 @@ from roxy_os.home_recipe_fallback import (
 )
 from roxy_os import home_recipe_provider as recipe_provider
 from roxy_os import home_myplate_recipes as myplate_recipes
-from roxy_os.home_drinks import drink_catalog, DrinkCatalogUnavailable
+from roxy_os.home_drinks import drink_catalog, drink_catalog_legacy, drink_detail, DrinkCatalogUnavailable, DrinkNotFound
 from roxy_os.home_open_recipes import (
     OpenRecipeCursorError,
     OpenRecipeNotFound,
@@ -3884,9 +3884,35 @@ def read_home_drinks(
     _rate_limit(request)
     _authorize_user(user_id, auth)
     try:
+        return drink_catalog_legacy()
+    except DrinkCatalogUnavailable:
+        raise HTTPException(status_code=503, detail="No se pudo cargar la selección de bebidas. Inténtalo de nuevo más tarde.") from None
+
+
+@app.get("/v1/home-food/{user_id}/drinks/summaries")
+def read_home_drink_summaries(
+    user_id: str, request: Request, auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    _authorize_user(user_id, auth)
+    try:
         return drink_catalog()
     except DrinkCatalogUnavailable:
         raise HTTPException(status_code=503, detail="No se pudo cargar la selección de bebidas. Inténtalo de nuevo más tarde.") from None
+
+
+@app.get("/v1/home-food/{user_id}/drinks/{drink_id}")
+def read_home_drink_detail(
+    user_id: str, drink_id: str, request: Request, auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    _authorize_user(user_id, auth)
+    try:
+        return drink_detail(drink_id)
+    except DrinkNotFound:
+        raise HTTPException(status_code=404, detail="Esta bebida no está en la selección actual. Vuelve al catálogo.") from None
+    except DrinkCatalogUnavailable:
+        raise HTTPException(status_code=503, detail="No se pudo abrir esta bebida. Inténtalo de nuevo más tarde.") from None
 
 
 @app.get("/v1/home-food/{user_id}/open-recipes")

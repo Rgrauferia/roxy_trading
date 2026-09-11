@@ -7,6 +7,7 @@
 .drinks-note { color: #5a6957; font-size: 12px; line-height: 1.65; }
 .drinks-status { margin: 15px 0; color: #4d654b; font-size: 13px; line-height: 1.6; }
 .drinks-status:empty { display: none; }
+.drinks-detail-status { margin: 18px 0; padding: 15px 17px; border-left: 3px solid #b89a54; border-radius: 0 13px 13px 0; color: #465f40; background: #f3f5eb; font-size: 14px; line-height: 1.7; }
 .drinks-library .drinks-button, .drinks-dialog .drinks-button { display: inline-flex; justify-content: center; align-items: center; min-height: 46px; padding: 10px 15px; border: 1px solid #c0ccb9; border-radius: 13px; background: transparent; color: var(--drinks-green); font-family: inherit; font-size: 13px; font-weight: 700; line-height: 1.45; text-align: center; cursor: pointer; white-space: normal; }
 .drinks-library .drinks-primary, .drinks-dialog .drinks-primary { background: var(--drinks-green); border-color: var(--drinks-green); color: #fff; }
 .drinks-library button:disabled, .drinks-dialog button:disabled { opacity: .48; cursor: default; }

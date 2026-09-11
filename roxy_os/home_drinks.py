@@ -18,12 +18,16 @@ REVISION = "f446f0e9356b9b43155d207b4f7c5214d9da91ab"
 SOURCE_BASE = f"https://github.com/alfg/opendrinks/blob/{REVISION}/"
 IMAGE_BASE = f"https://raw.githubusercontent.com/alfg/opendrinks/{REVISION}/src/assets/recipes/"
 CATEGORIES = ("coffee_tea", "juice", "smoothie", "mocktail", "cocktail")
-MAX_BYTES = 512 * 1024
-MAX_ROWS = 60
+MAX_BYTES = 2 * 1024 * 1024
+MAX_ROWS = 200
 
 
 class DrinkCatalogUnavailable(ValueError):
     """A damaged release must not silently become an empty or generated menu."""
+
+
+class DrinkNotFound(ValueError):
+    """An unknown ID never resolves to a similar or generated recipe."""
 
 
 def _object(pairs):
@@ -133,16 +137,48 @@ def _catalog():
         raise DrinkCatalogUnavailable("drink_catalog_unavailable") from None
 
 
+def _metadata():
+    return {"audience": "human", "can_scale": False, "can_add_to_shopping": False,
+            "source": {"name": "Open Drinks", "revision": REVISION, "license": "MIT",
+                       "license_url": "/assets/open-drinks-license.txt"}}
+
+
 def drink_catalog():
+    """Only lightweight cards; ingredients and instructions load on demand."""
     rows = _catalog()
+    fields = ("id", "title", "title_es", "category", "alcoholic", "image_url", "source_sha256")
+    summaries = [{**{key: row[key] for key in fields},
+                  "ingredient_count": len(row["ingredients"]), "step_count": len(row["steps"])}
+                 for row in rows]
+    counts = Counter(row["category"] for row in rows)
+    return {"drinks": summaries, "total": len(rows),
+            "counts": {key: counts[key] for key in CATEGORIES}, **_metadata()}
+
+
+def drink_detail(drink_id):
+    """Exact, immutable selection; never fetch, invent, or silently truncate."""
+    if not isinstance(drink_id, str) or len(drink_id) > 100 or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", drink_id):
+        raise DrinkNotFound("drink_not_found")
+    row = next((row for row in _catalog() if row["id"] == drink_id), None)
+    if row is None:
+        raise DrinkNotFound("drink_not_found")
     # Provenance stays in the source distribution; the browser receives bounded,
     # inert recipe text, never the raw third-party JSON or private profile data.
     fields = ("id", "title", "title_es", "original_name", "category", "alcoholic",
               "ingredients", "steps", "ingredients_es", "steps_es", "notes_es",
               "source_url", "contributor", "image_url", "image_credit", "source_sha256")
-    counts = Counter(row["category"] for row in rows)
-    return {"drinks": [{key: deepcopy(row[key]) for key in fields if key in row} for row in rows],
-            "total": len(rows), "counts": {key: counts[key] for key in CATEGORIES},
-            "audience": "human", "can_scale": False, "can_add_to_shopping": False,
-            "source": {"name": "Open Drinks", "revision": REVISION, "license": "MIT",
-                       "license_url": "/assets/open-drinks-license.txt"}}
+    return {"drink": {key: deepcopy(row[key]) for key in fields if key in row}, **_metadata()}
+
+
+def drink_catalog_legacy():
+    """Keep already-open version 189 tabs usable until they load the new shell.
+
+    That client accepts at most 60 complete rows. New clients use all summaries,
+    not this compatibility view. This is public editorial content, not user data.
+    """
+    rows = _catalog()
+    selected = rows[:60]
+    counts = Counter(row["category"] for row in selected)
+    return {"drinks": [drink_detail(row["id"])["drink"] for row in selected],
+            "total": len(selected), "available_total": len(rows),
+            "counts": {key: counts[key] for key in CATEGORIES}, **_metadata()}

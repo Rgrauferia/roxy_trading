@@ -3,7 +3,20 @@
 Actualizado: 2026-09-11. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 
-## 189 — candidato probado: 31 bebidas nuevas
+## 190 — preparado localmente: 87 bebidas; publicación pendiente
+
+56 añadidas sobre31 intactas:16cafés/tés,5jugos,8batidos,8refrescantes,50cócteles.
+37sinlicores/50con. Fuente comunitaria Open Drinks MIT fijada, fotos revisadas,
+380ingredientes/339pasos originales yES. No ensayadas en cocina ni500revisadas.
+Galería ligera35164bytes,24porpágina; detalle exacto bajo demanda con cancelación,
+hash/identidad/fuente y recuperación. Endpoint heredado compatible con189.
+2393Python/11PGomitidas;120focalizadas tras lote87;415Node finales.
+QA393px: segunda página,ABCfoto858/7pasos/ES→ENpaso2,cócteles3páginas,
+jugos5,filtrosrecuperan,sin errores ni overflow. No datos públicos modificados.
+HTML/APP190 JS192 CSS132 SW189 bebidasJS/CSS2. Informe
+reports/home_release_190_20260911.md. Público sigue189 hasta comprobar despliegue.
+
+## 189 — PUBLICADO y comprobado: 31 bebidas nuevas
 
 Selección bilingüe Open Drinks (MIT): 8 cafés/tés,2jugos,4batidos,5refrescantes,
 12cócteles;141ingredientes/117pasos originales y traducciones. No son recetas
@@ -14,7 +27,13 @@ escrituras; sourcehash/revisión/licencia/duplicados validados. Las59locales,
 MyPlate y datos del usuario se conservan. No cambia facturación ni mascotas.
 2372Python/11omitidas,389Node; QA393móvil búsqueda/pasos/categorías/fotos,
 sin errores ni overflow. HTML/APP189 JS191 CSS132 SW188 bebidasJS/CSS1.
-Pendiente publicación comprobada. Informe reports/home_release_189_20260911.md.
+Publicado commit409e9d92cddf122bce5640bcab31f555f60ee756, Render
+dep-dai1rv6417fc73fifn5g Live48.3s. Siete assets públicos200byte-idénticos,
+health200/ok. UIpública meta189, sesión conservada,31bebidas(19sinlicores/12con),
+café vietnamita4ingredientes/4pasos, foto700pxcargada y lectorpaso2 comprobados.
+Sin errores ni overflow765px. Galería abierta; QA17582detenido/8767libre,
+pestañas8y9cerradas,viewportrestablecido. No mutaciones de datos públicos.
+Informe reports/home_release_189_20260911.md. No redeploy sólo por estas notas.
 Registro público sigue apagado;500revisadas/voz final/fitness no terminados.
 
 ## 188 — PUBLICADO: catálogo MyPlate.food bajo demanda

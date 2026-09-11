@@ -13,8 +13,16 @@ const rows = Array.from({length:60}, (_, index) => ({id:`synthetic-${index}`, ti
   image_credit:'Synthetic photographer', ingredients:['1/2 cup synthetic A', '1.5 oz synthetic B'], steps:['Synthetic exact first step.', 'Synthetic exact second step.'],
   ingredients_es:['1/2 taza de A sintético', '1.5 oz de B sintético'], steps_es:['Primer paso sintético exacto.', 'Segundo paso sintético exacto.'],
   source_url:`https://github.com/alfg/opendrinks/blob/${revision}/src/recipes/synthetic-${index}.json`, contributor:'Synthetic author', notes_es:['Nota sintética.'], source_sha256:'a'.repeat(64)}));
-const payload = (drinks = rows) => ({drinks:structuredClone(drinks), total:drinks.length, counts:Object.fromEntries(categories.map(key => [key, drinks.filter(row => row.category === key).length])),
-  source:{name:'Open Drinks', revision, license:'MIT', license_url:'/assets/open-drinks-license.txt'}});
+const summaries = drinks => drinks.map(row => ({...Object.fromEntries(['id','title','title_es','category','alcoholic','image_url','source_sha256'].map(key => [key,row[key]])),
+  ingredient_count:row.ingredients.length, step_count:row.steps.length}));
+const fixtureBodies = new WeakMap();
+const payload = (drinks = rows) => {
+  const value = {drinks:summaries(drinks), total:drinks.length, counts:Object.fromEntries(categories.map(key => [key, drinks.filter(row => row.category === key).length])),
+    source:{name:'Open Drinks', revision, license:'MIT', license_url:'/assets/open-drinks-license.txt'}};
+  fixtureBodies.set(value, structuredClone(drinks)); return value;
+};
+const fullResponse = row => ({drink:structuredClone(Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'raw_source'))),
+  source:{name:'Open Drinks', revision, license:'MIT', license_url:'/assets/open-drinks-license.txt'}, audience:'human', can_scale:false, can_add_to_shopping:false});
 const deferred = () => { let resolve, reject; const promise = new Promise((a,b) => { resolve = a; reject = b; }); return {promise, resolve, reject}; };
 const settle = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
 const descendants = el => el.children.flatMap(child => [child, ...descendants(child)]);
@@ -60,10 +68,12 @@ function harness({voice = true} = {}) {
   return {...window.RoxyDrinks, container, tick, visibility, speechCalls, speechSynthesis, storageWrites, get activeElement() { return activeElement; }};
 }
 function server(data = payload(), intercept) {
-  const calls = [];
+  const calls = [], fullRows = fixtureBodies.get(data) || rows;
   return {calls, api:async (path, options) => {
-    assert.equal(path, '/v1/home-food/household%2Fa/drinks'); assert.equal(options.method, 'GET'); assert.ok(options.signal instanceof AbortSignal);
-    calls.push({path, options}); return intercept ? await intercept(calls.length) : structuredClone(data);
+    assert.match(path, /^\/v1\/home-food\/household%2Fa\/drinks(?:\/[a-z0-9_-]+)?$/); assert.equal(options.method, 'GET'); assert.ok(options.signal instanceof AbortSignal);
+    const call = {path, options}; calls.push(call); const override = intercept?.(calls.length, call); if (override !== undefined) return await override;
+    if (path.endsWith('/drinks/summaries')) return structuredClone(data);
+    const row = fullRows.find(item => item.id === path.split('/').at(-1)); assert.ok(row, `Unknown synthetic detail ${path}`); return fullResponse(row);
   }};
 }
 async function start(h, panel, mock, options = {}) {
@@ -77,6 +87,15 @@ test('bounded local gallery loads explicitly once and defaults to nonalcoholic p
   const titles = all(byClass(panel, 'drinks-grid')[0], 'h3').map(el => el.textContent); assert.ok(titles.includes(rows[0].title_es)); assert.ok(!titles.includes(rows[4].title_es));
   assert.ok(all(panel, 'img').every(img => img.loading === 'lazy' && img.referrerPolicy === 'no-referrer'));
   assert.ok(panel.textContent.includes('60 bebidas en esta colección: 48 sin licores y 12 cócteles con alcohol')); assert.deepEqual(h.storageWrites, []); assert.equal(h.speechCalls.length, 0);
+});
+
+test('card counts use singular Spanish for one ingredient or step', async () => {
+  const one = structuredClone(rows[0]);
+  one.ingredients = one.ingredients.slice(0, 1); one.ingredients_es = one.ingredients_es.slice(0, 1);
+  one.steps = one.steps.slice(0, 1); one.steps_es = one.steps_es.slice(0, 1);
+  const h = harness(), panel = h.container(), mock = server(payload([one]));
+  await start(h, panel, mock);
+  assert.equal(byClass(panel, 'drinks-card-meta')[0].textContent, '1 ingrediente · 1 paso');
 });
 
 test('pagination and bilingual searches remain local and replace pages of at most 24', async () => {
@@ -181,9 +200,9 @@ for (const mutation of [
   assert.equal(byClass(panel, 'drinks-card').length, 0); assert.equal(button(panel, 'Reintentar bebidas').hidden, false);
 });
 
-test('partial Spanish translation cannot silently omit ingredients or steps', async () => {
+test('partial Spanish translation fails closed instead of claiming a complete bilingual detail', async () => {
   const row = {...rows[0], steps_es:['Only one translated step']}, h = harness(), panel = h.container(), mock = server(payload([row])); await start(h, panel, mock); await button(panel, 'Preparar bebida').click();
-  assert.deepEqual(byClass(panel, 'drinks-steps')[0].children.map(el => el.textContent), row.steps); assert.equal(button(panel, 'Ver original en inglés'), undefined);
+  assert.equal(byClass(panel, 'drinks-steps').length, 0); assert.equal(button(panel, 'Reintentar esta bebida').hidden, false); assert.equal(button(panel, 'Ver original en inglés'), undefined);
 });
 
 test('12 second timeout settles even if the API ignores abort; stale late data never paints', async () => {
@@ -206,4 +225,77 @@ test('published selection renders each Spanish and original source line without 
     assert.deepEqual(byClass(panel, 'drinks-steps')[0].children.map(el => el.textContent), row.steps, row.id);
     assert.equal(all(dialog(panel), 'img')[0].src, row.image_url, row.id);
   }
+});
+
+test('200 lightweight summaries need only one list request, 24 DOM cards, and no hidden detail bodies', async () => {
+  const large = Array.from({length:200}, (_, index) => ({...rows[index % rows.length], id:`large-${index}`, title:`Large ${index}`, title_es:`Grande ${index}`,
+    source_url:`https://github.com/alfg/opendrinks/blob/${revision}/src/recipes/large-${index}.json`}));
+  const data = payload(large), h = harness(), panel = h.container(), mock = server(data); await start(h, panel, mock);
+  assert.ok(Buffer.byteLength(JSON.stringify(data), 'utf8') < 150 * 1024);
+  assert.ok(data.drinks.every(row => !('ingredients' in row) && !('steps' in row) && !('raw_source' in row)));
+  assert.equal(mock.calls.length, 1); assert.equal(mock.calls[0].path, '/v1/home-food/household%2Fa/drinks/summaries');
+  assert.equal(byClass(panel, 'drinks-card').length, 24); assert.equal(byClass(panel, 'drinks-steps').length, 0);
+  await button(panel, 'Más bebidas').click(); assert.equal(mock.calls.length, 1);
+  const search = all(panel, 'input')[0]; search.value = 'Grande 198'; await all(panel, 'form')[0].emit('submit');
+  assert.equal(byClass(panel, 'drinks-card').length, 1); await button(panel, 'Preparar bebida').click();
+  assert.equal(mock.calls.length, 2); assert.equal(mock.calls[1].path, '/v1/home-food/household%2Fa/drinks/large-198');
+});
+
+test('selecting a category clears an old title query so its visible count matches its cards', async () => {
+  const h = harness(), panel = h.container(), mock = server(); await start(h, panel, mock);
+  const search = all(panel, 'input')[0]; search.value = 'no title exists'; await all(panel, 'form')[0].emit('submit');
+  assert.equal(byClass(panel, 'drinks-card').length, 0); await category(panel, 'juice').click();
+  assert.equal(search.value, ''); assert.equal(byClass(panel, 'drinks-card').length, 12); assert.equal(mock.calls.length, 1);
+});
+
+test('only the selected detail loads; duplicate opening is coalesced and close removes its body', async () => {
+  const pending = deferred(), h = harness(), panel = h.container(), mock = server(payload(), (n) => n === 2 ? pending.promise : undefined);
+  await start(h, panel, mock); const opener = button(panel, 'Preparar bebida'); await opener.click(); await opener.click();
+  assert.equal(mock.calls.length, 2); assert.equal(dialog(panel).getAttribute('aria-busy'), 'true'); assert.equal(byClass(panel, 'drinks-steps').length, 0);
+  pending.resolve(fullResponse(rows[0])); await settle(); assert.equal(byClass(panel, 'drinks-steps').length, 1); assert.equal(dialog(panel).getAttribute('aria-busy'), 'false');
+  await button(panel, 'Cerrar bebida').click(); assert.equal(byClass(panel, 'drinks-steps').length, 0);
+  await opener.click(); assert.equal(mock.calls.length, 3, 'a later opening re-requests the detail, not a retained body cache');
+});
+
+test('detail failure keeps a retryable dialog without fabricating a preparation', async () => {
+  const h = harness(), panel = h.container(), mock = server(payload(), n => n === 2 ? Promise.reject(new Error('unavailable')) : undefined);
+  await start(h, panel, mock); await button(panel, 'Preparar bebida').click(); assert.equal(dialog(panel).open, true);
+  assert.equal(byClass(panel, 'drinks-steps').length, 0); assert.equal(button(panel, 'Reintentar esta bebida').hidden, false);
+  await button(panel, 'Reintentar esta bebida').click(); assert.equal(mock.calls.length, 3); assert.deepEqual(byClass(panel, 'drinks-steps')[0].children.map(el => el.textContent), rows[0].steps_es);
+});
+
+test('a 12 second detail timeout ignores a late result and allows deliberate retry', async () => {
+  const pending = deferred(), h = harness(), panel = h.container(), mock = server(payload(), n => n === 2 ? pending.promise : undefined);
+  await start(h, panel, mock); await button(panel, 'Preparar bebida').click(); await h.tick(12000);
+  assert.equal(mock.calls[1].options.signal.aborted, true); assert.ok(dialog(panel).textContent.includes('Esta bebida tardó demasiado'));
+  pending.resolve(fullResponse(rows[0])); await settle(); assert.equal(byClass(panel, 'drinks-steps').length, 0);
+  await button(panel, 'Reintentar esta bebida').click(); assert.equal(byClass(panel, 'drinks-steps').length, 1);
+});
+
+for (const mode of ['close', 'query', 'page', 'category', 'inactive', 'hidden', 'identity', 'document', 'isCurrent']) test(`late detail cannot paint after ${mode}`, async () => {
+  let identityIsCurrent = true;
+  const pending = deferred(), h = harness(), panel = h.container(), mock = server(payload(), n => n === 2 ? pending.promise : undefined);
+  await start(h, panel, mock, {isCurrent:() => identityIsCurrent}); await button(panel, 'Preparar bebida').click();
+  if (mode === 'close') await button(panel, 'Cerrar bebida').click();
+  if (mode === 'query') { all(panel, 'input')[0].value = 'drink 58'; await all(panel, 'form')[0].emit('submit'); }
+  if (mode === 'page') await button(panel, 'Más bebidas').click();
+  if (mode === 'category') await category(panel, 'smoothie').click();
+  if (mode === 'inactive') h.setActive(panel, false);
+  if (mode === 'hidden') h.render(panel, {user:'household/a', identity:'member-a', api:mock.api, hidden:true});
+  if (mode === 'identity') h.render(panel, {user:'household/a', identity:'member-b', api:mock.api});
+  if (mode === 'document') await h.visibility(true);
+  if (mode === 'isCurrent') { identityIsCurrent = false; h.setActive(panel, true); }
+  assert.equal(mock.calls[1].options.signal.aborted, true); pending.resolve(fullResponse(rows[0])); await settle();
+  assert.equal(byClass(panel, 'drinks-steps').length, 0); assert.equal(dialog(panel)?.open || false, false);
+});
+
+for (const mutation of [
+  value => { value.drink.id = 'other'; }, value => { value.drink.source_sha256 = 'b'.repeat(64); },
+  value => { value.source.revision = 'main'; }, value => { value.drink.steps.pop(); }, value => { value.drink.ingredients.pop(); },
+  value => { value.drink.source_url = `https://github.com/alfg/opendrinks/blob/${revision}/src/recipes/synthetic-1.json`; },
+  value => { value.drink.category = 'cocktail'; value.drink.alcoholic = true; }, value => { value.can_scale = true; },
+  value => { value.can_add_to_shopping = true; }, value => { value.audience = 'pet'; }, value => { value.drink.raw_source = '{}'; }
+]) test(`detail is tied to summary and allowed actions: ${mutation.toString()}`, async () => {
+  const value = fullResponse(rows[0]); mutation(value); const h = harness(), panel = h.container(), mock = server(payload(), n => n === 2 ? value : undefined);
+  await start(h, panel, mock); await button(panel, 'Preparar bebida').click(); assert.equal(byClass(panel, 'drinks-steps').length, 0); assert.equal(button(panel, 'Reintentar esta bebida').hidden, false);
 });
