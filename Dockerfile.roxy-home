@@ -37,6 +37,7 @@ COPY assets/roxy_home_recipe_provider.js ./assets/roxy_home_recipe_provider.js
 COPY assets/roxy_home_weather_renderer.js ./assets/roxy_home_weather_renderer.js
 COPY assets/roxy_home_map_readiness.js ./assets/roxy_home_map_readiness.js
 COPY assets/roxy_home_open_recipes.js ./assets/roxy_home_open_recipes.js
+COPY assets/roxy_home_myplate_recipes.js assets/roxy_home_myplate_recipes.css ./assets/
 COPY assets/roxy_fitness.js assets/roxy_fitness.css assets/roxy_fitness_catalog.js ./assets/
 COPY assets/roxy_garden_guide.js assets/roxy_garden_guide.css ./assets/
 COPY assets/roxy_maplibre_loader.js ./assets/

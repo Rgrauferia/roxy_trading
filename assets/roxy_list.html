@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="187" />
+  <meta name="roxy-home-version" content="188" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
@@ -17,15 +17,17 @@
   <link rel="stylesheet" href="/assets/roxy_list.css?v=132" />
   <link rel="stylesheet" href="/assets/roxy_fitness.css?v=5" />
   <link rel="stylesheet" href="/assets/roxy_garden_guide.css?v=1" />
+  <link rel="stylesheet" href="/assets/roxy_home_myplate_recipes.css?v=1" />
   <script src="/assets/roxy_maplibre_loader.js?v=1" defer></script>
   <script src="/assets/roxy_home_recipe_provider.js?v=2" defer></script>
   <script src="/assets/roxy_home_open_recipes.js?v=4" defer></script>
+  <script src="/assets/roxy_home_myplate_recipes.js?v=1" defer></script>
   <script src="/assets/roxy_home_weather_renderer.js?v=2" defer></script>
   <script src="/assets/roxy_home_map_readiness.js?v=1" defer></script>
   <script src="/assets/roxy_fitness_catalog.js?v=2" defer></script>
   <script src="/assets/roxy_fitness.js?v=4" defer></script>
   <script src="/assets/roxy_garden_guide.js?v=1" defer></script>
-  <script src="/assets/roxy_list.js?v=189" defer></script>
+  <script src="/assets/roxy_list.js?v=190" defer></script>
   <script src="/assets/roxy_home_registration.js?v=1" defer></script>
 </head>
 <body>
@@ -417,6 +419,7 @@
         </section>
       </section>
 
+      <div id="myplateRecipePanel" class="human-recipe-only"></div>
       <div id="openRecipePanel" class="human-recipe-only"></div>
       <section id="recipeCatalogSection" class="content-section recipe-catalog-section" role="region" aria-labelledby="libraryTitle">
         <div class="section-heading"><div><p id="recipeLibraryEyebrow">Incluidas y disponibles</p><h2 id="libraryTitle">Recetario de Roxy</h2><small id="recipeLibraryHint">Abre una receta para revisarla antes de guardarla</small></div><span id="recipeCount">0 recetas</span></div>

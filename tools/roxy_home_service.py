@@ -36,6 +36,7 @@ from roxy_os.home_recipe_fallback import (
     personalized_pet_recipe_catalog,
 )
 from roxy_os import home_recipe_provider as recipe_provider
+from roxy_os import home_myplate_recipes as myplate_recipes
 from roxy_os.home_open_recipes import (
     OpenRecipeCursorError,
     OpenRecipeNotFound,
@@ -1680,6 +1681,7 @@ def shopping_page() -> Response:
         "default-src 'self'; img-src 'self' data: blob: https://maps.googleapis.com "
         "https://maps.gstatic.com https://*.googleapis.com https://*.gstatic.com "
         "https://images.openfoodfacts.org https://www.themealdb.com https://themealdb.com https://upload.wikimedia.org https://wger.de https://*.rainviewer.com "
+        "https://storage.googleapis.com/peppermint-cdn/myplate.food-recipe-images/ "
         "https://*.basemaps.cartocdn.com https://tile.openstreetmap.org "
         "https://mazuri.com https://oxbowanimalhealth.com https://www.wysong.net "
         "https://www.kaytee.com https://www.midwesthomes4pets.com "
@@ -3809,6 +3811,68 @@ def read_home_recipe_provider_status(
     _authorize_user(user_id, auth)
     # Reads configuration only: no provider requests, photos, AI or store access.
     return _home_recipe_provider_status(auth)
+
+
+def _myplate_recipe_error(exc: myplate_recipes.MyPlateRecipeError) -> HTTPException:
+    # Never forward upstream response bodies, request URLs, or identifiers.
+    messages = {
+        400: "Revisa la búsqueda, categoría o página seleccionada.",
+        404: "La fuente ya no tiene disponible esta receta.",
+        422: "La fuente no entregó una ficha completa. No se han inventado los datos que faltan.",
+        429: "Se alcanzó el límite de consultas de la fuente. Inténtalo más tarde o abre la receta en MyPlate.food.",
+        503: "No se pudo consultar MyPlate.food. Tus recetas guardadas siguen disponibles.",
+    }
+    status = exc.status_code if exc.status_code in messages else 503
+    headers = {}
+    if status == 429:
+        try:
+            retry_after = int(exc.retry_after) if exc.retry_after is not None else 60
+        except (TypeError, ValueError, OverflowError):
+            retry_after = 60
+        headers["Retry-After"] = str(max(1, min(86400, retry_after)))
+    return HTTPException(status_code=status, detail=messages[status], headers=headers)
+
+
+@app.get("/v1/home-food/{user_id}/myplate-recipes")
+def search_home_myplate_recipes(
+    user_id: str, request: Request,
+    q: str = Query(default="", max_length=100),
+    category: str = Query(default="", max_length=40),
+    offset: int = Query(default=0, ge=0, le=2000),
+    limit: int = Query(default=24, ge=1, le=24),
+    requested: bool = Query(default=False),
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    _authorize_user(user_id, auth)
+    if not requested:
+        raise HTTPException(status_code=400, detail="Elige explorar o buscar para consultar MyPlate.food.")
+    # This no-key live API permits commercial per-request use, including trials.
+    # Only deliberate search/category/paging goes out; never household profiles.
+    try:
+        return myplate_recipes.search_recipes(q=q, category=category, offset=offset, limit=limit)
+    except myplate_recipes.MyPlateRecipeError as exc:
+        raise _myplate_recipe_error(exc) from None
+    except Exception:
+        raise HTTPException(status_code=503, detail="No se pudo consultar MyPlate.food. Tus recetas guardadas siguen disponibles.") from None
+
+
+@app.get("/v1/home-food/{user_id}/myplate-recipes/{slug}")
+def read_home_myplate_recipe(
+    user_id: str, slug: str, request: Request,
+    requested: bool = Query(default=False),
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    _authorize_user(user_id, auth)
+    if not requested:
+        raise HTTPException(status_code=400, detail="Abre una receta para consultar su preparación original.")
+    try:
+        return myplate_recipes.get_recipe(slug)
+    except myplate_recipes.MyPlateRecipeError as exc:
+        raise _myplate_recipe_error(exc) from None
+    except Exception:
+        raise HTTPException(status_code=503, detail="No se pudo abrir la receta de MyPlate.food. Puedes volver a intentarlo.") from None
 
 
 @app.get("/v1/home-food/{user_id}/open-recipes")

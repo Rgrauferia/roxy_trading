@@ -1,0 +1,88 @@
+.myplate-library {
+  --mp-green: var(--forest, #174d39);
+  --mp-ink: var(--forest-dark, #153d2e);
+  --mp-line: #dce2d8;
+  margin: 0 0 22px;
+  padding: clamp(18px, 3vw, 30px);
+  border: 1px solid var(--mp-line);
+  border-radius: 26px;
+  background: var(--paper, #fffdf8);
+  color: var(--ink, #24342b);
+  overflow-wrap: anywhere;
+}
+.myplate-library [hidden] { display: none !important; }
+.myplate-library * { box-sizing: border-box; }
+.myplate-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.myplate-library .myplate-eyebrow { margin: 0 0 7px; color: #8a692d; font-size: 11px; font-weight: 800; letter-spacing: .13em; }
+.myplate-heading h2 { margin: 0; color: var(--mp-ink); font: 600 clamp(28px, 5vw, 36px)/1.08 Georgia, serif; }
+.myplate-total { margin: 10px 0 0; color: var(--mp-green); font-size: 14px; font-weight: 700; line-height: 1.5; }
+.myplate-intro { max-width: 640px; margin: 16px 0 7px; line-height: 1.6; }
+.myplate-note { color: #59675c; font-size: 12px; line-height: 1.6; }
+.myplate-start > .myplate-button { margin-top: 6px; }
+.myplate-library .myplate-button {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 46px; padding: 11px 16px; border: 1px solid #bdcbbd;
+  border-radius: 13px; background: transparent; color: var(--mp-green);
+  font-family: inherit; font-size: 13px; font-weight: 700; line-height: 1.4; cursor: pointer; text-align: center; white-space: normal;
+}
+.myplate-library .myplate-primary { color: #fff; background: var(--mp-green); border-color: var(--mp-green); }
+.myplate-library button:disabled { opacity: .48; cursor: default; }
+.myplate-library button:focus-visible, .myplate-library input:focus-visible,
+.myplate-library a:focus-visible, .myplate-library summary:focus-visible { outline: 3px solid var(--gold, #b58b3d); outline-offset: 3px; }
+.myplate-status { margin: 14px 0; color: #506453; font-size: 13px; line-height: 1.6; }
+.myplate-status:empty { display: none; }
+.myplate-controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 9px; margin: 19px 0 13px; }
+.myplate-controls label { display: grid; gap: 6px; margin: 0; min-width: 0; font-size: 12px; font-weight: 700; color: var(--mp-green); }
+.myplate-controls input {
+  display: block; width: 100%; min-width: 0; min-height: 46px; padding: 11px 13px;
+  border: 1px solid #c9d2c6; border-radius: 13px; color: #20352a; background: #fff;
+  font: inherit; font-size: 16px;
+}
+.myplate-categories { display: flex; flex-wrap: wrap; gap: 7px; margin: 0 0 18px; }
+.myplate-library .myplate-category { min-height: 42px; padding: 9px 13px; border: 1px solid #d7dfd2; border-radius: 99px; background: transparent; color: var(--mp-green); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.myplate-library .myplate-category[aria-pressed="true"] { background: #e9efe3; border-color: #a4b29b; color: var(--mp-ink); }
+.myplate-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; }
+.myplate-recipe-card { display: flex; flex-direction: column; min-width: 0; overflow: hidden; border: 1px solid #e1e5db; border-radius: 18px; background: #fff; }
+.myplate-photo { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 1.45; overflow: hidden; background: #eef0e6; }
+.myplate-photo img { display: block; width: 100%; height: 100%; position: absolute; inset: 0; object-fit: cover; }
+.myplate-photo-empty { padding: 18px; color: #5b6655; font-size: 12px; line-height: 1.6; text-align: center; }
+.myplate-card-body { display: flex; flex-direction: column; flex: 1; align-items: start; padding: 14px; }
+.myplate-card-body h3 { margin: 0; color: var(--mp-ink); font: 600 20px/1.14 Georgia, serif; }
+.myplate-card-meta { margin: 9px 0 14px; color: #606e61; font-size: 11px; line-height: 1.5; }
+.myplate-card-body > .myplate-button { width: 100%; margin-top: auto; }
+.myplate-pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; margin-top: 22px; }
+.myplate-pagination span { color: #506453; font-size: 12px; }
+.myplate-browser > .myplate-button { margin-top: 15px; }
+.myplate-detail { margin-top: 18px; }
+.myplate-detail-body { max-width: 740px; margin: 21px auto 0; line-height: 1.7; }
+.myplate-detail-body .myplate-detail-title { margin: 0 0 7px; color: var(--mp-ink); font: 600 clamp(29px, 5vw, 39px)/1.13 Georgia, serif; }
+.myplate-photo-large { max-height: 440px; margin: 18px 0; border-radius: 19px; }
+.myplate-amounts { padding: 11px 16px; background: #edf2e7; border-radius: 13px; color: #374e39; font-size: 13px; }
+.myplate-amounts p { margin: 4px 0; }
+.myplate-detail-body h4 { margin: 25px 0 12px; color: var(--mp-ink); font: 600 23px/1.2 Georgia, serif; }
+.myplate-ingredients { padding-left: 22px; }
+.myplate-ingredients li { margin: 10px 0; }
+.myplate-ingredients small { display: block; color: #58675a; font-size: 13px; }
+.myplate-directions, .myplate-source-notes { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.85; }
+.myplate-directions { padding: clamp(17px, 3vw, 25px); border-radius: 17px; background: #f1f4ec; }
+.myplate-source-links { display: flex; flex-wrap: wrap; gap: 11px 22px; margin: 20px 0; }
+.myplate-library a { color: var(--mp-green); text-decoration: underline; text-underline-offset: 3px; font-size: 13px; line-height: 1.6; }
+.myplate-credits { margin: 23px 0 0; padding-top: 16px; border-top: 1px solid #e1e5db; }
+.myplate-credits summary { color: #52634f; font-size: 12px; font-weight: 650; cursor: pointer; }
+.myplate-credits p { max-width: 780px; color: #5d6959; font-size: 12px; line-height: 1.65; }
+@media (max-width: 720px) {
+  .myplate-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+  .myplate-card-body { padding: 12px; }
+  .myplate-card-body h3 { font-size: 19px; }
+}
+@media (max-width: 420px) {
+  .myplate-library { padding: 17px; border-radius: 23px; }
+  .myplate-controls { grid-template-columns: minmax(0, 1fr); }
+  .myplate-card-body h3 { font-size: 18px; }
+  .myplate-card-body { padding: 11px; }
+  .myplate-library .myplate-card-body > .myplate-button { padding: 10px 7px; }
+  .myplate-pagination { gap: 8px; }
+  .myplate-pagination .myplate-button { padding: 9px 12px; font-size: 12px; }
+  .myplate-categories { gap: 6px; }
+}
+@media (max-width: 320px) { .myplate-grid { grid-template-columns: minmax(0, 1fr); } }

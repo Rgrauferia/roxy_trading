@@ -63,6 +63,10 @@ def trial_access_mode(method: str, path: str) -> str:
         # Configuration summary only; provider search/detail remain unavailable.
         return "local"
     if method == "GET" and re.fullmatch(
+            r"/v1/home-food/[^/]+/myplate-recipes(?:/[a-z0-9]+(?:-[a-z0-9]+)*)?", path):
+        # Free live source reads, independently rate-limited. No AI or imports.
+        return "local"
+    if method == "GET" and re.fullmatch(
             r"/v1/home-food/[^/]+/open-recipes(?:/summaries|/detail/[A-Za-z0-9][A-Za-z0-9_-]{0,127})?", path):
         # Bundled licensed originals: no API key, spend, AI or household writes.
         return "local"

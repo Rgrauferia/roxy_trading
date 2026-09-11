@@ -3,7 +3,31 @@
 Actualizado: 2026-09-11. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 
-## 187 — corrección de plan y recetario; verificación final en curso
+## 188 — ampliación MyPlate.food validada localmente; publicación pendiente
+
+Catálogo en directo integrado en Recetas antes del recetario local. El proveedor
+devuelve 1.072 entradas; pruebas reales pequeñas confirman 81 postres, 20 bebidas
+y 47 coincidencias de búsqueda `pasta`. NO equivale a 500 recetas revisadas por
+Roxy, traducidas o integradas en planes/Compra. Se conservan las 59 locales y los
+458 borradores separados. No se aprobó el lote de 510 candidatas.
+MyPlate.food permite consulta comercial gratuita bajo demanda, sin clave; no
+permite espejo/exportación masiva sin acuerdo. Límite compartido: 20 llamadas/min
+y 100 fichas completas/24 h por IP. Se muestra, no se evita con claves o proxies.
+API autenticada no-store; sólo búsqueda/categoría/página o slug sale al proveedor.
+Galería de 24 fotos por página, detalle transitorio íntegro EN, enlaces ES cuando
+la fuente los proporciona, créditos y aviso de imágenes ampliadas con IA.
+Sin persistir catálogo/medios, sin IA para completar recetas, sin modificar
+mascotas, planes, compras ni datos del usuario. El proveedor es independiente,
+no una API oficial del USDA. Demo puede leer esta fuente gratuita con cuotas;
+registro público permanece desactivado. TheMealDB no tiene clave comercial.
+2290 pruebas Python aprobadas/11 PostgreSQL omitidas; 360 Node aprobadas (304
+CJS + 21 anteriores MJS + 35 nuevas). QA móvil 393×852 con galería, fichas reales
+de pollo/postre/bebida y filtros. Detalles completos y fotos observados, no
+auditoría del catálogo entero. HTML/APP188, JS190, CSS132, SW187, MyPlateJS/CSS1.
+Informe: reports/home_release_188_20260911.md. Publicación y comprobación pública
+pendientes; servidor de QA temporal 13271 en 8767 todavía activo.
+
+## 187 — PUBLICADO y comprobado: plan de comidas y recetario
 
 Incidente reproducido en público186: comida antigua sin receta → búsqueda exacta
 inyectada → recetario aparentemente vacío aunque conserva59. Plan usaba tabla de
@@ -14,8 +38,16 @@ oculto ni se envía automáticamente al cambiar un campo. Compra revalida receta
 cantidades y restricciones antes de escribir; conversación ya no usa alias/IA
 para resolver una receta del plan. No se modificaron planes ni datos públicos.
 QA393px: semana nueva, tres recetas completas abiertas, cambio de cena, búsqueda
-vacía recupera59, ajustes visibles y actualización explícita. Publicación pendiente
-de comprobación final; no decir187público hasta verificar. Informe:
+vacía recupera59, ajustes visibles y actualización explícita. Publicado commit
+7a95a0a5ff10283f68f9da19f677cf51691036be, Render dep-dai1680ae00c73b6emj0:
+Live 52.2s, inicio 11/09 10:41:36 EDT. Health200/ok, cuatro assets200 idénticos.
+502 durante reinicio recuperado. Público187: sesión conservada; huevos abre desde
+Hoy con 5 pasos y foto1024px; comida antigua ausente muestra aviso sin contaminar
+búsqueda; volver/limpiar muestra59 recetas. El plan real conserva14 comidas sin
+receta completa y ofrece actualización explícita; NO se regeneró por el usuario.
+Controles visibles, sin consola ni overflow (público765px, QA393px). 2161Python
+pass/11PGskip,304NodeCJS,21MJS; sintaxis/diffOK. QA9584detenido,8767sinlistener.
+Informe:
 reports/home_release_187_20260911.md. No ampliación del catálogo,500no cumplidas.
 
 ## 186 — PUBLICADO y comprobado; 500 recetas / demo aún pendientes
