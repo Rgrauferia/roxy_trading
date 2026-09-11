@@ -15,6 +15,9 @@ body.fitness-mode .bottom-nav>button{display:flex;flex-direction:column;align-it
 body.fitness-mode .bottom-nav>button strong{font-size:11px;line-height:1.2}
 body.fitness-mode .bottom-nav [data-tab-link],body.fitness-mode .bottom-nav .roxy-nav{order:0}
 @media(max-width:650px){.fx-welcome-photo img{height:260px;object-position:center 12%}.fx-welcome-copy{display:flex;flex-direction:column;padding-top:20px}.fx-welcome-copy>.fx-pill{align-self:flex-start}.fx-welcome-copy>.fx-title{order:1}.fx-welcome-copy>.fx-primary{order:2}.fx-welcome-copy>.fx-text{order:3}.fx-welcome-copy>.fx-benefits{order:4;margin:12px 0}.fx-welcome-copy>.fx-caption{order:5}.fx-welcome-copy h2{font-size:38px}.fx-welcome-copy .fx-title{margin-bottom:12px}.fx-welcome-copy .fx-title p:last-child{margin-bottom:0}}
+.fx-preferences-detail{margin-top:24px;border-top:1px solid #d9ded3;padding-top:18px}
+.fx-preferences-detail>summary{cursor:pointer;color:var(--fx-green,#184b38);font-weight:700;line-height:1.5;padding:10px 0}
+.fx-preferences-detail[open]>summary{margin-bottom:14px}
 /* Keep the same six destinations in every module, including small phones. */
 body .bottom-nav,body.family-mode .bottom-nav,body.fitness-mode .bottom-nav{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));overflow:visible}
 body .bottom-nav>button,body.family-mode .bottom-nav>button,body.fitness-mode .bottom-nav>button{min-width:0;width:auto}

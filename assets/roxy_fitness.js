@@ -39,7 +39,7 @@
   }
   let root, context, identity, abort, generation=0, view='welcome', step=0, section='today', selectedDay='mon';
   let profile=defaults(), snapshot={version:0,profile:null,consent:null}, status=null, saved=false, busy=false, notice='', failure='', ready=false, consentChecked=false, ageOutside=false;
-  let remoteUncertain=false, pageSuspended=false;
+  let remoteUncertain=false, pageSuspended=false, moduleActive=true, checkingIdentity=false;
   const pendingKeys = new Map();
   const button = (action,label,kind='primary') => `<button type="button" class="fx-button fx-${kind}" data-fx="${action}">${label}</button>`;
   const note = (title,copy) => `<div class="fx-note">${icon('info')}<div><strong>${title}</strong><p>${copy}</p></div></div>`;
@@ -55,6 +55,7 @@
   function setView(next) {view=next;failure='';notice='';render();focusHeading();}
   function validateDraft(){if(!validTimezone(profile.timezone)){showFailure('Revisa la zona horaria (ej. America/New_York) antes de continuar.');return false;}if(step===2){const error=validateAvailability(profile);if(error){showFailure(error);return false;}}return true;}
   async function request(path, method='GET', payload) {
+    const requestGeneration=generation, parentSignal=abort.signal, controller=new AbortController();
     const headers={Accept:'application/json','Content-Type':'application/json'};
     if(path!=='/status')headers['X-Roxy-Fitness-Member']=context.identity;
     if(method!=='GET') {
@@ -65,29 +66,45 @@
       // A lost response is not proof that the server did not commit the write.
       remoteUncertain=true;
     }
-    const response=await fetch('/api/fitness/v1'+path,{credentials:'same-origin',cache:'no-store',method,headers,body:payload===undefined?undefined:JSON.stringify(payload),signal:abort.signal});
-    const result=await response.json().catch(()=>({}));
-    if(!response.ok){const e=new Error(typeof result.detail==='string'?result.detail:result.detail?.message || 'No pude confirmar la operación. Revisa tu conexión e inténtalo de nuevo.');e.status=response.status;e.code=result.detail?.code;if(e.code==='identity_changed'||e.code==='personal_login_required'||e.status===401){profile=defaults();snapshot={version:0,profile:null,consent:null};saved=false;ready=false;consentChecked=false;remoteUncertain=false;view='welcome';}throw e;}
+    let timeout, stop;
+    const stopped=()=>{const error=new Error('La consulta se canceló.');error.name='AbortError';return error;};
+    const deadline=new Promise((_,reject)=>{
+      stop=()=>{controller.abort();reject(stopped());};
+      parentSignal.addEventListener('abort',stop,{once:true});
+      if(parentSignal.aborted){stop();return;}
+      timeout=setTimeout(()=>{controller.abort();reject(new Error('La conexión tardó demasiado. Vuelve a comprobar antes de dar por guardados tus cambios.'));},12000);
+    });
+    let response,result;
+    try{
+      ({response,result}=await Promise.race([deadline,(async()=>{
+        const response=await fetch('/api/fitness/v1'+path,{credentials:'same-origin',cache:'no-store',method,headers,body:payload===undefined?undefined:JSON.stringify(payload),signal:controller.signal});
+        return {response,result:await response.json().catch(()=>({}))};
+      })()]));
+    }finally{clearTimeout(timeout);parentSignal.removeEventListener('abort',stop);}
+    if(requestGeneration!==generation||parentSignal.aborted)throw stopped();
+    if(!response.ok){const e=new Error(typeof result.detail==='string'?result.detail:result.detail?.message || 'No pude confirmar la operación. Revisa tu conexión e inténtalo de nuevo.');e.status=response.status;e.code=result.detail?.code;if(e.code==='identity_changed'||e.code==='personal_login_required'||e.status===401){profile=defaults();snapshot={version:0,profile:null,consent:null};saved=false;ready=false;consentChecked=false;remoteUncertain=false;view='welcome';checkingIdentity=true;scope.RoxyFitnessPrograms?.clear();}throw e;}
     return result;
   }
   async function load(preserveDraft=false) {
     if(preserveDraft && view==='onboarding')collect();
-    const token=generation;busy=true;render();
+    const token=generation;busy=true;checkingIdentity=true;failure='';scope.RoxyFitnessPrograms?.setActive(false);render();
     try {
       const meta=await request('/status');if(token!==generation)return;
+      if(!meta||typeof meta.personal_login!=='boolean'||!meta.storage||typeof meta.storage.configured!=='boolean'||(meta.personal_login&&(typeof meta.member_id!=='string'||!meta.member_id.trim())))throw new Error('No pude verificar quién tiene la sesión abierta. Vuelve a comprobar la conexión.');
       if(meta.personal_login && meta.member_id!==context.identity){profile=defaults();snapshot={version:0,profile:null,consent:null};saved=false;ready=false;consentChecked=false;remoteUncertain=false;view='welcome';throw new Error('Cambió la persona conectada. Recarga Roxy Home para abrir su espacio privado.');}
-      if(!meta.personal_login && (saved||hasRemoteState())){profile=defaults();snapshot={version:0,profile:null,consent:null};saved=false;ready=false;consentChecked=false;remoteUncertain=false;view='welcome';}
-      status=meta;ready=false;
+      // A shared/expired session cannot prove ownership of even an unsaved draft.
+      if(!meta.personal_login){profile=defaults();snapshot={version:0,profile:null,consent:null};saved=false;ready=false;consentChecked=false;ageOutside=false;remoteUncertain=false;view='welcome';pendingKeys.clear();scope.RoxyFitnessPrograms?.clear();}
+      status=meta;ready=false;checkingIdentity=false;
       if(meta.personal_login && meta.storage.configured) {
         const state=await request('/me/profile');if(token!==generation)return;
         acceptSnapshot(state,!preserveDraft);ready=true;
         if(state.profile && !preserveDraft)view='space';
       }
     } catch(e){if(e.name!=='AbortError'&&token===generation){failure=e.message;if(e.status===401||e.status===403){profile=defaults();snapshot={version:0,profile:null,consent:null};saved=false;ready=false;consentChecked=false;view='welcome';}}}
-    finally {if(token===generation){busy=false;render();}}
+    finally {if(token===generation){busy=false;if(!checkingIdentity&&moduleActive)scope.RoxyFitnessPrograms?.setActive(true);render();}}
   }
   function welcome() {
-    return `<div class="fx-welcome"><figure class="fx-welcome-photo"><img src="/assets/roxy_home/fitness/roxy-fitness-welcome.jpg" alt="Roxy te da la bienvenida a un espacio de ejercicio en casa"/><figcaption>Imagen ilustrativa · no es una demostración técnica</figcaption></figure><div class="fx-welcome-copy"><span class="fx-pill">Un espacio para ti</span>${commonTitle('Tu bienestar,<br>a tu ritmo.','Primero conocemos tu vida. Después, construimos un espacio que encaje en ella.')}<div class="fx-benefits"><p>${icon('event_available')}Tu tiempo, tus objetivos y tu equipo</p><p>${icon('lock')}Preferencias privadas por persona</p><p>${icon('restaurant')}Conectado con las recetas de tu hogar</p></div>${button('start','Empezar a conocerme '+icon('arrow_forward'))}${button('explore','Explorar primero','text')}<p class="fx-caption">Versión inicial: puedes explorar y preparar tus preferencias. Los entrenamientos aún no están activados.</p></div></div>`;
+    return `<div class="fx-welcome"><figure class="fx-welcome-photo"><img src="/assets/roxy_home/fitness/roxy-fitness-welcome.jpg" alt="Roxy te da la bienvenida a un espacio de ejercicio en casa"/><figcaption>Imagen ilustrativa · no es una demostración técnica</figcaption></figure><div class="fx-welcome-copy"><span class="fx-pill">Un espacio para ti</span>${commonTitle('Haz espacio<br>para moverte.','Explora un programa general, elige tus días y consulta la guía de cada fecha.')}<div class="fx-benefits"><p>${icon('event_available')}Una agenda con fechas que tú eliges</p><p>${icon('menu_book')}Movimientos explicados y procedencia consultable</p><p>${icon('restaurant')}Las recetas de tu hogar, en el mismo lugar</p></div>${button('week','Organizar mis días '+icon('arrow_forward'))}${button('start','Preparar mis preferencias','secondary')}${button('explore','Explorar primero','text')}<p class="fx-caption">La agenda de programas es temporal y no es una rutina personalizada. El guardado privado y los entrenamientos personalizados siguen sin estar activados.</p></div></div>`;
   }
   const options = (values,selected) => values.map(([value,label])=>`<option value="${value}" ${value===selected?'selected':''}>${label}</option>`).join('');
   const select = (name,title,values,current) => `<label class="fx-field"><span>${title}</span><select name="${name}">${options(values,current)}</select></label>`;
@@ -131,8 +148,8 @@
   function space() {
     const tabs=[['today','Hoy'],['week','Mi semana'],['library','Ejercicios'],['progress','Progreso'],['food','Alimentación'],['services','Servicios']];
     let content='';
-    if(section==='today')content=`<div class="fx-today-layout"><article class="fx-session"><span class="fx-eyebrow">PRIMERO, CONOCERTE</span><h3>${profile.primary_goal?GOALS[profile.primary_goal][1]:'Hagamos sitio para ti'}</h3><p>${profile.primary_goal?'Tu objetivo guía este espacio. Aún no tienes un entrenamiento activo.':'Tus objetivos, disponibilidad y material son el punto de partida.'}</p>${button('edit','Ajustar mis preferencias '+icon('arrow_forward'),'gold')}</article><div>${summary()}</div></div>${note('Antes del primer entrenamiento','El catálogo, el cribado y las plantillas necesitan aprobación antes de asignar sesiones. Aquí no se inventan cargas, calorías ni fechas de resultados.')}${education()}`;
-    if(section==='week')content=`${week()}${button('edit-time','Cambiar mi disponibilidad','secondary')}${note('Sin cambios en tu calendario','Esta vista no crea eventos ni convierte automáticamente toda tu disponibilidad en entrenamientos.')}`;
+    if(section==='today')content=`<div id="fxPrograms"><p role="status">Cargando programas de movimiento…</p></div><details class="fx-preferences-detail"><summary>Mis preferencias para un futuro plan personalizado</summary>${summary()}${button('edit','Ajustar mis preferencias','secondary')}${note('Personalización todavía pendiente','Los programas generales no se adaptan a tus lesiones, objetivos ni material. El plan personalizado necesita revisión profesional y guardado privado antes de activarse.')}</details>`;
+    if(section==='week')content=`<div id="fxPrograms"><p role="status">Cargando programas de movimiento…</p></div><details class="fx-preferences-detail"><summary>Mi disponibilidad declarada</summary>${week()}${button('edit-time','Cambiar mi disponibilidad','secondary')}${note('Disponibilidad y agenda son distintas','Estos horarios no asignan ejercicios. Los días de un programa sólo se organizan cuando tú los eliges; no se añaden eventos a tu calendario automáticamente.')}</details>`;
     if(section==='library')content=`<div id="fxLibrary"><p role="status">Cargando biblioteca de movimientos…</p></div><h3>Conoce las bases</h3>${education()}`;
     if(section==='progress')content=`<article class="fx-empty">${icon('insights')}<h3>Tu historia empieza contigo</h3><p>Todavía no hay sesiones realizadas ni mediciones. Cuando existan registros, verás su fecha y si son declarados, medidos o estimados.</p>${button('week','Ver mi disponibilidad','secondary')}</article>${note('Sin números de muestra','No hay calorías, peso o porcentajes de progreso inventados. Tampoco hay un reloj conectado.')}`;
     if(section==='food')content=`<article class="fx-food"><span class="fx-eyebrow">UN SOLO RECETARIO</span><h3>Tu movimiento y tu cocina,<br>en la misma casa.</h3><p>Explora las recetas y el plan de comidas que ya tienes en Roxy Home. Tus objetivos personales no cambiarán la alimentación del resto del hogar.</p>${button('recipes','Explorar recetas '+icon('arrow_forward'))}${button('meal-plan','Ver el plan de comidas','secondary')}</article>${note('Tú confirmas los cambios','No calculamos un déficit, prescribimos suplementos ni añadimos ingredientes a Compra desde esta sección. Puedes usarla sin peso ni calorías.')}`;
@@ -144,8 +161,12 @@
   }
   function render() {
     if(!root)return;
+    if(!moduleActive){root.innerHTML='';return;}
+    // Keep prior-member content out of the DOM until status confirms ownership.
+    if(checkingIdentity){root.innerHTML=`<div class="fx-shell" aria-busy="${busy}">${commonTitle('Comprobando tu espacio privado','Verificamos la sesión antes de mostrar tus preferencias o tu agenda.')}<div class="fx-feedback" aria-live="polite">${busy?'<p role="status">Un momento…</p>':''}${failure?`<p role="alert" tabindex="-1" class="fx-error">${esc(failure)}</p>${button('retry','Volver a comprobar','secondary')}`:''}</div></div>`;return;}
     root.innerHTML=`<div class="fx-shell" aria-busy="${busy}">${view==='welcome'?welcome():view==='onboarding'?onboarding():view==='settings'?settings():space()}<div class="fx-feedback" aria-live="polite">${busy?'<p>Comprobando tu espacio privado…</p>':''}${failure?`<p role="alert" tabindex="-1" class="fx-error">${esc(failure)}</p>${button('retry','Volver a comprobar','secondary')}`:''}${notice?`<p>${esc(notice)}</p>`:''}</div>${!canSave()?`<p class="fx-storage-note">${icon('lock')}${status?.personal_login?'El guardado privado aún no está disponible.':'Para guardar necesitas un perfil personal y almacenamiento privado disponible.'} ${hasRemoteState()?'Hay un estado guardado o pendiente de confirmar. Revisa Ajustes antes de darlo por eliminado.':'La vista previa no guarda tus selecciones.'}</p>`:''}</div>`;
     if(view==='space'&&section==='library')scope.RoxyFitnessLibrary?.mount(root.querySelector('#fxLibrary'));
+    if(view==='space'&&['today','week'].includes(section)&&moduleActive)scope.RoxyFitnessPrograms?.mount(root.querySelector('#fxPrograms'),{identity:context?.identity||'preview',timezone:profile.timezone,view:section});
     if(view==='settings'||(view==='onboarding'&&step===4))root.querySelector('.fx-onboarding')?.insertAdjacentHTML?.('beforeend','<p class="fx-caption"><a href="/privacy#ejercicio" target="_blank" rel="noopener noreferrer">Cómo protegemos tus datos de Ejercicio</a></p>');
     if(busy)root.querySelectorAll('button,input,select,textarea').forEach(control=>{control.disabled=true;});
   }
@@ -186,6 +207,7 @@
   }
   function click(event) {
     const target=event.target.closest('button');if(!target||busy)return;
+    if(checkingIdentity&&target.dataset.fx!=='retry')return;
     if(target.dataset.fxAddWindow){collect();const row=profile.availability.find(x=>x.day===target.dataset.fxAddWindow);if(row&&row.windows.length<4){row.windows.push({start:'',end:''});root.querySelector('#fxWindows').innerHTML=windows();root.querySelector(`[data-day="${row.day}"][data-window="${row.windows.length-1}"][data-time="start"]`)?.focus();}return;}
     if(target.dataset.fxRemoveWindow!==undefined){collect();const row=profile.availability.find(x=>x.day===target.dataset.day);if(row&&row.windows.length>1){row.windows.splice(Number(target.dataset.fxRemoveWindow),1);root.querySelector('#fxWindows').innerHTML=windows();root.querySelector(`[data-day="${row.day}"][data-window="0"][data-time="start"]`)?.focus();}return;}
     if(target.dataset.fxTab){section=target.dataset.fxTab;render();root.querySelector(`#fx-tab-${section}`)?.focus({preventScroll:true});return;}
@@ -219,7 +241,7 @@
     event.preventDefault();tabs[i].click();
   }
   function reset() {
-    abort?.abort();generation++;abort=new AbortController();profile=defaults();snapshot={version:0,profile:null,consent:null};status=null;ready=false;saved=false;busy=false;notice='';failure='';consentChecked=false;ageOutside=false;remoteUncertain=false;view='welcome';step=0;section='today';selectedDay='mon';pendingKeys.clear();
+    abort?.abort();generation++;abort=new AbortController();profile=defaults();snapshot={version:0,profile:null,consent:null};status=null;ready=false;saved=false;busy=false;notice='';failure='';consentChecked=false;ageOutside=false;remoteUncertain=false;checkingIdentity=false;view='welcome';step=0;section='today';selectedDay='mon';pendingKeys.clear();
   }
   function mount(node,options) {
     const changedRoot=root!==node;
@@ -227,8 +249,17 @@
     context=options;const key=options.identity||'preview';
     if(identity!==key||!abort){identity=key;reset();void load();}else if(changedRoot)render();
   }
-  function clear() {identity=null;reset();scope.RoxyFitnessLibrary?.clear();render();}
-  scope.RoxyFitness={mount,clear};
+  function setActive(value) {
+    const next=value===true;
+    if(next===moduleActive)return;
+    // Capture the current step while its fields and original save state exist.
+    if(!next&&view==='onboarding'&&!busy&&!checkingIdentity)collect();
+    moduleActive=next;
+    if(!next){scope.RoxyFitnessPrograms?.setActive(false);abort?.abort();generation++;busy=false;ready=false;checkingIdentity=true;scope.RoxyFitnessLibrary?.clear();if(root)root.innerHTML='';return;}
+    if(root&&context){abort=new AbortController();void load(true);}
+  }
+  function clear() {identity=null;reset();scope.RoxyFitnessLibrary?.clear();scope.RoxyFitnessPrograms?.clear();render();}
+  scope.RoxyFitness={mount,clear,setActive};
   if(typeof module!=='undefined')module.exports={weekDates,validateAvailability,defaults,esc,validTimezone};
   scope.addEventListener?.('pagehide',()=>{pageSuspended=!!root;clear();});
   scope.addEventListener?.('pageshow',event=>{if(event.persisted&&pageSuspended&&root&&context){pageSuspended=false;identity=context.identity||'preview';reset();void load();}});

@@ -3,16 +3,38 @@
 Actualizado: 2026-09-11. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 
-## 191 — preparado: 59 cócteles, publicación pendiente
+## 192 — candidato: agenda educativa de ejercicio, no plan personalizado
 
-9cóctelesnuevos,96bebidas(59con/37sinlicores);87anterioresintactas.
-OpenDrinksMITpin y fotos cotejadas,37ingredientes/33pasos nuevos ES/EN.
-Filtros por base sólo tras elección21+, conteos multietiqueta. APIopt-in
-include_spirit_bases=true mantieneclientes190/189. NoIA, pagos, compras ni perfiles.
-2411Python/11PGskip,138focalizadasdatosfinales,437Node(77bebidas),QA393sin
-errores/overflow;Ron8,brass1,tercerapágina49–59,CocoLoco4/7foto600lectorES/EN.
-HTML/APP191 JS193 CSS132 SW190 bebidasJS/CSS3. Informe
-reports/home_release_191_20260911.md. Público sigue190 hasta verificar despliegue.
+Programas generales fuerza7/equilibrio5/flexibilidad4 con instrucciones EN/ES,
+fuentes/licencia y agenda temporal de siete fechas elegidas por el usuario.
+Entrada directa, guías de cada día, TXT/ICS explícitos; sin entrenamientos activos,
+persistencia de sesiones ni cambios al calendario. Corregidas cancelación,
+identidad al volver y pérdida de campos no recogidos del formulario.
+QA móvil sintética393px y descargas reales comprobadas;364Node/244Python focalizadas
+aprobadas. SuiteHome general:2378aprobadas/11PGomitidas después de reparar
+presupuesto de precargaSW. Publicación192 pendiente. Informe reports/home_release_192_20260911.md.
+Bloqueos reales: constructor/plantillas profesionales y guardado privado de
+planes/sesiones. El módulo completo NO está terminado; no afirmar lo contrario.
+
+## 191 — PUBLICADO y comprobado: 59 cócteles
+
+9 cócteles nuevos, 96 bebidas (59 con alcohol / 37 sin licores); 87 anteriores intactas.
+Open Drinks MIT fijado y fotos cotejadas; 37 ingredientes / 33 pasos nuevos ES/EN.
+Filtros por base tras elección 21+, con conteos multietiqueta. La consulta opt-in
+include_spirit_bases=true mantiene compatibles los clientes 190/189. Sin IA,
+pagos, compras ni cambios en perfiles. No son recetas ensayadas en cocina por Roxy.
+2.411 pruebas Python / 11 PG omitidas, 138 focalizadas con datos finales, 437 Node
+(77 de bebidas). QA móvil de 393 px: filtro Ron 8, búsqueda brass 1, tercera página
+49–59, Coco Loco con 4 ingredientes / 7 pasos, foto de 600 px y lector ES/EN.
+Commit add212396b077974a0998bd953602ca6fcc98d73; Render
+dep-dai2g5btqb8s73bhnub0 completado en 55,8 s. Siete archivos públicos HTTP 200
+idénticos byte a byte y health 200/ok. HTML/APP 191, JS 193, CSS 132, SW 190,
+bebidas JS/CSS 3. Sesión pública conservada; catálogo 96/37/59 y aviso opcional
+21+ comprobados, sin confirmar edad por el usuario. Sin errores de consola ni
+desbordamiento en 393 y 765 px. Servidores de prueba 8767/8811 detenidos,
+pestañas 13/14/15 cerradas y viewport restaurado. Público abierto en el aviso 21+.
+Informe: reports/home_release_191_20260911.md. No redesplegar sólo por estas notas.
+Siguen pendientes la demo completa, 500 recetas revisadas y voz/fitness finales.
 
 ## 190 — PUBLICADO y comprobado: 87 bebidas
 

@@ -19,7 +19,7 @@ const deferred = ()=>{let resolve,reject;const promise=new Promise((yes,no)=>{re
 const flush = ()=>new Promise(resolve=>setImmediate(resolve));
 
 function harness() {
-  const requests=[],queue=[],events=new Map(),downloads=[];
+  const requests=[],queue=[],events=new Map(),downloads=[],programCalls=[],deadlines=new Map();
   const form={values:new Map(),times:new Map(),querySelector(selector){const day=selector.match(/data-day="([^"]+)"/)?.[1],index=selector.match(/data-window="([^"]+)"/)?.[1],part=selector.match(/data-time="([^"]+)"/)?.[1];return this.times.get(`${day}:${index}:${part}`)||null;}};
   const controls=[{disabled:false},{disabled:false},{disabled:false}];
   let html='',renderCount=0,focus='';
@@ -31,7 +31,10 @@ function harness() {
     addEventListener(){},removeEventListener(){},scrollIntoView(){}
   };
   const tabs=['today','week','library','progress','food','services'].map(key=>({dataset:{fxTab:key},getAttribute:()=> 'tab',click:()=> api.click({target:{closest:()=>tabs.find(x=>x.dataset.fxTab===key)}})}));
-  const context={console,Intl,Date,Map,AbortController,Blob,crypto:webcrypto,setTimeout:fn=>fn(),
+  const context={console,Intl,Date,Map,AbortController,Blob,crypto:webcrypto,
+    setTimeout(fn,ms){const timer=setTimeout(fn,ms);if(ms===12000)deadlines.set(timer,fn);return timer;},
+    clearTimeout(timer){deadlines.delete(timer);clearTimeout(timer);},
+    RoxyFitnessPrograms:{mount(node,options){programCalls.push({type:'mount',options});},clear(){programCalls.push({type:'clear'});},setActive(active){programCalls.push({type:'active',active});}},
     URL:{createObjectURL:()=> 'blob:synthetic',revokeObjectURL(){}},
     document:{createElement:()=>({click(){downloads.push(this.download);}})},
     FormData:class {constructor(node){this.node=node;}get(name){const value=this.node.values.get(name);return Array.isArray(value)?value[0]??null:value??null;}getAll(name){const value=this.node.values.get(name);return value===undefined?[]:Array.isArray(value)?value:[value];}has(name){return this.node.values.has(name);}},
@@ -40,14 +43,112 @@ function harness() {
   };
   context.window=context;
   vm.createContext(context);
-  const instrumented=source.replace('scope.RoxyFitness={mount,clear};',`scope.RoxyFitness={mount,clear};scope.__test={mount,clear,load,collect,submit,erase,exportData,click,keys,render,space,settings,onboarding,windows,week,acceptSnapshot,saveLabel,dirty,
+  const instrumented=source.replace('scope.RoxyFitness={mount,clear,setActive};',`scope.RoxyFitness={mount,clear,setActive};scope.__test={mount,clear,setActive,load,collect,submit,erase,exportData,click,keys,render,space,settings,onboarding,windows,week,acceptSnapshot,saveLabel,dirty,
     configure(values){if(values.root)root=values.root;if(values.context)context=values.context;if(values.identity!==undefined)identity=values.identity;if(values.profile)profile=clone(values.profile);if(values.snapshot)acceptSnapshot(values.snapshot,!!values.replaceDraft);if(values.status!==undefined)status=values.status;if(values.ready!==undefined)ready=values.ready;if(values.view)view=values.view;if(values.step!==undefined)step=values.step;if(values.consentChecked!==undefined)consentChecked=values.consentChecked;if(values.remoteUncertain!==undefined)remoteUncertain=values.remoteUncertain;if(values.section)section=values.section;},
-    current(){return clone({profile,snapshot,saved,busy,notice,failure,ready,view,step,section,remoteUncertain,identity,generation});}};`);
+    current(){return clone({profile,snapshot,saved,busy,notice,failure,ready,view,step,section,remoteUncertain,identity,generation,checkingIdentity});}};`);
   vm.runInContext(instrumented,context,{filename});
   const api=context.__test;
   api.clear();api.configure({root,context:{identity:'member-a',navigate(){}},identity:'member-a'});
-  return {api,root,form,controls,queue,requests,events,downloads,tabs,get renderCount(){return renderCount;},get focus(){return focus;},action(key){api.click({target:{closest:()=>({dataset:{fx:key}})}});}};
+  return {api,root,form,controls,queue,requests,events,downloads,tabs,programCalls,deadlines,get renderCount(){return renderCount;},get focus(){return focus;},action(key){api.click({target:{closest:()=>({dataset:{fx:key}})}});}};
 }
+
+test('today and week mount the same program component without turning availability into a prescription',()=>{
+  const h=harness();h.api.configure({view:'space',section:'today'});h.api.render();
+  assert.equal(h.programCalls.at(-1).options.view,'today');
+  assert.equal(h.programCalls.at(-1).options.identity,'member-a');
+  h.api.configure({section:'week'});h.api.render();
+  assert.equal(h.programCalls.at(-1).options.view,'week');
+  assert.match(h.root.innerHTML,/Mi disponibilidad declarada/);
+  assert.match(h.root.innerHTML,/no asignan ejercicios/);
+});
+
+test('welcome offers a source agenda directly without requiring health preferences',()=>{
+  const h=harness();h.api.render();assert.match(h.root.innerHTML,/Organizar mis días/);
+  h.action('week');assert.equal(h.api.current().view,'space');assert.equal(h.api.current().section,'week');
+  assert.equal(h.requests.length,0);assert.equal(h.api.current().saved,false);
+});
+
+test('leaving exercise cancels a request and removes visible personal content',async()=>{
+  const h=harness(),pending=deferred();h.queue.push(pending.promise);const loading=h.api.load();
+  await flush();h.api.setActive(false);assert.equal(h.requests[0].signal.aborted,true);
+  pending.resolve(response(activeStatus));await loading;assert.equal(h.root.innerHTML,'');
+  assert.deepEqual(h.programCalls.at(-1),{type:'active',active:false});assert.equal(h.deadlines.size,0);
+});
+
+test('returning to exercise revalidates the member before loading a profile',async()=>{
+  const h=harness();h.api.setActive(false);h.queue.push(response(activeStatus),response(stored({...defaults(),primary_goal:'strength'})));
+  h.api.setActive(true);await flush();
+  assert.deepEqual(h.requests.map(r=>r.url),['/api/fitness/v1/status','/api/fitness/v1/me/profile']);
+  assert.equal(h.api.current().ready,true);assert.equal(h.deadlines.size,0);
+});
+
+test('a resumed module masks old preferences until the same member is confirmed',async()=>{
+  const h=harness(),pending=deferred(),profile={...defaults(),primary_goal:'fat_loss'};
+  h.api.configure({view:'space',section:'today',status:activeStatus,ready:true,snapshot:stored(profile),replaceDraft:true});h.api.render();
+  h.api.setActive(false);h.queue.push(pending.promise,response(stored(profile)));h.api.setActive(true);
+  assert.equal(h.api.current().checkingIdentity,true);assert.equal(h.api.current().busy,true);
+  assert.match(h.root.innerHTML,/Comprobando tu espacio privado/);
+  assert.doesNotMatch(h.root.innerHTML,/Reducir grasa o peso|Mis preferencias|fxPrograms|Preferencias personales guardadas/);
+  pending.resolve(response(activeStatus));await flush();
+  assert.equal(h.api.current().checkingIdentity,false);assert.match(h.root.innerHTML,/Reducir grasa o peso/);
+});
+
+test('failed revalidation keeps the mask and retry until identity is actually confirmed',async()=>{
+  const h=harness(),profile={...defaults(),primary_goal:'fat_loss'};
+  h.api.configure({view:'space',status:activeStatus,ready:true,snapshot:stored(profile),replaceDraft:true});h.api.render();
+  h.api.setActive(false);h.queue.push(new TypeError('offline'));h.api.setActive(true);await flush();
+  assert.equal(h.api.current().checkingIdentity,true);assert.equal(h.api.current().busy,false);
+  assert.match(h.root.innerHTML,/Volver a comprobar/);assert.doesNotMatch(h.root.innerHTML,/Reducir grasa o peso|fxPrograms/);
+  h.action('week');assert.equal(h.api.current().section,'today');
+  h.queue.push(response(activeStatus),response(stored(profile)));h.action('retry');await flush();
+  assert.equal(h.api.current().checkingIdentity,false);assert.match(h.root.innerHTML,/Reducir grasa o peso/);
+});
+
+for(const malformed of [{},{personal_login:true,storage:{configured:false}},{personal_login:false,storage:{}},{personal_login:'true',member_id:'member-a',storage:{configured:false}}])test(`malformed status cannot unmask a draft: ${JSON.stringify(malformed)}`,async()=>{
+  const h=harness();h.api.configure({view:'space',profile:{...defaults(),primary_goal:'fat_loss'}});
+  h.queue.push(response(malformed));await h.api.load(true);
+  assert.equal(h.api.current().checkingIdentity,true);assert.match(h.root.innerHTML,/Volver a comprobar/);
+  assert.doesNotMatch(h.root.innerHTML,/Reducir grasa o peso|fxPrograms/);assert.equal(h.requests.length,1);
+});
+
+test('leaving captures the unsubmitted current step and restores it only for the same member',async()=>{
+  const h=harness();h.api.configure({view:'onboarding',step:1,status:activeStatus,ready:true});h.api.render();
+  h.form.values.set('primary_goal','strength');h.form.values.set('without_weight_or_calories','on');
+  h.api.setActive(false);assert.equal(h.api.current().profile.primary_goal,'strength');assert.equal(h.root.innerHTML,'');
+  h.queue.push(response(activeStatus),response(empty(0)));h.api.setActive(true);await flush();
+  assert.equal(h.api.current().profile.primary_goal,'strength');assert.match(h.root.innerHTML,/value="strength" checked/);
+});
+
+test('leaving captures the consent checkbox before disabling original save eligibility',()=>{
+  const h=harness();h.api.configure({view:'onboarding',step:4,status:activeStatus,ready:true});h.api.render();h.form.values.set('consent','on');
+  h.api.setActive(false);assert.equal(h.api.current().ready,false);
+  // Returning without storage cannot silently reuse it; with storage the choice
+  // remains a draft until the user explicitly submits the form.
+  h.queue.push(response(activeStatus),response(empty(0)));
+  h.api.setActive(true);
+  return flush().then(()=>{assert.match(h.root.innerHTML,/name="consent"[^>]*checked/);assert.equal(h.requests.filter(r=>r.method!=='GET').length,0);});
+});
+
+test('a shared-session downgrade discards an unsaved personal draft too',async()=>{
+  const h=harness();h.api.configure({view:'space',profile:{...defaults(),primary_goal:'fat_loss'},status:activeStatus,ready:true});
+  h.queue.push(response({personal_login:false,member_id:null,storage:{configured:false},education:[]}));await h.api.load(true);
+  assert.equal(h.api.current().profile.primary_goal,null);assert.equal(h.api.current().view,'welcome');
+  assert.equal(h.api.current().checkingIdentity,false);assert.doesNotMatch(h.root.innerHTML,/Reducir grasa o peso/);
+});
+
+test('a late unauthorized response from the previous identity cannot erase the current profile',async()=>{
+  const h=harness(),pending=deferred();h.queue.push(pending.promise);const old=h.api.load();await flush();
+  h.api.clear();h.api.configure({identity:'member-b',context:{identity:'member-b'},snapshot:stored({...defaults(),primary_goal:'muscle_gain'}),replaceDraft:true});
+  pending.resolve(response({detail:{code:'identity_changed'}},401));await old;
+  assert.equal(h.api.current().profile.primary_goal,'muscle_gain');assert.equal(h.api.current().identity,'member-b');
+});
+
+test('a stalled connection has a bounded deadline with a useful error and no false save',async()=>{
+  const h=harness(),pending=deferred();h.queue.push(pending.promise);const loading=h.api.load();await flush();
+  assert.equal(h.deadlines.size,1);[...h.deadlines.values()][0]();await loading;
+  assert.match(h.api.current().failure,/tardó demasiado/);assert.equal(h.api.current().saved,false);
+  assert.equal(h.api.current().busy,false);assert.equal(h.deadlines.size,0);pending.resolve(response(activeStatus));
+});
 
 test('week follows the declared timezone and falls back safely for an invalid preview',()=>{
   assert.equal(validTimezone('America/New_York'),true);assert.equal(validTimezone('not/a/timezone'),false);

@@ -281,10 +281,11 @@ const cases={
   assert.ok(downloads.some(p=>p.startsWith('/assets/roxy_list.js?')));
   assert.ok(downloads.some(p=>p.startsWith('/assets/roxy_list.css?')));
   assert.ok(downloads.length<=20,'Installation should not download the entire catalogue');
+  assert.ok(downloads.every(p=>!p.includes('/roxy_fitness_programs.')),'Optional guides are not extra install downloads');
   assert.equal(new Set(downloads).size,downloads.length);
   assert.ok(downloads.every(p=>!p.includes('/vendor/')&&!p.includes('/recipes/')&&!p.includes('/products/')));
   assert.ok(downloads.every(p=>p==='/home'||p==='/lista-manifest.json'||p==='/assets/roxy_home_avatar.jpg'||/\.(css|js)\?/.test(p)));
-  for(const pathname of ['/v1/home-food/recipe-photo?title=Exact&variant=card','/api/fitness/v1/me/profile','/api/fitness/v1/exercises']){
+  for(const pathname of ['/v1/home-food/recipe-photo?title=Exact&variant=card','/api/fitness/v1/me/profile','/api/fitness/v1/exercises','/api/fitness/v1/programs','/api/fitness/v1/programs/gentle-strength']){
    let intercepted=false;listeners.fetch({request:{url:'https://roxy.test'+pathname,method:'GET',mode:'cors'},respondWith:()=>intercepted=true});
    assert.equal(intercepted,false,'The SW must not cache live/private API requests');
   }

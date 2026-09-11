@@ -12,6 +12,8 @@ from .repository import (FitnessConflict, FitnessConsentRequired,
 from .schemas import FitnessConsentRequest, FitnessDeleteRequest, FitnessWriteRequest
 from .sources import fitness_education_links
 from .catalog import fitness_catalog, fitness_catalog_entry
+from .programs import (ProgramCatalogUnavailable, ProgramNotFound,
+                       program_catalog, program_detail)
 
 
 def repository() -> PostgresFitnessRepository:
@@ -78,6 +80,24 @@ def create_fitness_router(authenticate: Callable, rate_limit: Callable) -> APIRo
         if entry is None:
             raise HTTPException(404, "No existe esa ficha original.")
         return entry
+
+    def read_program(callback):
+        try:
+            return callback()
+        except ProgramNotFound:
+            raise HTTPException(404, detail={"code": "program_not_found", "message": "No existe ese programa."}) from None
+        except ProgramCatalogUnavailable:
+            raise HTTPException(503, detail={"code": "program_catalog_unavailable", "message": "No pude verificar las guías. Inténtalo de nuevo; no se ha creado ninguna agenda."}) from None
+
+    @router.get("/programs")
+    def programs(request: Request, auth=Depends(authenticate)):
+        rate_limit(request)
+        return read_program(program_catalog)
+
+    @router.get("/programs/{program_id}")
+    def program(program_id: str, request: Request, auth=Depends(authenticate)):
+        rate_limit(request)
+        return read_program(lambda: program_detail(program_id))
 
     @router.get("/me/profile")
     def profile(member: str = Depends(personal)):

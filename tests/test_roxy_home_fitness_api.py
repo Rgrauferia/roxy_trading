@@ -105,7 +105,7 @@ def test_member_is_derived_from_login_even_with_a_shared_household(api):
     assert "shared-household" not in repr(api.db.calls)
 
 
-@pytest.mark.parametrize("path", ["/status", "/me/profile", "/me/data", "/exercises", "/exercises/wger-91"])
+@pytest.mark.parametrize("path", ["/status", "/me/profile", "/me/data", "/exercises", "/exercises/wger-91", "/programs", "/programs/gentle-strength"])
 def test_unauthenticated_response_is_not_cached(api, monkeypatch, path):
     monkeypatch.delitem(service.app.dependency_overrides, service._authenticate)
     response = api.client.get(PREFIX + path)
@@ -129,6 +129,50 @@ def test_status_reports_identity_and_pending_capabilities_without_private_reads(
     private_cache(response)
     assert api.db.calls == []
     assert "never-real" not in response.text
+
+
+@pytest.mark.parametrize("mode", ["member", "legacy", "bearer"])
+def test_source_programs_do_not_require_or_access_personal_storage(api, monkeypatch, mode):
+    api.identity = service.AuthContext(mode, "shared-household", MEMBER if mode == "member" else None)
+    monkeypatch.setattr(router, "repository", lambda: pytest.fail("Source guide accessed private storage"))
+    response = api.client.get(PREFIX + "/programs")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == len(data["programs"]) == 3
+    assert sum(row["exercise_count"] for row in data["programs"]) == 16
+    for field in ("active_training", "can_activate_plans", "clinical_approval", "can_persist"):
+        assert data[field] is False
+    for row in data["programs"]:
+        detail = api.client.get(PREFIX + "/programs/" + row["id"])
+        assert detail.status_code == 200
+        program = detail.json()["program"]
+        assert len(program["exercises"]) == row["exercise_count"]
+        assert program["duration_seconds"] is None
+        assert all(exercise["instructions_en"] and exercise["instructions_es"] for exercise in program["exercises"])
+        private_cache(detail)
+    private_cache(response)
+    assert api.db.calls == []
+
+
+def test_unknown_or_invalid_program_catalog_is_never_a_success(api, monkeypatch):
+    missing = api.client.get(PREFIX + "/programs/not-a-plan")
+    assert missing.status_code == 404
+    private_cache(missing)
+    def fail():
+        raise router.ProgramCatalogUnavailable()
+    monkeypatch.setattr(router, "program_catalog", fail)
+    failure = api.client.get(PREFIX + "/programs")
+    assert failure.status_code == 503
+    assert failure.json()["detail"]["code"] == "program_catalog_unavailable"
+    private_cache(failure)
+    assert api.db.calls == []
+
+
+@pytest.mark.parametrize("path", ["/programs", "/programs/gentle-strength", "/programs/gentle-balance", "/programs/gentle-flexibility"])
+def test_trial_only_allows_reading_source_programs(path):
+    assert trial_access_mode("GET", PREFIX + path) == "local"
+    assert trial_access_mode("POST", PREFIX + path) != "local"
+    assert trial_access_mode("GET", PREFIX + path + "/activate") != "local"
 
 
 def test_catalog_api_returns_fixed_originals_and_attributed_images_without_private_storage(api, monkeypatch):

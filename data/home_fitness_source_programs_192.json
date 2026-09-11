@@ -1,0 +1,442 @@
+{
+  "version": 1,
+  "programs": [
+    {
+      "id": "gentle-strength",
+      "title_en": "Strength exercises",
+      "title_es": "Ejercicios de fuerza",
+      "source_url": "https://www.nhs.uk/live-well/exercise/strength-exercises/",
+      "source_version": "2024-02-28",
+      "checked_on": "2026-09-11",
+      "source_review_due_on": "2027-02-28",
+      "source_html_sha256": "10647c1fcd3e14c83f721afc78ae38dd38e4277ed06a253287c4241cd8d77395",
+      "raw_source": "{\n  \"title_en\": \"Strength exercises\",\n  \"intro_en\": [\n    \"Strength exercises like these can be done at home to improve your health and mobility.\",\n    \"Do not worry if you have not done much for a while, these strength exercises are gentle and easy to follow.\",\n    \"For the chair-based exercises, choose a solid, stable chair that does not have wheels and that will not slip on the surface it is on.\",\n    \"You should be able to sit with your feet flat on the floor and your knees bent at right angles. Avoid chairs with arms, as these will restrict your movement.\",\n    \"Wear loose, comfortable clothing and keep some water handy.\",\n    \"Build up slowly and aim to gradually increase the repetitions of each exercise over time.\",\n    \"Try to do these exercises at least twice a week and combine them with the other routines in this series:\",\n    \"sitting exercises\",\n    \"flexibility exercises\",\n    \"balance exercises\"\n  ],\n  \"frequency_en\": \"Try to do these exercises at least twice a week and combine them with the other routines in this series:\",\n  \"exercises\": [\n    {\n      \"id\": \"sit-to-stand\",\n      \"name_en\": \"Sit-to-stand\",\n      \"instructions_en\": [\n        \"A. Sit on the edge of the chair, feet hip-width apart. Lean slightly forwards.\",\n        \"B. Stand up slowly using your legs, not arms. Keep looking forward and do not look down.\",\n        \"C. Stand upright and then slowly sit down, using your hands or arms just to guide you if possible .\",\n        \"Aim for 5 repetitions. The slower the repetitions, the better.\"\n      ]\n    },\n    {\n      \"id\": \"mini-squats\",\n      \"name_en\": \"Mini-squats\",\n      \"instructions_en\": [\n        \"A. Rest your hands on the back of the chair for stability and stand with your feet hip-width apart.\",\n        \"B. Slowly bend your knees as far as is comfortable, keeping them facing forwards. Aim to get them over your big toe. Keep your back straight at all times.\",\n        \"C. Gently come up to standing, squeezing (clenching) your buttocks as you do so.\",\n        \"Repeat 5 times.\"\n      ]\n    },\n    {\n      \"id\": \"calf-raises\",\n      \"name_en\": \"Calf raises\",\n      \"instructions_en\": [\n        \"A. Rest your hands on the back of a chair for stability.\",\n        \"B. Lift both heels off the floor as far as is comfortable. The movement should be slow and controlled.\",\n        \"Repeat 5 times.\",\n        \"To make this more difficult, perform the exercise without support.\"\n      ]\n    },\n    {\n      \"id\": \"sideways-leg-lift\",\n      \"name_en\": \"Sideways leg lift\",\n      \"instructions_en\": [\n        \"A. Rest your hands on the back of a chair for stability.\",\n        \"B. Raise your right leg to the side as far as is comfortable, keeping your back and hips straight. Avoid tilting to the right.\",\n        \"C. Return to the starting position. Now raise your left leg to the side as far as possible.\",\n        \"Raise and lower each leg 5 times.\"\n      ]\n    },\n    {\n      \"id\": \"leg-extension\",\n      \"name_en\": \"Leg extension\",\n      \"instructions_en\": [\n        \"A. Rest your hands on the back of a chair for stability.\",\n        \"B. Standing upright, raise your left leg backwards, keeping it straight. Avoid arching your back as you take your leg back. You should feel the effort in the back of your thigh and bottom.\",\n        \"C. Repeat with the right leg.\",\n        \"Hold the lift for up to 5 seconds and repeat 5 times with each leg.\"\n      ]\n    },\n    {\n      \"id\": \"wall-press-up\",\n      \"name_en\": \"Wall press-up\",\n      \"instructions_en\": [\n        \"A. Stand at arm's length from the wall. Place your hands flat against the wall at chest level, with your fingers pointing upwards.\",\n        \"B. With your back straight, slowly bend your arms, keeping your elbows by your side. Aim to close the gap between you and the wall as much as you can.\",\n        \"C. Slowly return to the start.\",\n        \"Attempt 3 sets of 5 to 10 repetitions.\"\n      ]\n    },\n    {\n      \"id\": \"biceps-curls\",\n      \"name_en\": \"Biceps curls\",\n      \"instructions_en\": [\n        \"A. Hold a pair of light weights (filled water bottles will do) and stand with your feet hip-width apart.\",\n        \"B. Keeping your arms by your side, slowly bend them until the weight in your hand reaches your shoulder.\",\n        \"C. Slowly lower again.\",\n        \"This can also be carried out while sitting. Attempt 3 sets of 5 curls with each arm.\"\n      ]\n    }\n  ]\n}",
+      "source_sha256": "6501a2eafc749539ec0a96adeb95651931a11f4008bd95518048fe4c64b43ae8",
+      "intro_en": [
+        "Strength exercises like these can be done at home to improve your health and mobility.",
+        "Do not worry if you have not done much for a while, these strength exercises are gentle and easy to follow.",
+        "For the chair-based exercises, choose a solid, stable chair that does not have wheels and that will not slip on the surface it is on.",
+        "You should be able to sit with your feet flat on the floor and your knees bent at right angles. Avoid chairs with arms, as these will restrict your movement.",
+        "Wear loose, comfortable clothing and keep some water handy.",
+        "Build up slowly and aim to gradually increase the repetitions of each exercise over time.",
+        "Try to do these exercises at least twice a week and combine them with the other routines in this series:",
+        "sitting exercises",
+        "flexibility exercises",
+        "balance exercises"
+      ],
+      "intro_es": [
+        "Ejercicios de fuerza como estos pueden hacerse en casa para mejorar tu salud y movilidad.",
+        "No te preocupes si llevas un tiempo sin hacer mucho; estos ejercicios de fuerza son suaves y fáciles de seguir.",
+        "Para los ejercicios con silla, elige una silla sólida y estable, sin ruedas, que no se deslice sobre la superficie en la que esté.",
+        "Debes poder sentarte con los pies apoyados completamente en el suelo y las rodillas dobladas en ángulo recto. Evita las sillas con reposabrazos, ya que limitarán tus movimientos.",
+        "Usa ropa holgada y cómoda y ten un poco de agua a mano.",
+        "Empieza poco a poco y procura aumentar gradualmente las repeticiones de cada ejercicio con el tiempo.",
+        "Intenta hacer estos ejercicios al menos dos veces por semana y combínalos con las otras rutinas de esta serie:",
+        "ejercicios sentado",
+        "ejercicios de flexibilidad",
+        "ejercicios de equilibrio"
+      ],
+      "frequency_en": "Try to do these exercises at least twice a week and combine them with the other routines in this series:",
+      "frequency_es": "Intenta hacer estos ejercicios al menos dos veces por semana y combínalos con las otras rutinas de esta serie:",
+      "exercises": [
+        {
+          "id": "sit-to-stand",
+          "name_en": "Sit-to-stand",
+          "name_es": "Sentarse y ponerse de pie",
+          "instructions_en": [
+            "A. Sit on the edge of the chair, feet hip-width apart. Lean slightly forwards.",
+            "B. Stand up slowly using your legs, not arms. Keep looking forward and do not look down.",
+            "C. Stand upright and then slowly sit down, using your hands or arms just to guide you if possible .",
+            "Aim for 5 repetitions. The slower the repetitions, the better."
+          ],
+          "instructions_es": [
+            "A. Siéntate en el borde de la silla, con los pies separados al ancho de las caderas. Inclínate ligeramente hacia delante.",
+            "B. Ponte de pie lentamente usando las piernas, no los brazos. Sigue mirando al frente y no mires hacia abajo.",
+            "C. Mantente erguido y después siéntate lentamente, usando las manos o los brazos sólo para guiarte si es posible.",
+            "Intenta llegar a 5 repeticiones. Cuanto más lentas sean las repeticiones, mejor."
+          ]
+        },
+        {
+          "id": "mini-squats",
+          "name_en": "Mini-squats",
+          "name_es": "Minisentadillas",
+          "instructions_en": [
+            "A. Rest your hands on the back of the chair for stability and stand with your feet hip-width apart.",
+            "B. Slowly bend your knees as far as is comfortable, keeping them facing forwards. Aim to get them over your big toe. Keep your back straight at all times.",
+            "C. Gently come up to standing, squeezing (clenching) your buttocks as you do so.",
+            "Repeat 5 times."
+          ],
+          "instructions_es": [
+            "A. Apoya las manos en el respaldo de la silla para mantener la estabilidad y ponte de pie con los pies separados al ancho de las caderas.",
+            "B. Dobla las rodillas lentamente hasta donde te resulte cómodo, manteniéndolas orientadas hacia delante. Procura que queden sobre los dedos gordos de los pies. Mantén la espalda recta en todo momento.",
+            "C. Vuelve suavemente a la posición de pie, apretando (contrayendo) los glúteos al hacerlo.",
+            "Repite 5 veces."
+          ]
+        },
+        {
+          "id": "calf-raises",
+          "name_en": "Calf raises",
+          "name_es": "Elevaciones de talones",
+          "instructions_en": [
+            "A. Rest your hands on the back of a chair for stability.",
+            "B. Lift both heels off the floor as far as is comfortable. The movement should be slow and controlled.",
+            "Repeat 5 times.",
+            "To make this more difficult, perform the exercise without support."
+          ],
+          "instructions_es": [
+            "A. Apoya las manos en el respaldo de una silla para mantener la estabilidad.",
+            "B. Levanta ambos talones del suelo hasta donde te resulte cómodo. El movimiento debe ser lento y controlado.",
+            "Repite 5 veces.",
+            "Para aumentar la dificultad, realiza el ejercicio sin apoyo."
+          ]
+        },
+        {
+          "id": "sideways-leg-lift",
+          "name_en": "Sideways leg lift",
+          "name_es": "Elevación lateral de pierna",
+          "instructions_en": [
+            "A. Rest your hands on the back of a chair for stability.",
+            "B. Raise your right leg to the side as far as is comfortable, keeping your back and hips straight. Avoid tilting to the right.",
+            "C. Return to the starting position. Now raise your left leg to the side as far as possible.",
+            "Raise and lower each leg 5 times."
+          ],
+          "instructions_es": [
+            "A. Apoya las manos en el respaldo de una silla para mantener la estabilidad.",
+            "B. Eleva la pierna derecha hacia un lado hasta donde te resulte cómodo, manteniendo la espalda y las caderas rectas. Evita inclinarte hacia la derecha.",
+            "C. Vuelve a la posición inicial. Ahora eleva la pierna izquierda hacia un lado tanto como puedas.",
+            "Eleva y baja cada pierna 5 veces."
+          ]
+        },
+        {
+          "id": "leg-extension",
+          "name_en": "Leg extension",
+          "name_es": "Extensión de pierna hacia atrás",
+          "instructions_en": [
+            "A. Rest your hands on the back of a chair for stability.",
+            "B. Standing upright, raise your left leg backwards, keeping it straight. Avoid arching your back as you take your leg back. You should feel the effort in the back of your thigh and bottom.",
+            "C. Repeat with the right leg.",
+            "Hold the lift for up to 5 seconds and repeat 5 times with each leg."
+          ],
+          "instructions_es": [
+            "A. Apoya las manos en el respaldo de una silla para mantener la estabilidad.",
+            "B. Estando de pie y erguido, eleva la pierna izquierda hacia atrás, manteniéndola recta. Evita arquear la espalda al llevar la pierna hacia atrás. Debes sentir el esfuerzo en la parte posterior del muslo y en el glúteo.",
+            "C. Repite con la pierna derecha.",
+            "Mantén la pierna elevada hasta 5 segundos y repite 5 veces con cada pierna."
+          ]
+        },
+        {
+          "id": "wall-press-up",
+          "name_en": "Wall press-up",
+          "name_es": "Flexión contra la pared",
+          "instructions_en": [
+            "A. Stand at arm's length from the wall. Place your hands flat against the wall at chest level, with your fingers pointing upwards.",
+            "B. With your back straight, slowly bend your arms, keeping your elbows by your side. Aim to close the gap between you and the wall as much as you can.",
+            "C. Slowly return to the start.",
+            "Attempt 3 sets of 5 to 10 repetitions."
+          ],
+          "instructions_es": [
+            "A. Ponte de pie a una distancia de la pared equivalente al largo de tus brazos. Apoya las manos planas contra la pared a la altura del pecho, con los dedos apuntando hacia arriba.",
+            "B. Con la espalda recta, dobla lentamente los brazos, manteniendo los codos a los lados. Intenta reducir todo lo que puedas la distancia entre tu cuerpo y la pared.",
+            "C. Vuelve lentamente a la posición inicial.",
+            "Intenta hacer 3 series de 5 a 10 repeticiones."
+          ]
+        },
+        {
+          "id": "biceps-curls",
+          "name_en": "Biceps curls",
+          "name_es": "Flexiones de bíceps",
+          "instructions_en": [
+            "A. Hold a pair of light weights (filled water bottles will do) and stand with your feet hip-width apart.",
+            "B. Keeping your arms by your side, slowly bend them until the weight in your hand reaches your shoulder.",
+            "C. Slowly lower again.",
+            "This can also be carried out while sitting. Attempt 3 sets of 5 curls with each arm."
+          ],
+          "instructions_es": [
+            "A. Sostén un par de pesas ligeras (sirven botellas de agua llenas) y ponte de pie con los pies separados al ancho de las caderas.",
+            "B. Manteniendo los brazos a los lados, dóblalos lentamente hasta que el peso que sostienes llegue al hombro.",
+            "C. Vuelve a bajarlos lentamente.",
+            "También se puede hacer sentado. Intenta hacer 3 series de 5 flexiones con cada brazo."
+          ]
+        }
+      ],
+      "notes_es": [
+        "Adaptación al español de Roxy de un texto educativo público; no es una prescripción personalizada ni una aprobación clínica.",
+        "La fuente no indica una duración total ni descansos exactos. No se han añadido tiempos, cargas ni una progresión automática.",
+        "Las sugerencias de progresión y los rangos se conservan como texto de la fuente; no son cambios automáticos de tu agenda.",
+        "Se conservan las referencias textuales de la fuente a otras rutinas de la serie; no implican que estén todas integradas o programadas.",
+        "No se incluyen imágenes, vídeos ni logotipos porque sus derechos no quedan cubiertos automáticamente por la licencia del texto.",
+        "La extensión de pierna de esta rutina consiste en elevarla hacia atrás estando de pie; no describe una máquina de extensión de rodilla."
+      ],
+      "attribution_en": "Information from the NHS website, as at 110926. Information from the NHS website is licensed under the Open Government Licence v3.0.",
+      "attribution_es": "Adaptación al español de Roxy. Contains public sector information licensed under the Open Government Licence v3.0. La entidad que publicó el original no es autora ni avalista de esta adaptación.",
+      "license_url": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+      "terms_url": "https://www.nhs.uk/our-policies/terms-and-conditions/",
+      "media": [],
+      "duration_seconds": null,
+      "rest_seconds": null,
+      "progression": null,
+      "clinical_approval": false
+    },
+    {
+      "id": "gentle-balance",
+      "title_en": "Balance exercises",
+      "title_es": "Ejercicios de equilibrio",
+      "source_url": "https://www.nhs.uk/live-well/exercise/balance-exercises/",
+      "source_version": "2023-11-07",
+      "checked_on": "2026-09-11",
+      "source_review_due_on": "2026-11-07",
+      "source_html_sha256": "b668553affa07c3e333794293da3ad738ce5b52661f96e904db5da8b5930c918",
+      "raw_source": "{\n  \"title_en\": \"Balance exercises\",\n  \"intro_en\": [\n    \"These simple balance exercises can be done at home to help improve your health and mobility.\",\n    \"Do not worry if you have not done much exercise for a while, these balance exercises are gentle and easy to follow.\",\n    \"Wear loose, comfortable clothing and keep some water handy. Build up slowly and aim to gradually increase the repetitions of each exercise over time.\",\n    \"Consider doing the exercises near a wall or a stable chair just in case you lose your balance.\",\n    \"Try to do these exercises at least twice a week and combine them with the other routines in this series:\",\n    \"sitting exercises\",\n    \"flexibility exercises\",\n    \"strength exercises\"\n  ],\n  \"frequency_en\": \"Try to do these exercises at least twice a week and combine them with the other routines in this series:\",\n  \"exercises\": [\n    {\n      \"id\": \"sideways-walking\",\n      \"name_en\": \"Sideways walking\",\n      \"instructions_en\": [\n        \"A. Stand with your feet together, knees slightly bent.\",\n        \"B. Step sideways in a slow and controlled manner, moving one foot to the side first.\",\n        \"C. Move the other to join it.\",\n        \"Avoid dropping your hips as you step. Perform 10 steps each way or step from one side of the room to the other.\"\n      ]\n    },\n    {\n      \"id\": \"simple-grapevine\",\n      \"name_en\": \"Simple grapevine\",\n      \"instructions_en\": [\n        \"This involves walking sideways by crossing one foot over the other.\",\n        \"A. Start by crossing your right foot over your left.\",\n        \"B. Bring your left foot to join it.\",\n        \"Attempt 5 cross-steps on each side. If necessary, put your fingers against a wall for stability. The smaller the step, the more you work on your balance.\"\n      ]\n    },\n    {\n      \"id\": \"heel-to-toe-walk\",\n      \"name_en\": \"Heel-to-toe walk\",\n      \"instructions_en\": [\n        \"A. Standing upright, place your right heel on the floor directly in front of your left toe.\",\n        \"B. Then do the same with your left heel. Make sure you keep looking forward at all times. If necessary, put your fingers against a wall for stability.\",\n        \"Try to perform at least 5 steps. As you progress, move away from the wall.\"\n      ]\n    },\n    {\n      \"id\": \"one-leg-stand\",\n      \"name_en\": \"One-leg stand\",\n      \"instructions_en\": [\n        \"A. Start by standing facing the wall, with your arms outstretched and your fingertips touching the wall.\",\n        \"B. Lift your left leg, keep your hips level and keep a slight bend in the opposite leg. Gently place your foot back on the floor.\",\n        \"Hold the lift for 5 to 10 seconds and perform 3 on each side.\"\n      ]\n    },\n    {\n      \"id\": \"step-up\",\n      \"name_en\": \"Step-up\",\n      \"instructions_en\": [\n        \"Use a step, preferably with a railing or near a wall, to use as support.\",\n        \"A. Step up with your right leg.\",\n        \"B. Bring your left leg up to join it.\",\n        \"C. Step down again and return to the start position.\",\n        \"The key for building balance is to step up and down slowly and in a controlled manner. Perform up to 5 steps with each leg.\"\n      ]\n    }\n  ]\n}",
+      "source_sha256": "1d29d9b787d4164591f93459eb7169f98c3d01846118265aad452ad193037284",
+      "intro_en": [
+        "These simple balance exercises can be done at home to help improve your health and mobility.",
+        "Do not worry if you have not done much exercise for a while, these balance exercises are gentle and easy to follow.",
+        "Wear loose, comfortable clothing and keep some water handy. Build up slowly and aim to gradually increase the repetitions of each exercise over time.",
+        "Consider doing the exercises near a wall or a stable chair just in case you lose your balance.",
+        "Try to do these exercises at least twice a week and combine them with the other routines in this series:",
+        "sitting exercises",
+        "flexibility exercises",
+        "strength exercises"
+      ],
+      "intro_es": [
+        "Estos ejercicios sencillos de equilibrio pueden hacerse en casa para ayudar a mejorar tu salud y movilidad.",
+        "No te preocupes si llevas un tiempo sin hacer mucho ejercicio; estos ejercicios de equilibrio son suaves y fáciles de seguir.",
+        "Usa ropa holgada y cómoda y ten un poco de agua a mano. Empieza poco a poco y procura aumentar gradualmente las repeticiones de cada ejercicio con el tiempo.",
+        "Considera hacer los ejercicios cerca de una pared o de una silla estable por si pierdes el equilibrio.",
+        "Intenta hacer estos ejercicios al menos dos veces por semana y combínalos con las otras rutinas de esta serie:",
+        "ejercicios sentado",
+        "ejercicios de flexibilidad",
+        "ejercicios de fuerza"
+      ],
+      "frequency_en": "Try to do these exercises at least twice a week and combine them with the other routines in this series:",
+      "frequency_es": "Intenta hacer estos ejercicios al menos dos veces por semana y combínalos con las otras rutinas de esta serie:",
+      "exercises": [
+        {
+          "id": "sideways-walking",
+          "name_en": "Sideways walking",
+          "name_es": "Caminar de lado",
+          "instructions_en": [
+            "A. Stand with your feet together, knees slightly bent.",
+            "B. Step sideways in a slow and controlled manner, moving one foot to the side first.",
+            "C. Move the other to join it.",
+            "Avoid dropping your hips as you step. Perform 10 steps each way or step from one side of the room to the other."
+          ],
+          "instructions_es": [
+            "A. Ponte de pie con los pies juntos y las rodillas ligeramente dobladas.",
+            "B. Da un paso lateral de manera lenta y controlada, moviendo primero un pie hacia un lado.",
+            "C. Acerca el otro pie hasta juntarlo con el primero.",
+            "Evita dejar caer las caderas al dar los pasos. Da 10 pasos en cada dirección o camina de un lado de la habitación al otro."
+          ]
+        },
+        {
+          "id": "simple-grapevine",
+          "name_en": "Simple grapevine",
+          "name_es": "Paso lateral cruzado sencillo",
+          "instructions_en": [
+            "This involves walking sideways by crossing one foot over the other.",
+            "A. Start by crossing your right foot over your left.",
+            "B. Bring your left foot to join it.",
+            "Attempt 5 cross-steps on each side. If necessary, put your fingers against a wall for stability. The smaller the step, the more you work on your balance."
+          ],
+          "instructions_es": [
+            "Consiste en caminar de lado cruzando un pie por delante del otro.",
+            "A. Empieza cruzando el pie derecho por delante del izquierdo.",
+            "B. Acerca el pie izquierdo hasta juntarlo con el derecho.",
+            "Intenta dar 5 pasos cruzados hacia cada lado. Si es necesario, apoya los dedos contra una pared para mantener la estabilidad. Cuanto más pequeño sea el paso, más trabajarás el equilibrio."
+          ]
+        },
+        {
+          "id": "heel-to-toe-walk",
+          "name_en": "Heel-to-toe walk",
+          "name_es": "Caminar talón con punta",
+          "instructions_en": [
+            "A. Standing upright, place your right heel on the floor directly in front of your left toe.",
+            "B. Then do the same with your left heel. Make sure you keep looking forward at all times. If necessary, put your fingers against a wall for stability.",
+            "Try to perform at least 5 steps. As you progress, move away from the wall."
+          ],
+          "instructions_es": [
+            "A. De pie y erguido, coloca el talón derecho en el suelo directamente delante de la punta del pie izquierdo.",
+            "B. Después haz lo mismo con el talón izquierdo. Asegúrate de seguir mirando al frente en todo momento. Si es necesario, apoya los dedos contra una pared para mantener la estabilidad.",
+            "Intenta dar al menos 5 pasos. A medida que avances, aléjate de la pared."
+          ]
+        },
+        {
+          "id": "one-leg-stand",
+          "name_en": "One-leg stand",
+          "name_es": "Mantenerse sobre una pierna",
+          "instructions_en": [
+            "A. Start by standing facing the wall, with your arms outstretched and your fingertips touching the wall.",
+            "B. Lift your left leg, keep your hips level and keep a slight bend in the opposite leg. Gently place your foot back on the floor.",
+            "Hold the lift for 5 to 10 seconds and perform 3 on each side."
+          ],
+          "instructions_es": [
+            "A. Empieza de pie frente a una pared, con los brazos extendidos y las yemas de los dedos tocando la pared.",
+            "B. Levanta la pierna izquierda, mantén las caderas niveladas y la otra pierna ligeramente doblada. Vuelve a apoyar el pie suavemente en el suelo.",
+            "Mantén la pierna elevada entre 5 y 10 segundos y hazlo 3 veces por cada lado."
+          ]
+        },
+        {
+          "id": "step-up",
+          "name_en": "Step-up",
+          "name_es": "Subir a un escalón",
+          "instructions_en": [
+            "Use a step, preferably with a railing or near a wall, to use as support.",
+            "A. Step up with your right leg.",
+            "B. Bring your left leg up to join it.",
+            "C. Step down again and return to the start position.",
+            "The key for building balance is to step up and down slowly and in a controlled manner. Perform up to 5 steps with each leg."
+          ],
+          "instructions_es": [
+            "Usa un escalón, preferiblemente con una barandilla o cerca de una pared, para tener un apoyo.",
+            "A. Sube al escalón con la pierna derecha.",
+            "B. Sube la pierna izquierda hasta juntarla con la derecha.",
+            "C. Vuelve a bajar y regresa a la posición inicial.",
+            "La clave para desarrollar el equilibrio es subir y bajar lenta y controladamente. Haz hasta 5 subidas con cada pierna."
+          ]
+        }
+      ],
+      "notes_es": [
+        "Adaptación al español de Roxy de un texto educativo público; no es una prescripción personalizada ni una aprobación clínica.",
+        "La fuente no indica una duración total ni descansos exactos. No se han añadido tiempos, cargas ni una progresión automática.",
+        "Las sugerencias de progresión y los rangos se conservan como texto de la fuente; no son cambios automáticos de tu agenda.",
+        "Se conservan las referencias textuales de la fuente a otras rutinas de la serie; no implican que estén todas integradas o programadas.",
+        "No se incluyen imágenes, vídeos ni logotipos porque sus derechos no quedan cubiertos automáticamente por la licencia del texto."
+      ],
+      "attribution_en": "Information from the NHS website, as at 110926. Information from the NHS website is licensed under the Open Government Licence v3.0.",
+      "attribution_es": "Adaptación al español de Roxy. Contains public sector information licensed under the Open Government Licence v3.0. La entidad que publicó el original no es autora ni avalista de esta adaptación.",
+      "license_url": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+      "terms_url": "https://www.nhs.uk/our-policies/terms-and-conditions/",
+      "media": [],
+      "duration_seconds": null,
+      "rest_seconds": null,
+      "progression": null,
+      "clinical_approval": false
+    },
+    {
+      "id": "gentle-flexibility",
+      "title_en": "Flexibility exercises",
+      "title_es": "Ejercicios de flexibilidad",
+      "source_url": "https://www.nhs.uk/live-well/exercise/flexibility-exercises/",
+      "source_version": "2023-11-20",
+      "checked_on": "2026-09-11",
+      "source_review_due_on": "2026-11-20",
+      "source_html_sha256": "f8cfcf25529edda6ddf557313345fec0066ceda661bd9a91f7e21533786e5347",
+      "raw_source": "{\n  \"title_en\": \"Flexibility exercises\",\n  \"intro_en\": [\n    \"These flexibility exercises can be done at home to help improve your health and mobility.\",\n    \"Do not worry if you have not done much exercise for a while, the exercises are gentle and easy to follow.\",\n    \"Wear loose, comfortable clothing and keep some water handy. Build up slowly and aim to gradually increase the repetitions of each exercise over time.\",\n    \"Try to do these exercises at least twice a week and combine them with the other routines in this series:\",\n    \"sitting exercises\",\n    \"balance exercises\",\n    \"strength exercises\"\n  ],\n  \"frequency_en\": \"Try to do these exercises at least twice a week and combine them with the other routines in this series:\",\n  \"exercises\": [\n    {\n      \"id\": \"neck-rotation\",\n      \"name_en\": \"Neck rotation\",\n      \"instructions_en\": [\n        \"Improves neck mobility and flexibility.\",\n        \"A. Sit upright with shoulders down. Look straight ahead.\",\n        \"B. Slowly turn your head towards your left shoulder as far as is comfortable. Hold for 5 seconds and return to the starting position.\",\n        \"C. Repeat on the right.\",\n        \"Do 3 rotations on each side.\"\n      ]\n    },\n    {\n      \"id\": \"neck-stretch\",\n      \"name_en\": \"Neck stretch\",\n      \"instructions_en\": [\n        \"Good for loosening tight neck muscles.\",\n        \"A. Sitting upright, look straight ahead and hold your left shoulder down with your right hand.\",\n        \"B. Slowly tilt your head to the right while holding your shoulder down.\",\n        \"C. Repeat on the opposite side.\",\n        \"Hold each stretch for 5 seconds and repeat 3 times on each side.\"\n      ]\n    },\n    {\n      \"id\": \"sideways-bend\",\n      \"name_en\": \"Sideways bend\",\n      \"instructions_en\": [\n        \"Helps restore flexibility to the lower back.\",\n        \"A. Stand upright with your feet hip-width apart and arms by your sides.\",\n        \"B. Slide your left arm down your side as far as is comfortable. As you lower your arm, you should feel a stretch on the opposite hip.\",\n        \"C. Repeat with your right arm.\",\n        \"Hold each stretch for 2 seconds and perform 3 on each side.\"\n      ]\n    },\n    {\n      \"id\": \"calf-stretch\",\n      \"name_en\": \"Calf stretch\",\n      \"instructions_en\": [\n        \"Good for loosening tight calf muscles.\",\n        \"A. Place your hands against a wall for stability. Bend the right leg and step the left leg back at least a foot's distance, keeping it straight. Both feet should be flat on the floor.\",\n        \"B. The left calf muscle is stretched by keeping the left leg as straight as possible and the left heel on the floor.\",\n        \"C. Repeat with the opposite leg.\",\n        \"Perform 3 on each side.\"\n      ]\n    }\n  ]\n}",
+      "source_sha256": "57f329d0e0b4d76b1b51fdcf06eb634263ef4518899b66303ef518df5a9b6f9b",
+      "intro_en": [
+        "These flexibility exercises can be done at home to help improve your health and mobility.",
+        "Do not worry if you have not done much exercise for a while, the exercises are gentle and easy to follow.",
+        "Wear loose, comfortable clothing and keep some water handy. Build up slowly and aim to gradually increase the repetitions of each exercise over time.",
+        "Try to do these exercises at least twice a week and combine them with the other routines in this series:",
+        "sitting exercises",
+        "balance exercises",
+        "strength exercises"
+      ],
+      "intro_es": [
+        "Estos ejercicios de flexibilidad pueden hacerse en casa para ayudar a mejorar tu salud y movilidad.",
+        "No te preocupes si llevas un tiempo sin hacer mucho ejercicio; los ejercicios son suaves y fáciles de seguir.",
+        "Usa ropa holgada y cómoda y ten un poco de agua a mano. Empieza poco a poco y procura aumentar gradualmente las repeticiones de cada ejercicio con el tiempo.",
+        "Intenta hacer estos ejercicios al menos dos veces por semana y combínalos con las otras rutinas de esta serie:",
+        "ejercicios sentado",
+        "ejercicios de equilibrio",
+        "ejercicios de fuerza"
+      ],
+      "frequency_en": "Try to do these exercises at least twice a week and combine them with the other routines in this series:",
+      "frequency_es": "Intenta hacer estos ejercicios al menos dos veces por semana y combínalos con las otras rutinas de esta serie:",
+      "exercises": [
+        {
+          "id": "neck-rotation",
+          "name_en": "Neck rotation",
+          "name_es": "Rotación de cuello",
+          "instructions_en": [
+            "Improves neck mobility and flexibility.",
+            "A. Sit upright with shoulders down. Look straight ahead.",
+            "B. Slowly turn your head towards your left shoulder as far as is comfortable. Hold for 5 seconds and return to the starting position.",
+            "C. Repeat on the right.",
+            "Do 3 rotations on each side."
+          ],
+          "instructions_es": [
+            "Mejora la movilidad y la flexibilidad del cuello.",
+            "A. Siéntate erguido con los hombros bajos. Mira al frente.",
+            "B. Gira lentamente la cabeza hacia el hombro izquierdo hasta donde te resulte cómodo. Mantén la posición 5 segundos y vuelve a la posición inicial.",
+            "C. Repite hacia la derecha.",
+            "Haz 3 rotaciones hacia cada lado."
+          ]
+        },
+        {
+          "id": "neck-stretch",
+          "name_en": "Neck stretch",
+          "name_es": "Estiramiento de cuello",
+          "instructions_en": [
+            "Good for loosening tight neck muscles.",
+            "A. Sitting upright, look straight ahead and hold your left shoulder down with your right hand.",
+            "B. Slowly tilt your head to the right while holding your shoulder down.",
+            "C. Repeat on the opposite side.",
+            "Hold each stretch for 5 seconds and repeat 3 times on each side."
+          ],
+          "instructions_es": [
+            "Sirve para aflojar los músculos tensos del cuello.",
+            "A. Sentado y erguido, mira al frente y mantén el hombro izquierdo hacia abajo con la mano derecha.",
+            "B. Inclina lentamente la cabeza hacia la derecha mientras mantienes el hombro hacia abajo.",
+            "C. Repite hacia el lado contrario.",
+            "Mantén cada estiramiento 5 segundos y repite 3 veces por cada lado."
+          ]
+        },
+        {
+          "id": "sideways-bend",
+          "name_en": "Sideways bend",
+          "name_es": "Inclinación lateral",
+          "instructions_en": [
+            "Helps restore flexibility to the lower back.",
+            "A. Stand upright with your feet hip-width apart and arms by your sides.",
+            "B. Slide your left arm down your side as far as is comfortable. As you lower your arm, you should feel a stretch on the opposite hip.",
+            "C. Repeat with your right arm.",
+            "Hold each stretch for 2 seconds and perform 3 on each side."
+          ],
+          "instructions_es": [
+            "Ayuda a recuperar la flexibilidad de la zona lumbar.",
+            "A. Ponte de pie y erguido, con los pies separados al ancho de las caderas y los brazos a los lados.",
+            "B. Desliza el brazo izquierdo hacia abajo por el costado hasta donde te resulte cómodo. Al bajar el brazo, debes sentir un estiramiento en la cadera contraria.",
+            "C. Repite con el brazo derecho.",
+            "Mantén cada estiramiento 2 segundos y hazlo 3 veces por cada lado."
+          ]
+        },
+        {
+          "id": "calf-stretch",
+          "name_en": "Calf stretch",
+          "name_es": "Estiramiento de pantorrilla",
+          "instructions_en": [
+            "Good for loosening tight calf muscles.",
+            "A. Place your hands against a wall for stability. Bend the right leg and step the left leg back at least a foot's distance, keeping it straight. Both feet should be flat on the floor.",
+            "B. The left calf muscle is stretched by keeping the left leg as straight as possible and the left heel on the floor.",
+            "C. Repeat with the opposite leg.",
+            "Perform 3 on each side."
+          ],
+          "instructions_es": [
+            "Sirve para aflojar los músculos tensos de las pantorrillas.",
+            "A. Apoya las manos contra una pared para mantener la estabilidad. Dobla la pierna derecha y lleva la izquierda hacia atrás al menos a un pie de distancia, manteniéndola recta. Ambos pies deben quedar apoyados completamente en el suelo.",
+            "B. Estira la pantorrilla izquierda manteniendo la pierna izquierda lo más recta posible y el talón izquierdo en el suelo.",
+            "C. Repite con la pierna contraria.",
+            "Hazlo 3 veces por cada lado."
+          ]
+        }
+      ],
+      "notes_es": [
+        "Adaptación al español de Roxy de un texto educativo público; no es una prescripción personalizada ni una aprobación clínica.",
+        "La fuente no indica una duración total ni descansos exactos. No se han añadido tiempos, cargas ni una progresión automática.",
+        "Las sugerencias de progresión y los rangos se conservan como texto de la fuente; no son cambios automáticos de tu agenda.",
+        "Se conservan las referencias textuales de la fuente a otras rutinas de la serie; no implican que estén todas integradas o programadas.",
+        "No se incluyen imágenes, vídeos ni logotipos porque sus derechos no quedan cubiertos automáticamente por la licencia del texto."
+      ],
+      "attribution_en": "Information from the NHS website, as at 110926. Information from the NHS website is licensed under the Open Government Licence v3.0.",
+      "attribution_es": "Adaptación al español de Roxy. Contains public sector information licensed under the Open Government Licence v3.0. La entidad que publicó el original no es autora ni avalista de esta adaptación.",
+      "license_url": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+      "terms_url": "https://www.nhs.uk/our-policies/terms-and-conditions/",
+      "media": [],
+      "duration_seconds": null,
+      "rest_seconds": null,
+      "progression": null,
+      "clinical_approval": false
+    }
+  ]
+}

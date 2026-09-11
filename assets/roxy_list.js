@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '191';
+  const APP_VERSION = '192';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -716,6 +716,7 @@
     window.RoxyOpenRecipes?.setActive($('openRecipePanel'),panel==='recipes');
     window.RoxyMyPlateRecipes?.setActive($('myplateRecipePanel'),panel==='recipes');
     window.RoxyDrinks?.setActive($('drinksRecipePanel'),panel==='recipes');
+    window.RoxyFitness?.setActive(panel==='fitness');
     syncFamilyMapReadiness();
     if(panel!=='family'&&familyWeatherGlobeActive)exitFamilyWeatherGlobe();
     const contentPanel=panel==='pets'?'recipes':panel;
