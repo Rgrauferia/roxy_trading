@@ -38,21 +38,27 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "script-src 'none'" in privacy.headers["content-security-policy"]
     assert "roxy_privacy.html assets/roxy_privacy.css" in Path("Dockerfile.roxy-home").read_text(encoding="utf-8")
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="188"' in page.text
+    assert 'name="roxy-home-version" content="189"' in page.text
     assert 'href="/assets/vendor/maplibre-gl.css?v=1"' not in page.text
     assert 'src="/assets/vendor/maplibre-gl.js?v=1"' not in page.text
     assert 'src="/assets/roxy_maplibre_loader.js?v=1"' in page.text
     assert 'href="/assets/roxy_list.css?v=132"' in page.text
-    assert 'src="/assets/roxy_list.js?v=190"' in page.text
+    assert 'src="/assets/roxy_list.js?v=191"' in page.text
     assert '/assets/vendor/maplibre-gl.css?v=1' in worker.text
     assert '/assets/vendor/maplibre-gl.js?v=1' in worker.text
     assert '/assets/roxy_list.css?v=132' in worker.text
-    assert '/assets/roxy_list.js?v=190' in worker.text
+    assert '/assets/roxy_list.js?v=191' in worker.text
     for asset in ('roxy_home_weather_renderer.js?v=2', 'roxy_home_map_readiness.js?v=1', 'roxy_home_open_recipes.js?v=4', 'roxy_home_recipe_provider.js?v=2', 'roxy_home_myplate_recipes.js?v=1', 'roxy_home_myplate_recipes.css?v=1'):
         assert '/assets/' + asset in worker.text
         assert '/assets/' + asset in page.text
         assert client.get('/assets/' + asset).status_code == 200
-    assert 'roxy-list-shell-v187' in worker.text
+    assert 'roxy-list-shell-v188' in worker.text
+    for asset in ('roxy_home_drinks.js?v=1', 'roxy_home_drinks.css?v=1'):
+        assert '/assets/' + asset in page.text and '/assets/' + asset in worker.text
+        assert client.get('/assets/' + asset).status_code == 200
+    assert client.get('/assets/open-drinks-license.txt').status_code == 200
+    assert 'id="drinksRecipePanel"' in page.text
+    assert 'RoxyDrinks?.setActive' in script.text
     assert 'COPY assets/roxy_home_myplate_recipes.js assets/roxy_home_myplate_recipes.css ./assets/' in Path('Dockerfile.roxy-home').read_text()
     assert 'https://storage.googleapis.com/peppermint-cdn/myplate.food-recipe-images/' in page.headers['content-security-policy'].split('style-src')[0]
     assert 'myplate.food' not in page.headers['content-security-policy'].split('connect-src')[1].split(';')[0]
@@ -89,7 +95,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="designProjectForm"' in page.text
     assert '/v1/home-design/' in script.text
     assert 'Revisar productos' in script.text
-    assert "const APP_VERSION = '188'" in script.text
+    assert "const APP_VERSION = '189'" in script.text
     assert '/assets/roxy_home_recipe_provider.js?v=2' in page.text
     assert '/assets/roxy_home_recipe_provider.js?v=2' in worker.text
     assert client.get('/assets/roxy_home_recipe_provider.js').status_code == 200

@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '188';
+  const APP_VERSION = '189';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -715,6 +715,7 @@
     activePanel=panel;
     window.RoxyOpenRecipes?.setActive($('openRecipePanel'),panel==='recipes');
     window.RoxyMyPlateRecipes?.setActive($('myplateRecipePanel'),panel==='recipes');
+    window.RoxyDrinks?.setActive($('drinksRecipePanel'),panel==='recipes');
     syncFamilyMapReadiness();
     if(panel!=='family'&&familyWeatherGlobeActive)exitFamilyWeatherGlobe();
     const contentPanel=panel==='pets'?'recipes':panel;
@@ -1136,6 +1137,7 @@
     if(window.RoxyRecipeProvider)window.RoxyRecipeProvider.render($('recipeProviderPanel'),{user,service:homeFood.recipe_provider_service||{},api,hidden:petMode});
     const sourceOwner=user, sourceIdentity=collectionIdentity();
     if(window.RoxyMyPlateRecipes)window.RoxyMyPlateRecipes.render($('myplateRecipePanel'),{user,identity:sourceIdentity,api,hidden:petMode,active:activePanel==='recipes',isCurrent:()=>user===sourceOwner&&collectionIdentity()===sourceIdentity});
+    if(window.RoxyDrinks)window.RoxyDrinks.render($('drinksRecipePanel'),{user,identity:sourceIdentity,api,hidden:petMode,active:activePanel==='recipes',isCurrent:()=>user===sourceOwner&&collectionIdentity()===sourceIdentity});
     if(window.RoxyOpenRecipes)window.RoxyOpenRecipes.render($('openRecipePanel'),{user,identity:sourceIdentity,api,hidden:petMode,active:activePanel==='recipes',isCurrent:()=>user===sourceOwner&&collectionIdentity()===sourceIdentity});
     $('recipeSearch').disabled=false;
     $('petRecipeImportActions').hidden=!petMode||!petCapabilities(selectedPetProfile()).recipe_import;$('recipeEditorialFilters').hidden=petMode;document.querySelectorAll('#recipeEditorialFilters button').forEach(button=>button.setAttribute('aria-pressed',String((button.id==='recipeDraftShelf')===recipeShowDrafts)));

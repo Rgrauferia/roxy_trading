@@ -3,7 +3,21 @@
 Actualizado: 2026-09-11. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 
-## 188 — ampliación MyPlate.food validada localmente; publicación pendiente
+## 189 — candidato probado: 31 bebidas nuevas
+
+Selección bilingüe Open Drinks (MIT): 8 cafés/tés,2jugos,4batidos,5refrescantes,
+12cócteles;141ingredientes/117pasos originales y traducciones. No son recetas
+ensayadas por Roxy. Dos candidatas retiradas por fotos incompatibles, sin
+reemplazos genéricos. Galería/filtros/fotos/lector ES/EN y voz opcional de dispositivo;
+alcohol separado21+no persistente. APIautenticada local no-store sin IA ni
+escrituras; sourcehash/revisión/licencia/duplicados validados. Las59locales,
+MyPlate y datos del usuario se conservan. No cambia facturación ni mascotas.
+2372Python/11omitidas,389Node; QA393móvil búsqueda/pasos/categorías/fotos,
+sin errores ni overflow. HTML/APP189 JS191 CSS132 SW188 bebidasJS/CSS1.
+Pendiente publicación comprobada. Informe reports/home_release_189_20260911.md.
+Registro público sigue apagado;500revisadas/voz final/fitness no terminados.
+
+## 188 — PUBLICADO: catálogo MyPlate.food bajo demanda
 
 Catálogo en directo integrado en Recetas antes del recetario local. El proveedor
 devuelve 1.072 entradas; pruebas reales pequeñas confirman 81 postres, 20 bebidas
@@ -24,8 +38,15 @@ registro público permanece desactivado. TheMealDB no tiene clave comercial.
 CJS + 21 anteriores MJS + 35 nuevas). QA móvil 393×852 con galería, fichas reales
 de pollo/postre/bebida y filtros. Detalles completos y fotos observados, no
 auditoría del catálogo entero. HTML/APP188, JS190, CSS132, SW187, MyPlateJS/CSS1.
-Informe: reports/home_release_188_20260911.md. Publicación y comprobación pública
-pendientes; servidor de QA temporal 13271 en 8767 todavía activo.
+Informe: reports/home_release_188_20260911.md. Publicado commit
+cb2d7f59667613d22547100c364481d56879ae07, Render dep-dai1fa3rjlhs739o6stg:
+Live, 54.8s; inicio 11/09 11:00:56 EDT. Health200/ok y seis assets públicos200
+byte-idénticos. Público188: sesión conservada, Explorar recetas devuelve1.072;
+Apple Cake abre9 ingredientes, rendimiento12, preparación original y foto1440px.
+Sin errores ni overflow765px; conserva59 locales. Galería pública queda abierta.
+QA13271 detenido, puerto8767 sin listener, pestaña6 cerrada, viewport restablecido.
+No migración a Sites, pagos, secretos, cuentas o datos públicos modificados.
+500 revisadas y guía completa ES no terminadas. No redeploy sólo por estas notas.
 
 ## 187 — PUBLICADO y comprobado: plan de comidas y recetario
 

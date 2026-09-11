@@ -37,6 +37,7 @@ from roxy_os.home_recipe_fallback import (
 )
 from roxy_os import home_recipe_provider as recipe_provider
 from roxy_os import home_myplate_recipes as myplate_recipes
+from roxy_os.home_drinks import drink_catalog, DrinkCatalogUnavailable
 from roxy_os.home_open_recipes import (
     OpenRecipeCursorError,
     OpenRecipeNotFound,
@@ -1682,6 +1683,7 @@ def shopping_page() -> Response:
         "https://maps.gstatic.com https://*.googleapis.com https://*.gstatic.com "
         "https://images.openfoodfacts.org https://www.themealdb.com https://themealdb.com https://upload.wikimedia.org https://wger.de https://*.rainviewer.com "
         "https://storage.googleapis.com/peppermint-cdn/myplate.food-recipe-images/ "
+        "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/ "
         "https://*.basemaps.cartocdn.com https://tile.openstreetmap.org "
         "https://mazuri.com https://oxbowanimalhealth.com https://www.wysong.net "
         "https://www.kaytee.com https://www.midwesthomes4pets.com "
@@ -3873,6 +3875,18 @@ def read_home_myplate_recipe(
         raise _myplate_recipe_error(exc) from None
     except Exception:
         raise HTTPException(status_code=503, detail="No se pudo abrir la receta de MyPlate.food. Puedes volver a intentarlo.") from None
+
+
+@app.get("/v1/home-food/{user_id}/drinks")
+def read_home_drinks(
+    user_id: str, request: Request, auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    _authorize_user(user_id, auth)
+    try:
+        return drink_catalog()
+    except DrinkCatalogUnavailable:
+        raise HTTPException(status_code=503, detail="No se pudo cargar la selección de bebidas. Inténtalo de nuevo más tarde.") from None
 
 
 @app.get("/v1/home-food/{user_id}/open-recipes")

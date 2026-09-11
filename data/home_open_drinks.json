@@ -1,0 +1,1356 @@
+{
+  "version": 1,
+  "source": {
+    "name": "Open Drinks",
+    "revision": "f446f0e9356b9b43155d207b4f7c5214d9da91ab",
+    "license": "MIT",
+    "license_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/LICENSE"
+  },
+  "drinks": [
+    {
+      "id": "vietnamese-coffee",
+      "title": "Vietnamese Coffee (Cafe Sua Da)",
+      "title_es": "Café vietnamita con leche condensada",
+      "category": "coffee_tea",
+      "alcoholic": false,
+      "ingredients": [
+        "2 tablespoon French Roast Coffee grinds",
+        "2 tablespoon Sweetened condensed milk",
+        "1/2 cup ice",
+        "1/4 cup water"
+      ],
+      "steps": [
+        "Boil water. Add coffee grounds to phin coffee filter (or pour over coffee filter) and stamp down.",
+        "Pour hot water in phin coffee filter (or pour over coffee filter).",
+        "Add in Sweetened condensed milk. Stir until well combined.",
+        "Add ice and enjoy"
+      ],
+      "ingredients_es": [
+        "2 cucharadas de café molido de tueste francés",
+        "2 cucharadas de leche condensada azucarada",
+        "1/2 taza de hielo",
+        "1/4 taza de agua"
+      ],
+      "steps_es": [
+        "Hierve el agua. Añade el café molido al filtro vietnamita phin (o a un filtro de café por vertido) y presiónalo.",
+        "Vierte el agua caliente en el filtro phin (o en el filtro de café por vertido).",
+        "Añade la leche condensada azucarada. Remueve hasta que quede bien mezclada.",
+        "Añade el hielo y disfruta."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/vietnamese-coffee.json",
+      "contributor": "christinetu",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/vietnamese-coffee.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de christinetu; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "dd8c61e49ae41890d3f2f975bd9355426ba9bfec7ec57d3d248469c4b02e3dc4",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria."
+      ],
+      "original_name": "Vietnamese Coffee (Cafe Sua Da)",
+      "raw_source": "{\n    \"name\": \"Vietnamese Coffee (Cafe Sua Da)\",\n    \"description\": \"Vietnamese Iced Coffee is an intensely brewed coffee concentrate that drips down into a tall glass of ice and a big spoonful of sweetened condensed milk.\",\n    \"github\": \"christinetu\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"tablespoon\",\n            \"ingredient\": \"French Roast Coffee grinds\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"tablespoon\",\n            \"ingredient\": \"Sweetened condensed milk\"\n        },\n        {\n            \"quantity\": \"1/2\",\n            \"measure\": \"cup\",\n            \"ingredient\": \"ice\"\n        },\n        {\n            \"quantity\": \"1/4\",\n            \"measure\": \"cup\",\n            \"ingredient\": \"water\"\n        }\n    ],\n    \"directions\": [\n        \"Boil water. Add coffee grounds to phin coffee filter (or pour over coffee filter) and stamp down.\",\n        \"Pour hot water in phin coffee filter (or pour over coffee filter).\",\n        \"Add in Sweetened condensed milk. Stir until well combined.\",\n        \"Add ice and enjoy\"\n    ],\n    \"image\": \"vietnamese-coffee.jpg\",\n    \"keywords\": [\n        \"vietnamese\",\n        \"coffee\",\n        \"non-alcoholic\",\n        \"condensed milk\"\n    ]\n}\n"
+    },
+    {
+      "id": "coconut-coffee",
+      "title": "Coconut Coffee",
+      "title_es": "Café de coco",
+      "category": "coffee_tea",
+      "alcoholic": false,
+      "ingredients": [
+        "1 shot Espresso",
+        "50 ml Coconut Milk",
+        "20 ml Condensed Milk",
+        "20 ml Whipping Cream",
+        "20 gram Ice",
+        "1 scoop Coconut Ice Cream (optional)",
+        "10 gram Coconut Flesh (optional)"
+      ],
+      "steps": [
+        "Prepare one shot of espresso. If you can't get espresso, drip brewed coffee works fine but the taste won't be as robust.",
+        "Mix the coconut milk, condensed milk, whipping cream, ice together in a blender.",
+        "Put the coconut mixture into a glass cup, pour the espresso over.",
+        "Garnish with the ice cream scoop or the coconut flesh.",
+        "This drink tastes best on a hot day."
+      ],
+      "ingredients_es": [
+        "1 shot de espresso",
+        "50 ml de leche de coco",
+        "20 ml de leche condensada",
+        "20 ml de crema para batir",
+        "20 gramos de hielo",
+        "1 bola de helado de coco (opcional)",
+        "10 gramos de pulpa de coco (opcional)"
+      ],
+      "steps_es": [
+        "Prepara un shot de espresso. Si no puedes preparar espresso, el café filtrado también sirve, aunque el sabor no será tan intenso.",
+        "Mezcla la leche de coco, la leche condensada, la crema para batir y el hielo en una licuadora.",
+        "Vierte la mezcla de coco en un vaso de vidrio y añade el espresso por encima.",
+        "Decora con la bola de helado o con la pulpa de coco.",
+        "Esta bebida sabe mejor en un día caluroso."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/coconut-coffee.json",
+      "contributor": "antran22",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/coconut-coffee.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de antran22; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "a18cb32fd2018f1d7e1c3e84709a122055e59d29710dd405d56390cba26dfc87",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria."
+      ],
+      "original_name": "Coconut Coffee",
+      "raw_source": "{\n    \"name\": \"Coconut Coffee\",\n    \"description\": \"A new Hanoian specialty, where the creaminess of coconut mix perfectly well with the bitter taste of espresso\",\n    \"github\": \"antran22\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"shot\",\n            \"ingredient\": \"Espresso\"\n        },\n        {\n            \"quantity\": \"50\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"Coconut Milk\"\n        },\n        {\n            \"quantity\": \"20\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"Condensed Milk\"\n        },\n        {\n            \"quantity\": \"20\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"Whipping Cream\"\n        },\n        {\n            \"quantity\": \"20\",\n            \"measure\": \"gram\",\n            \"ingredient\": \"Ice\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"scoop\",\n            \"ingredient\": \"Coconut Ice Cream (optional)\"\n        },\n        {\n            \"quantity\": \"10\",\n            \"measure\": \"gram\",\n            \"ingredient\": \"Coconut Flesh (optional)\"\n        }\n    ],\n    \"directions\": [\n        \"Prepare one shot of espresso. If you can't get espresso, drip brewed coffee works fine but the taste won't be as robust.\",\n        \"Mix the coconut milk, condensed milk, whipping cream, ice together in a blender.\",\n        \"Put the coconut mixture into a glass cup, pour the espresso over.\",\n        \"Garnish with the ice cream scoop or the coconut flesh.\",\n        \"This drink tastes best on a hot day.\"\n    ],\n    \"image\": \"coconut-coffee.jpg\",\n    \"keywords\": [\n        \"coffee\",\n        \"coconut\",\n        \"cream\",\n        \"cold\",\n        \"non-alcoholic\",\n        \"organic\"\n    ]\n}\n"
+    },
+    {
+      "id": "iced-matcha-latte",
+      "title": "Iced Matcha Latte",
+      "title_es": "Matcha helado con crema",
+      "category": "coffee_tea",
+      "alcoholic": false,
+      "ingredients": [
+        "2 teaspoon Matcha Powder",
+        "2 teaspoon Syrup or Sugar or Honey",
+        "1 tablespoon Hot Water",
+        "2 tablespoon Heavy Cream or Coffee Creamer",
+        "1 cup Ice"
+      ],
+      "steps": [
+        "Place Matcha Powder in small bowl",
+        "Add Hot Water and whisk until smooth with no lumps remaining",
+        "Place Ice in your glass",
+        "Pour Matcha and Water mixture into glass",
+        "Add Syrup to taste",
+        "Whisk Heavy Cream until frothy and desired thickness",
+        "Place whisked Heavy Cream on top",
+        "Enjoy with whisked Heavy Cream mixed into drink or sitting on top"
+      ],
+      "ingredients_es": [
+        "2 cucharaditas de matcha en polvo",
+        "2 cucharaditas de jarabe, azúcar o miel",
+        "1 cucharada de agua caliente",
+        "2 cucharadas de crema espesa o crema para café",
+        "1 taza de hielo"
+      ],
+      "steps_es": [
+        "Coloca el matcha en polvo en un recipiente pequeño.",
+        "Añade el agua caliente y bate hasta que quede uniforme y sin grumos.",
+        "Coloca el hielo en el vaso.",
+        "Vierte la mezcla de matcha y agua en el vaso.",
+        "Añade jarabe al gusto.",
+        "Bate la crema espesa hasta que quede espumosa y tenga la consistencia deseada.",
+        "Coloca la crema batida encima.",
+        "Disfruta con la crema batida mezclada con la bebida o dejándola encima."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/iced-matcha-latte.json",
+      "contributor": "amgcheng",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/iced-matcha-latte.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de amgcheng; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "ecbe5a7fa900c1df9feb4917d7a5014ea961515ec23bb69492e4f203a660bedc",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "La variante original usa crema, no leche; el título se aclara en español sin cambiar ingredientes."
+      ],
+      "original_name": "Iced Matcha Latte",
+      "raw_source": "{\n    \"name\": \"Iced Matcha Latte\",\n    \"description\": \"This Iced Matcha Latte is a creamy and refreshing beverage, perfect for a morning or afternoon pick me up\",\n    \"github\": \"amgcheng\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"teaspoon\",\n            \"ingredient\": \"Matcha Powder\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"teaspoon\",\n            \"ingredient\": \"Syrup or Sugar or Honey\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"tablespoon\",\n            \"ingredient\": \"Hot Water\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"tablespoon\",\n            \"ingredient\": \"Heavy Cream or Coffee Creamer\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"cup\",\n            \"ingredient\": \"Ice\"\n        }\n    ],\n    \"directions\": [\n        \"Place Matcha Powder in small bowl\",\n        \"Add Hot Water and whisk until smooth with no lumps remaining\",\n        \"Place Ice in your glass\",\n        \"Pour Matcha and Water mixture into glass\",\n        \"Add Syrup to taste\",\n        \"Whisk Heavy Cream until frothy and desired thickness\",\n        \"Place whisked Heavy Cream on top\",\n        \"Enjoy with whisked Heavy Cream mixed into drink or sitting on top\"\n    ],\n    \"image\": \"iced-matcha-latte.jpg\",\n    \"keywords\": [\n        \"matcha\",\n        \"latte\",\n        \"non-alcoholic\"\n    ]\n}\n"
+    },
+    {
+      "id": "tropical-smoothie",
+      "title": "Tropical Smoothie",
+      "title_es": "Batido tropical de guayaba y maracuyá",
+      "category": "smoothie",
+      "alcoholic": false,
+      "ingredients": [
+        "0.75 cup guava nectar",
+        "0.75 cup passionfruit juice",
+        "1/8 tsp lime juice",
+        "1/8 tsp vanilla",
+        "2 tbsp honey",
+        "1 cup fresh or frozen sliced strawberries",
+        "1 sliced fresh banana",
+        "0.25 cup plain yogurt",
+        "1 cup ice cubes"
+      ],
+      "steps": [
+        "Whiz all ingredients together in a blender for 30 seconds.",
+        "Pour into a glass and enjoy!"
+      ],
+      "ingredients_es": [
+        "0.75 taza de néctar de guayaba",
+        "0.75 taza de jugo de maracuyá",
+        "1/8 cucharadita de jugo de lima",
+        "1/8 cucharadita de vainilla",
+        "2 cucharadas de miel",
+        "1 taza de fresas frescas o congeladas en rodajas",
+        "1 banana fresca en rodajas",
+        "0.25 taza de yogur natural",
+        "1 taza de cubos de hielo"
+      ],
+      "steps_es": [
+        "Licúa todos los ingredientes juntos durante 30 segundos.",
+        "Vierte en un vaso y disfruta."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/tropical-smoothie.json",
+      "contributor": "bookish",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/tropical-smoothie.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de bookish; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "59b464c27bc95f8da9f4fffa6c5e6f7d62fd545983a566f22ac8df08e22f25e3",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria."
+      ],
+      "original_name": "Tropical Smoothie",
+      "raw_source": "{\r\n\"name\": \"Tropical Smoothie\",\r\n\"description\": \"The fruit combinations in this smoothie are delicious!\",\r\n\"github\": \"bookish\",\r\n\"ingredients\": [{\r\n\"quantity\": \"0.75\",\r\n\"measure\": \"cup\",\r\n\"ingredient\": \"guava nectar\"\r\n},\r\n{\r\n\"quantity\": \"0.75\",\r\n\"measure\": \"cup\",\r\n\"ingredient\": \"passionfruit juice\"\r\n},\r\n{\r\n\"quantity\": \"1/8\",\r\n\"measure\": \"tsp\",\r\n\"ingredient\": \"lime juice\"\r\n},\r\n{\r\n\"quantity\": \"1/8\",\r\n\"measure\": \"tsp\",\r\n\"ingredient\": \"vanilla\"\r\n},\r\n{\r\n\"quantity\": \"2\",\r\n\"measure\": \"tbsp\",\r\n\"ingredient\": \"honey\"\r\n},\r\n{\r\n\"quantity\": \"1\",\r\n\"measure\": \"cup\",\r\n\"ingredient\": \"fresh or frozen sliced strawberries\"\r\n},\r\n{\r\n\"quantity\": \"1\",\r\n\"measure\": \"sliced\",\r\n\"ingredient\": \"fresh banana\"\r\n},\r\n{\r\n\"quantity\": \"0.25\",\r\n\"measure\": \"cup\",\r\n\"ingredient\": \"plain yogurt\"\r\n},\r\n{\r\n\"quantity\": \"1\",\r\n\"measure\": \"cup\",\r\n\"ingredient\": \"ice cubes\"\r\n}\r\n],\r\n\"directions\": [\r\n\"Whiz all ingredients together in a blender for 30 seconds.\",\r\n\"Pour into a glass and enjoy!\"\r\n],\r\n\"image\": \"tropical-smoothie.jpg\",\r\n\"keywords\": [\r\n  \"tropical\", \r\n  \"banana\", \r\n  \"smoothie\", \r\n  \"vitamin\", \r\n  \"juice\", \r\n  \"non-alcoholic\", \r\n  \"fruit\", \r\n  \"cold\", \r\n  \"guava\", \r\n  \"passion fruit\",  \r\n  \"frozen\", \r\n  \"strawberry\", \r\n  \"frozen\", \r\n  \"ice\", \r\n  \"yogurt\", \r\n  \"lime\", \r\n  \"sorbet\"\r\n]\r\n}\r\n"
+    },
+    {
+      "id": "ayran",
+      "title": "Ayran",
+      "title_es": "Ayran: bebida turca de yogur",
+      "category": "mocktail",
+      "alcoholic": false,
+      "ingredients": [
+        "250 ml yoghurt",
+        "250 ml cold water",
+        "1 pinch salt"
+      ],
+      "steps": [
+        "Add yoghurt, cold water, and salt into a blender",
+        "Add some fresh mint (optional).",
+        "Blend and serve."
+      ],
+      "ingredients_es": [
+        "250 ml de yogur",
+        "250 ml de agua fría",
+        "1 pizca de sal"
+      ],
+      "steps_es": [
+        "Añade el yogur, el agua fría y la sal a una licuadora.",
+        "Añade un poco de menta fresca (opcional).",
+        "Licúa y sirve."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/ayran.json",
+      "contributor": "bbyalcinkaya",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/ayran.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de bbyalcinkaya; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "7eb65eee0ae6121579f8537af8014f3a67def7ce7577e216f37b32f4763a3e70",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "La menta es opcional y aparece únicamente en el segundo paso del original."
+      ],
+      "original_name": "Ayran",
+      "raw_source": "{\n    \"name\": \"Ayran\",\n    \"description\": \"Ayran is a Turkish non-alcoholic drink made of yoghurt and water.\",\n    \"github\": \"bbyalcinkaya\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"250\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"yoghurt\"\n        },\n        {\n            \"quantity\": \"250\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"cold water\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"pinch\",\n            \"ingredient\": \"salt\"\n        }\n    ],\n    \"directions\": [\n        \"Add yoghurt, cold water, and salt into a blender\",\n        \"Add some fresh mint (optional).\",\n        \"Blend and serve.\"\n    ],\n    \"image\": \"ayran.jpg\",\n    \"keywords\": [\n        \"yogurt\",\n        \"water\",\n        \"cold\",\n        \"non-alcoholic\",\n        \"mint\",\n        \"turkish\"\n    ]\n}\n"
+    },
+    {
+      "id": "berry-and-oat-smoothie",
+      "title": "Berry and Oat Smoothie",
+      "title_es": "Batido de moras, arándanos y avena",
+      "category": "smoothie",
+      "alcoholic": false,
+      "ingredients": [
+        "25 g Rolled oats",
+        "150 ml semi-skimmed milk",
+        "2 tsp honey",
+        "75 g blackberries",
+        "75 g blueberries",
+        "2 tsp flaxseeds"
+      ],
+      "steps": [
+        "Put the oats into the blender and pour in the milk.",
+        "Leave to sit for five minutes.",
+        "Add the honey, blueberries, blackberries and ground flaxseeds and blitz until smooth."
+      ],
+      "ingredients_es": [
+        "25 g de avena en hojuelas",
+        "150 ml de leche semidescremada",
+        "2 cucharaditas de miel",
+        "75 g de moras",
+        "75 g de arándanos",
+        "2 cucharaditas de semillas de linaza"
+      ],
+      "steps_es": [
+        "Pon la avena en la licuadora y vierte la leche.",
+        "Deja reposar durante cinco minutos.",
+        "Añade la miel, los arándanos, las moras y las semillas de linaza molidas, y licúa hasta que quede uniforme."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/berry-and-oat-smoothie.json",
+      "contributor": "CalumChamberlain",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/berry-and-oat-smoothie.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de CalumChamberlain; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "9499c2f13098f6dd8395ebb40e65b7a11a8b0a6ee6d5e0a2205ba79de65154b3",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "El paso original especifica linaza molida; la lista original la llama semillas de linaza."
+      ],
+      "original_name": "Berry and Oat Smoothie",
+      "raw_source": "{\n    \"name\": \"Berry and Oat Smoothie\",\n    \"description\": \"A berry smoothie with added oats and flaxseeds to help you feel filler for longer!\",\n    \"github\": \"CalumChamberlain\",\n    \"ingredients\": [{\n            \"quantity\": \"25\",\n            \"measure\": \"g\",\n            \"ingredient\": \"Rolled oats\"\n        },\n        {\n            \"quantity\": \"150\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"semi-skimmed milk\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"tsp\",\n            \"ingredient\": \"honey\"\n        },\n        {\n            \"quantity\": \"75\",\n            \"measure\": \"g\",\n            \"ingredient\": \"blackberries\"\n        },\n        {\n            \"quantity\": \"75\",\n            \"measure\": \"g\",\n            \"ingredient\": \"blueberries\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"tsp\",\n            \"ingredient\": \"flaxseeds\"\n        }\n    ],\n    \"directions\": [\n        \"Put the oats into the blender and pour in the milk.\",\n        \"Leave to sit for five minutes.\",\n        \"Add the honey, blueberries, blackberries and ground flaxseeds and blitz until smooth.\"\n    ],\n    \"image\": \"berry-and-oat-smoothie.jpg\",\n    \"keywords\": [\n        \"berry\",\n        \"oats\",\n        \"healthy\",\n        \"smoothie\",\n        \"non-alcoholic\"\n    ]\n}\n"
+    },
+    {
+      "id": "calamansi-juice",
+      "title": "Calamansi Juice",
+      "title_es": "Refresco filipino de calamansi",
+      "category": "juice",
+      "alcoholic": false,
+      "ingredients": [
+        "0.75 cup sugar",
+        "1 cup fresh-squeezed calamansi juice",
+        "4 cups water",
+        "ice cubes"
+      ],
+      "steps": [
+        "Mix sugar, water and calamansi juice in a pitcher.",
+        "Stir until well-blended.",
+        "Add mixture and ice cubes to a glass. Enjoy!"
+      ],
+      "ingredients_es": [
+        "0.75 taza de azúcar",
+        "1 taza de jugo de calamansi recién exprimido",
+        "4 tazas de agua",
+        "Cubos de hielo"
+      ],
+      "steps_es": [
+        "Mezcla el azúcar, el agua y el jugo de calamansi en una jarra.",
+        "Remueve hasta que quede bien mezclado.",
+        "Añade la mezcla y los cubos de hielo a un vaso. ¡Disfruta!"
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/calamansi-juice.json",
+      "contributor": "jarcillas",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/calamansi-juice.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de jarcillas; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "bdd17445e1a3818291952dc1902fc74543c76c6b1a1f9984df81c1a629754c7e",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria."
+      ],
+      "original_name": "Calamansi Juice",
+      "raw_source": "{\n  \"name\": \"Calamansi Juice\",\n  \"description\": \"Calamansi juice is a Filipino summer drink that is their version of lemonade. It uses calamansi fruits, which are citrus fruits common in the Philippines.\",\n  \"github\": \"jarcillas\",\n  \"ingredients\": [\n    {\n      \"quantity\": \"0.75\",\n      \"measure\": \"cup\",\n      \"ingredient\": \"sugar\"\n    },\n    {\n      \"quantity\": \"1\",\n      \"measure\": \"cup\",\n      \"ingredient\": \"fresh-squeezed calamansi juice\"\n    },\n    {\n      \"quantity\": \"4\",\n      \"measure\": \"cups\",\n      \"ingredient\": \"water\"\n    },\n    {\n      \"quantity\": \"\",\n      \"measure\": \"\",\n      \"ingredient\": \"ice cubes\"\n    }\n  ],\n  \"directions\": [\n    \"Mix sugar, water and calamansi juice in a pitcher.\",\n    \"Stir until well-blended.\",\n    \"Add mixture and ice cubes to a glass. Enjoy!\"\n  ],\n  \"image\": \"calamansi-juice.jpg\",\n  \"keywords\": [\n    \"calamansi\",\n    \"ice\",\n    \"summer\",\n    \"fruit juice\",\n    \"vegan\"\n  ]\n}\n"
+    },
+    {
+      "id": "chocolate-milk",
+      "title": "Chocolate Milk",
+      "title_es": "Leche con chocolate",
+      "category": "coffee_tea",
+      "alcoholic": false,
+      "ingredients": [
+        "1 tablespoon (5g) Cocoa Powder",
+        "1 tablespoon Water",
+        "1 cup Milk",
+        "1 tablespoon (12g) Sugar"
+      ],
+      "steps": [
+        "Combine cocoa powder and water in a microwave-safe cup or mug.",
+        "Microwave for 15 to 20 seconds until steaming, and stir until very smooth.",
+        "Add 1/4 cup of the milk and the sugar, and microwave for an additional 15 to 30 seconds, until steaming.",
+        "Stir until completely mixed.",
+        "Stir in remaining milk and enjoy."
+      ],
+      "ingredients_es": [
+        "1 cucharada (5 g) de cacao en polvo",
+        "1 cucharada de agua",
+        "1 taza de leche",
+        "1 cucharada (12 g) de azúcar"
+      ],
+      "steps_es": [
+        "Mezcla el cacao en polvo y el agua en una taza apta para microondas.",
+        "Calienta en el microondas de 15 a 20 segundos hasta que salga vapor y remueve hasta que quede muy uniforme.",
+        "Añade 1/4 de taza de la leche y el azúcar, y calienta en el microondas entre 15 y 30 segundos más, hasta que salga vapor.",
+        "Remueve hasta que quede completamente mezclado.",
+        "Incorpora la leche restante y disfruta."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/chocolate-milk.json",
+      "contributor": "Vertigeux",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/chocolate-milk.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de Vertigeux; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "ec504222299637255318552ae7fe756068e08d1cfcac37c0f7b80931bd731255",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria."
+      ],
+      "original_name": "Chocolate Milk",
+      "raw_source": "{\n  \"name\": \"Chocolate Milk\",\n  \"description\": \"A simple chocolate beverage with just four ingredients.\",\n  \"github\": \"Vertigeux\",\n  \"ingredients\": [\n    {\n      \"quantity\": \"1\",\n      \"measure\": \"tablespoon (5g)\",\n      \"ingredient\": \"Cocoa Powder\"\n    },\n    {\n      \"quantity\": \"1\",\n      \"measure\": \"tablespoon\",\n      \"ingredient\": \"Water\"\n    },\n    {\n      \"quantity\": \"1\",\n      \"measure\": \"cup\",\n      \"ingredient\": \"Milk\"\n    },\n    {\n      \"quantity\": \"1\",\n      \"measure\": \"tablespoon (12g)\",\n      \"ingredient\": \"Sugar\"\n    }\n  ],\n  \"directions\": [\n    \"Combine cocoa powder and water in a microwave-safe cup or mug.\",\n    \"Microwave for 15 to 20 seconds until steaming, and stir until very smooth.\",\n    \"Add 1/4 cup of the milk and the sugar, and microwave for an additional 15 to 30 seconds, until steaming.\",\n    \"Stir until completely mixed.\",\n    \"Stir in remaining milk and enjoy.\"\n  ],\n  \"image\": \"chocolate-milk.jpg\",\n  \"keywords\": [\n    \"chocolate\",\n    \"milk\",\n    \"non-alcoholic\"\n  ]\n}"
+    },
+    {
+      "id": "indonesian-avocado-milkshake",
+      "title": "Indonesian Avocado Milkshake",
+      "title_es": "Batido indonesio de aguacate y chocolate",
+      "category": "smoothie",
+      "alcoholic": false,
+      "ingredients": [
+        "1 ripe Hass avocado",
+        "2 1/2 cups of whole milk",
+        "1 tablespoon agave",
+        "1/2 tablespoon lime juice",
+        "Chocolate syrup"
+      ],
+      "steps": [
+        "Add the avocado flesh, the milk, the agave and the lime juice in a blender and blend until smooth and creamy.",
+        "Squirt the chocolate syrup into the sides of the glasses.",
+        "Pour the shake into the glasses and serve."
+      ],
+      "ingredients_es": [
+        "1 aguacate Hass maduro",
+        "2 1/2 tazas de leche entera",
+        "1 cucharada de agave",
+        "1/2 cucharada de jugo de lima",
+        "Jarabe de chocolate"
+      ],
+      "steps_es": [
+        "Añade la pulpa del aguacate, la leche, el agave y el jugo de lima a una licuadora y licúa hasta obtener una mezcla uniforme y cremosa.",
+        "Echa jarabe de chocolate por las paredes interiores de los vasos.",
+        "Vierte el batido en los vasos y sirve."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/indonesian-avocado-milkshake.json",
+      "contributor": "cendekia",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/indonesian-avocado-milkshake.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de cendekia; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "91dfbfa035c711368f51aa727d8b1d2a2671b995e72ab84dd33b7db3cc1d01d3",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "La lista y los pasos usan leche entera y agave; no se reproduce la descripción original que menciona leche condensada. El jarabe de chocolate no tiene cantidad indicada."
+      ],
+      "original_name": "Indonesian Avocado Milkshake",
+      "raw_source": "{\n    \"name\": \"Indonesian Avocado Milkshake\",\n    \"description\": \"a yummy and healthy milkshake drink made from avocado blended with sweet condensed milk and chocolate syrup.\",\n    \"github\": \"cendekia\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"\",\n            \"ingredient\": \"ripe Hass avocado\"\n        },\n        {\n            \"quantity\": \"2 1/2\",\n            \"measure\": \"cups\",\n            \"ingredient\": \"of whole milk\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"tablespoon\",\n            \"ingredient\": \"agave\"\n        },\n        {\n            \"quantity\": \"1/2\",\n            \"measure\": \"tablespoon\",\n            \"ingredient\": \"lime juice\"\n        },\n        {\n            \"quantity\": \"\",\n            \"measure\": \"\",\n            \"ingredient\": \"Chocolate syrup\"\n        }\n    ],\n    \"directions\": [\n        \"Add the avocado flesh, the milk, the agave and the lime juice in a blender and blend until smooth and creamy.\",\n        \"Squirt the chocolate syrup into the sides of the glasses.\",\n        \"Pour the shake into the glasses and serve.\"\n    ],\n    \"image\": \"indonesian-avocado-milkshake.jpg\",\n    \"keywords\": [\n        \"milkshake\",\n        \"avocado\",\n        \"milk\",\n        \"non-alcoholic\"\n    ]\n} \n"
+    },
+    {
+      "id": "jasmine-milk-tea",
+      "title": "Jasmine Milk Tea",
+      "title_es": "Té de jazmín cremoso con hielo",
+      "category": "coffee_tea",
+      "alcoholic": false,
+      "ingredients": [
+        "2 tablespoons loose leaf jasmine tea leaves",
+        "4 tablespoons half-and-half",
+        "200 ml boiling water",
+        "1.5 tablespoons honey",
+        "200 ml ice"
+      ],
+      "steps": [
+        "Put the tea leaves into a tea infuser (or anything else that works)",
+        "Bring water to a boil",
+        "Steep the tea leaves for 8-10 minutes",
+        "Remove the tea leaves (and infuser if used)",
+        "Add the half-and-half",
+        "Add the honey",
+        "Pour the tea over the ice",
+        "Enjoy"
+      ],
+      "ingredients_es": [
+        "2 cucharadas de hojas de té de jazmín",
+        "4 cucharadas de half-and-half (mezcla de leche y crema)",
+        "200 ml de agua hirviendo",
+        "1.5 cucharadas de miel",
+        "200 ml de hielo"
+      ],
+      "steps_es": [
+        "Pon las hojas de té en un infusor (o en otro utensilio que sirva para ello).",
+        "Lleva el agua a ebullición.",
+        "Deja las hojas de té en infusión de 8 a 10 minutos.",
+        "Retira las hojas de té y el infusor, si lo usaste.",
+        "Añade el half-and-half.",
+        "Añade la miel.",
+        "Vierte el té sobre el hielo.",
+        "Disfruta."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/jasmine-milk-tea.json",
+      "contributor": "kc6827",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/jasmine-milk-tea.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de kc6827; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "94e5042bd2b454a48ad7e75fb281c2a49e71005ed9ff38a987631b31e75da5da",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria."
+      ],
+      "original_name": "Jasmine Milk Tea",
+      "raw_source": "{\n    \"name\": \"Jasmine Milk Tea\",\n    \"description\": \"\",\n    \"github\": \"kc6827\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"tablespoons\",\n            \"ingredient\": \"loose leaf jasmine tea leaves\"\n        },\n        {\n            \"quantity\": \"4\",\n            \"measure\": \"tablespoons\",\n            \"ingredient\": \"half-and-half\"\n        },\n        {\n            \"quantity\": \"200\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"boiling water\"\n        },\n        {\n            \"quantity\": \"1.5\",\n            \"measure\": \"tablespoons\",\n            \"ingredient\": \"honey\"\n        },\n        {\n            \"quantity\": \"200\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"ice\"\n        }\n    ],\n    \"directions\": [\n        \"Put the tea leaves into a tea infuser (or anything else that works)\",\n        \"Bring water to a boil\",\n        \"Steep the tea leaves for 8-10 minutes\",\n        \"Remove the tea leaves (and infuser if used)\",\n        \"Add the half-and-half\",\n        \"Add the honey\",\n        \"Pour the tea over the ice\",\n        \"Enjoy\"\n    ],\n    \"image\": \"jasmine-milk-tea.jpg\",\n    \"keywords\": [\n        \"tea\",\n        \"non-alcoholic\",\n        \"milk\",\n        \"honey\"\n    ]\n}"
+    },
+    {
+      "id": "london-fog",
+      "title": "London Fog",
+      "title_es": "London Fog: té Earl Grey con leche",
+      "category": "coffee_tea",
+      "alcoholic": false,
+      "ingredients": [
+        "1 bag Earl Grey Tea",
+        "6 oz Boiling Water",
+        "2 oz Steamed Milk",
+        "1/4 tsp Vanilla Extract",
+        "1 tbsp Honey"
+      ],
+      "steps": [
+        "Steep the tea in the water for five minutes and dispose of bag once done.",
+        "Mix in the vanilla and honey.",
+        "Pour in the steamed milk.",
+        "Enjoy!"
+      ],
+      "ingredients_es": [
+        "1 bolsita de té Earl Grey",
+        "6 oz de agua hirviendo",
+        "2 oz de leche calentada al vapor",
+        "1/4 cucharadita de extracto de vainilla",
+        "1 cucharada de miel"
+      ],
+      "steps_es": [
+        "Deja el té en infusión en el agua durante cinco minutos y desecha la bolsita al terminar.",
+        "Mezcla la vainilla y la miel.",
+        "Vierte la leche calentada al vapor.",
+        "Disfruta."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/london-fog.json",
+      "contributor": "Just-Sieb",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/london-fog.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de Just-Sieb; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "5080216019810ba9d43909304129f222cb6883cd0043f938990fe545cb1d0392",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "No lleva licores añadidos. Si necesitas evitar el alcohol de los extractos, revisa la etiqueta del extracto de vainilla."
+      ],
+      "original_name": "London Fog",
+      "raw_source": "{\n    \"name\": \"London Fog\",\n    \"description\": \"A tea based latte with vanilla and honey.\",\n    \"github\": \"Just-Sieb\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"bag\",\n            \"ingredient\": \"Earl Grey Tea\"\n        },\n        {\n            \"quantity\": \"6\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Boiling Water\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Steamed Milk\"\n        },\n        {\n            \"quantity\": \"1/4\",\n            \"measure\": \"tsp\",\n            \"ingredient\": \"Vanilla Extract\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"tbsp\",\n            \"ingredient\": \"Honey\"\n        }\n    ],\n    \"directions\": [\n        \"Steep the tea in the water for five minutes and dispose of bag once done.\",\n        \"Mix in the vanilla and honey.\",\n        \"Pour in the steamed milk.\",\n        \"Enjoy!\"\n\n    ],\n    \"image\": \"london-fog.jpg\",\n    \"keywords\": [\n        \"non-alcoholic\",\n        \"tea\",\n        \"hot\",\n        \"latte\"\n    ]\n}\n"
+    },
+    {
+      "id": "matcha-latte",
+      "title": "Matcha Latte",
+      "title_es": "Matcha caliente con leche de avena",
+      "category": "coffee_tea",
+      "alcoholic": false,
+      "ingredients": [
+        "1 teaspoon Matcha powder",
+        "1 teaspoon of Agave Negtar or Sugar",
+        "1 cup Oat Milk",
+        "1/4 cup water"
+      ],
+      "steps": [
+        "Sift Matcha powder into your cup.",
+        "Add hot water and continue whisking until Matcha dissolves.",
+        "Add in Agave Nectar",
+        "Pour in hot milk (don't boil)"
+      ],
+      "ingredients_es": [
+        "1 cucharadita de matcha en polvo",
+        "1 cucharadita de néctar de agave o azúcar",
+        "1 taza de leche de avena",
+        "1/4 taza de agua"
+      ],
+      "steps_es": [
+        "Tamiza el matcha en polvo en la taza.",
+        "Añade el agua caliente y sigue batiendo hasta que se disuelva el matcha.",
+        "Añade el néctar de agave.",
+        "Vierte la leche caliente, sin hervirla."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/matcha-latte.json",
+      "contributor": "jenzk",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/matcha-latte.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de jenzk; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "b881937809223d98d8e6373bf1ce40051027345cc59d1c6d017cbe2786729998",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria."
+      ],
+      "original_name": "Matcha Latte",
+      "raw_source": "{\n    \"name\": \"Matcha Latte\",\n    \"description\": \"This vegan Matcha Latte is smooth, creamy and lightly sweetened.\",\n    \"github\": \"jenzk\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"teaspoon\",\n            \"ingredient\": \"Matcha powder\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"teaspoon\",\n            \"ingredient\": \"of Agave Negtar or Sugar\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"cup\",\n            \"ingredient\": \"Oat Milk\"\n        },\n        {\n            \"quantity\": \"1/4\",\n            \"measure\": \"cup\",\n            \"ingredient\": \"water\"\n        }\n    ],\n    \"directions\": [\n        \"Sift Matcha powder into your cup.\",\n        \"Add hot water and continue whisking until Matcha dissolves.\",\n        \"Add in Agave Nectar\",\n        \"Pour in hot milk (don't boil)\"\n    ],\n    \"image\": \"matcha-latte.jpg\",\n    \"keywords\": [\n        \"matcha\",\n        \"vegan\",\n        \"non-alcoholic\"\n    ]\n}"
+    },
+    {
+      "id": "papaya-milk",
+      "title": "Papaya Milk",
+      "title_es": "Batido taiwanés de papaya y leche",
+      "category": "smoothie",
+      "alcoholic": false,
+      "ingredients": [
+        "1 cup Ripe papaya",
+        "1 cup Milk",
+        "1/2 table spoon Sweetened condensed milk or honey (optional)"
+      ],
+      "steps": [
+        "Blend papaya cubes along with milk.",
+        "Add sweetened condensed milk and/or honey to the papaya milk and blend it again if it's not sweet enough.",
+        "Enjoy!"
+      ],
+      "ingredients_es": [
+        "1 taza de papaya madura",
+        "1 taza de leche",
+        "1/2 cucharada de leche condensada azucarada o miel (opcional)"
+      ],
+      "steps_es": [
+        "Licúa los cubos de papaya junto con la leche.",
+        "Añade leche condensada azucarada y/o miel al batido de papaya y vuelve a licuarlo si no está suficientemente dulce.",
+        "Disfruta."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/papaya-milk.json",
+      "contributor": "yuanLeeMidori",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/papaya-milk.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de yuanLeeMidori; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "17063a35a5b2998b40cd531d43bdb926b3777a601a48cfc5225cb5f931031fb4",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria."
+      ],
+      "original_name": "Papaya Milk",
+      "raw_source": "{\n    \"name\": \"Papaya Milk\",\n    \"description\": \"One of the most popular drink in Taiwan. The combination of tropical fruit and milk brings you back to the most memorable Summer in your childhood.\",\n    \"github\": \"yuanLeeMidori\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"cup\",\n            \"ingredient\": \"Ripe papaya\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"cup\",\n            \"ingredient\": \"Milk\"\n        },\n        {\n            \"quantity\": \"1/2\",\n            \"measure\": \"table spoon\",\n            \"ingredient\": \"Sweetened condensed milk or honey (optional)\"\n        }\n    ],\n    \"directions\": [\n        \"Blend papaya cubes along with milk.\",\n        \"Add sweetened condensed milk and/or honey to the papaya milk and blend it again if it's not sweet enough.\",\n        \"Enjoy!\"\n    ],\n    \"image\": \"papaya-milk.jpg\",\n    \"keywords\": [\n        \"Taiwan\",\n        \"tropical\",\n        \"fruit smoothie\",\n        \"Summer\",\n        \"non-alcoholic\"\n    ]\n}"
+    },
+    {
+      "id": "rooibos-peach-tea",
+      "title": "Rooibos Peach Tea",
+      "title_es": "Té rooibos frío con durazno",
+      "category": "coffee_tea",
+      "alcoholic": false,
+      "ingredients": [
+        "1 l Cooled Rooibos Tea (3 Tea Bags is usually enough)",
+        "500 ml Peach Juice",
+        "50 ml Squeezed Lemon Juice"
+      ],
+      "steps": [
+        "Combine all the ingredients in a large jug and stir well.",
+        "Serve over ice."
+      ],
+      "ingredients_es": [
+        "1 l de té rooibos enfriado (3 bolsitas suelen ser suficientes)",
+        "500 ml de jugo de durazno",
+        "50 ml de jugo de limón exprimido"
+      ],
+      "steps_es": [
+        "Mezcla todos los ingredientes en una jarra grande y remueve bien.",
+        "Sirve sobre hielo."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/rooibos-peach-tea.json",
+      "contributor": "lalawuhan",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/rooibos-peach-tea.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de lalawuhan; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "2862e3ada11f5465514c390f359a2b515b0f550008100f9c2b25211a76b2a7c9",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "La receta comienza con té rooibos ya preparado y enfriado; no se inventa un tiempo de infusión.",
+        "El original usa hielo en la preparación o al servir, pero no lo enumera entre los ingredientes ni fija una cantidad."
+      ],
+      "original_name": "Rooibos Peach Tea",
+      "raw_source": "{\n    \"name\": \"Rooibos Peach Tea\",\n    \"description\": \"Rooibos means red bush tea, and it originates from South Africa. It has many health benefits and luckily can be found in most stores worldwide.\",\n    \"github\": \"lalawuhan\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"l\",\n            \"ingredient\": \"Cooled Rooibos Tea (3 Tea Bags is usually enough)\"\n        },\n        {\n            \"quantity\": \"500\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"Peach Juice\"\n        },\n        {\n            \"quantity\": \"50\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"Squeezed Lemon Juice\"\n        }\n    ],\n    \"directions\": [\n        \"Combine all the ingredients in a large jug and stir well.\",\n        \"Serve over ice.\"    ],\n\n    \"image\": \"rooibos-peach-tea.jpg\",\n    \"keywords\": [\n        \"rooibos\",\n        \"peach\"\n    ]\n}"
+    },
+    {
+      "id": "honey-carrot",
+      "title": "Honey Carrot Juice",
+      "title_es": "Jugo de zanahoria con miel",
+      "category": "juice",
+      "alcoholic": false,
+      "ingredients": [
+        "2 medium carrots",
+        "2 tablespoons honey",
+        "1 teaspoon sugar",
+        "1 cup of water"
+      ],
+      "steps": [
+        "Wash carrots thoroughly.",
+        "Slice according to taste so it is easy when blended.",
+        "Add 2 tablespoons of honey or according to taste.",
+        "Give a little sugar 1 teaspoon or according to taste.",
+        "Add 1 small glass of water or use a cup.",
+        "Last but not least, blend until deemed quite smooth."
+      ],
+      "ingredients_es": [
+        "2 zanahorias medianas",
+        "2 cucharadas de miel",
+        "1 cucharadita de azúcar",
+        "1 taza de agua"
+      ],
+      "steps_es": [
+        "Lava bien las zanahorias.",
+        "Córtalas al gusto para que resulte fácil licuarlas.",
+        "Añade 2 cucharadas de miel o una cantidad a tu gusto.",
+        "Añade un poco de azúcar, 1 cucharadita o una cantidad a tu gusto.",
+        "Añade 1 vaso pequeño de agua o utiliza una taza.",
+        "Por último, licúa hasta que consideres que está suficientemente uniforme."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/honey-carrot.json",
+      "contributor": "coroo",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/honey-carrot.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de coroo; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "d307682d20d46e01a88ef4bc3c32036073d9abf4d57686ee78db4b790074eb37",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "El original permite ajustar miel y azúcar al gusto y describe el agua como un vaso pequeño o una taza; no son medidas de laboratorio."
+      ],
+      "original_name": "Honey Carrot Juice",
+      "raw_source": "{\n    \"name\": \"Honey Carrot Juice\",\n    \"description\": \"Indonesian juice which takes care of your health, especially your eyes and prevent the emergence of various diseases due to lack of substances contained in carrots and real honey.\",\n    \"github\": \"coroo\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"medium\",\n            \"ingredient\": \"carrots\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"tablespoons\",\n            \"ingredient\": \"honey\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"teaspoon\",\n            \"ingredient\": \"sugar\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"cup\",\n            \"ingredient\": \"of water\"\n        }\n    ],\n    \"directions\": [\n        \"Wash carrots thoroughly.\",\n        \"Slice according to taste so it is easy when blended.\",\n        \"Add 2 tablespoons of honey or according to taste.\",\n        \"Give a little sugar 1 teaspoon or according to taste.\",\n        \"Add 1 small glass of water or use a cup.\",\n        \"Last but not least, blend until deemed quite smooth.\"\n    ],\n    \"image\": \"honey-carrot.jpg\",\n    \"keywords\": [\n        \"carrot\",\n        \"honey\",\n        \"non-alcoholic\",\n        \"fresh\"\n    ]\n}\n"
+    },
+    {
+      "id": "palm-sugar-sharbat",
+      "title": "Palm Sugar Sharbat",
+      "title_es": "Sharbat de coco, comino y azúcar de palma",
+      "category": "mocktail",
+      "alcoholic": false,
+      "ingredients": [
+        "2 Teaspoon Natural Palm Sugar",
+        "2 Teaspoon Cumin Seeds",
+        "3 Cup Coconut Water",
+        "2 Cup Water",
+        "1 Teaspoon Soaked Basil Seeds"
+      ],
+      "steps": [
+        "Add Palm Sugar in a blender and blend it. ",
+        "Then add cumin seed in the blender and blend it ",
+        "After this add cocunut water and water in the blender and blend it.",
+        "At last add the basil seend into the drink",
+        "Now wait for the drink to get cold",
+        "Your Drink is ready, Enjoy this yummy drink!"
+      ],
+      "ingredients_es": [
+        "2 cucharaditas de azúcar de palma natural",
+        "2 cucharaditas de semillas de comino",
+        "3 tazas de agua de coco",
+        "2 tazas de agua",
+        "1 cucharadita de semillas de albahaca remojadas"
+      ],
+      "steps_es": [
+        "Añade el azúcar de palma a una licuadora y licúalo.",
+        "Después añade las semillas de comino y licúa.",
+        "A continuación, añade el agua de coco y el agua a la licuadora y licúa.",
+        "Por último, añade las semillas de albahaca a la bebida.",
+        "Ahora espera a que la bebida esté fría.",
+        "La bebida está lista. ¡Disfrútala!"
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/palm-sugar-sharbat.json",
+      "contributor": "AnshumanTripathy123",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/palm-sugar-sharbat.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de AnshumanTripathy123; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "c0a4e5d9a3f6ba06dafcd816d7f8a1f988b4aecd62a27ca2f7132f99621723c0",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "Las semillas de albahaca se piden ya remojadas. La fuente no da duración ni proporción para su remojo; no se sustituye por semillas secas."
+      ],
+      "original_name": "Palm Sugar Sharbat",
+      "raw_source": "{\n    \"name\": \"Palm Sugar Sharbat\",\n    \"description\": \"This sharbat is a popular Indian drink to beat the summer in India, made using palm sugar. \",\n    \"github\": \"AnshumanTripathy123\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"Teaspoon\",\n            \"ingredient\": \"Natural Palm Sugar\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"Teaspoon\",\n            \"ingredient\": \"Cumin Seeds\"\n        },\n        {\n            \"quantity\": \"3\",\n            \"measure\": \"Cup\",\n            \"ingredient\": \"Coconut Water\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"Cup\",\n            \"ingredient\": \"Water\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"Teaspoon\",\n            \"ingredient\": \"Soaked Basil Seeds\"\n        }\n    ],\n    \"directions\": [\n        \"Add Palm Sugar in a blender and blend it. \",\n        \"Then add cumin seed in the blender and blend it \",\n        \"After this add cocunut water and water in the blender and blend it.\",\n        \"At last add the basil seend into the drink\",\n        \"Now wait for the drink to get cold\",\n        \"Your Drink is ready, Enjoy this yummy drink!\"\n    ],\n    \"image\": \"palm-sugar-sharbat.jpg\",\n    \"keywords\": [\n        \"sharbat\",\n        \"cold\"\n    ]\n}\n"
+    },
+    {
+      "id": "sparkling-punch",
+      "title": "Sparkling Punch",
+      "title_es": "Ponche espumoso de manzana y cítricos",
+      "category": "mocktail",
+      "alcoholic": false,
+      "ingredients": [
+        "2 lemons",
+        "3 large oranges",
+        "1 (6 ounce) can frozen lemonade concentrate",
+        "1 liter club soda",
+        "2 (750 milliliter) bottles sparkling apple cider",
+        "1 tablespoon white sugar",
+        "2 trays ice cubes"
+      ],
+      "steps": [
+        "Thinly slice the lemons and the oranges and place in a large punch bowl.",
+        "Pour in the thawed lemonade. Gently stir in the club soda and the sparkling apple cider.",
+        "Add sugar to taste. Add ice."
+      ],
+      "ingredients_es": [
+        "2 limones",
+        "3 naranjas grandes",
+        "1 lata (6 onzas) de concentrado de limonada congelado",
+        "1 litro de agua con gas",
+        "2 botellas (750 mililitros) de sidra de manzana espumosa",
+        "1 cucharada de azúcar blanca",
+        "2 cubiteras de cubos de hielo"
+      ],
+      "steps_es": [
+        "Corta los limones y las naranjas en rodajas finas y colócalas en una ponchera grande.",
+        "Vierte la limonada descongelada. Incorpora suavemente el agua con gas y la sidra de manzana espumosa.",
+        "Añade azúcar al gusto. Añade hielo."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/sparkling-punch.json",
+      "contributor": "kevinmel2000",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/sparkling-punch.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de kevinmel2000; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "657a0489ca615c86c00bcaab855d59ec1c66ddcf501b35db82514a9e17e738eb",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "La fuente clasifica el ponche como sin alcohol: elige sidra de manzana espumosa sin alcohol y comprueba la etiqueta. No sirve una sidra alcohólica para esa clasificación."
+      ],
+      "original_name": "Sparkling Punch",
+      "raw_source": "{\n    \"name\": \"Sparkling Punch\",\n    \"description\": \"Sparkling apple cider, fresh orange juice, and lemonade concentrate blend into light and refreshing non-alcoholic punch in this easy recipe.\",\n    \"github\": \"kevinmel2000\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"\",\n            \"ingredient\": \"lemons\"\n        },\n        {\n            \"quantity\": \"3\",\n            \"measure\": \"\",\n            \"ingredient\": \"large oranges\"\n        },\n        {\n            \"quantity\": \"1 (6 ounce)\",\n            \"measure\": \"can\",\n            \"ingredient\": \"frozen lemonade concentrate\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"liter\",\n            \"ingredient\": \"club soda\"\n        },\n        {\n            \"quantity\": \"2 (750 milliliter)\",\n            \"measure\": \"bottles\",\n            \"ingredient\": \"sparkling apple cider\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"tablespoon\",\n            \"ingredient\": \"white sugar\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"trays\",\n            \"ingredient\": \"ice cubes\"\n        }\n    ],\n    \"directions\": [\n        \"Thinly slice the lemons and the oranges and place in a large punch bowl.\",\n        \"Pour in the thawed lemonade. Gently stir in the club soda and the sparkling apple cider.\",\n        \"Add sugar to taste. Add ice.\"\n    ],\n    \"image\": \"sparkling-punch.jpg\",\n    \"keywords\": [\n        \"fruit\",\n        \"juice\",\n        \"mocktail\",\n        \"non-alcoholic\"\n    ]\n}"
+    },
+    {
+      "id": "virgin-strawberry-colada",
+      "title": "Virgin Strawberry Colada",
+      "title_es": "Colada de fresa sin licores",
+      "category": "mocktail",
+      "alcoholic": false,
+      "ingredients": [
+        "8 strawberries",
+        "4 table spoons coconut cream",
+        "100 g pineapple juice",
+        "1 cup crushed ice"
+      ],
+      "steps": [
+        "Blend all the ingredients in a blender at high speed.",
+        "Pour into a tall glass and decorate with maraschino cherry and a pineapple slice."
+      ],
+      "ingredients_es": [
+        "8 fresas",
+        "4 cucharadas de crema de coco",
+        "100 g de jugo de piña",
+        "1 taza de hielo picado"
+      ],
+      "steps_es": [
+        "Licúa todos los ingredientes a velocidad alta.",
+        "Vierte en un vaso alto y decora con una cereza marrasquino y una rodaja de piña."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/virgin-strawberry-colada.json",
+      "contributor": "kopikob",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/virgin-strawberry-colada.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de kopikob; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "49440a469c60e089c36f7791da029cd2935edee27870e148aa612226b400fe4e",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "El original expresa el jugo de piña en gramos, no en mililitros. Las decoraciones aparecen sólo en el paso final."
+      ],
+      "original_name": "Virgin Strawberry Colada",
+      "raw_source": "{\n    \"name\": \"Virgin Strawberry Colada\",\n    \"description\": \"Tastes just like the original Strawberry Colada, but without alcohol. Fresh and cool!\",\n    \"github\": \"kopikob\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"8\",\n            \"measure\": \"strawberries\",\n            \"ingredient\": \"\"\n        },\n        {\n            \"quantity\": \"4\",\n            \"measure\": \"table spoons\",\n            \"ingredient\": \"coconut cream\"\n        },\n        {\n            \"quantity\": \"100\",\n            \"measure\": \"g\",\n            \"ingredient\": \"pineapple juice\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"cup\",\n            \"ingredient\": \"crushed ice\"\n        }\n    ],\n    \"directions\": [\n        \"Blend all the ingredients in a blender at high speed.\",\n        \"Pour into a tall glass and decorate with maraschino cherry and a pineapple slice.\"\n    \n    ],\n    \"image\": \"virgin-strawberry-colada.jpg\",\n    \"keywords\": [\n        \"virgin\",\n        \"non-alcoholic\"\n    ]\n}\n"
+    },
+    {
+      "id": "sambharam",
+      "title": "Sambharam",
+      "title_es": "Sambharam: suero de leche especiado",
+      "category": "mocktail",
+      "alcoholic": false,
+      "ingredients": [
+        "2 cups Buttermilk",
+        "1 tsp Grated Ginger",
+        "2 Green Chilies, finely chopped",
+        "5 Curry Leaves",
+        "0.5 tsp Salt",
+        "0.5 cup Water"
+      ],
+      "steps": [
+        "In a large bowl, add buttermilk and water, and whisk well until combined.",
+        "Add grated ginger, finely chopped green chilies, curry leaves, and salt to the buttermilk mixture.",
+        "Mix everything well and let it sit for about 10-15 minutes to allow the flavors to meld.",
+        "Strain the mixture into a serving jug or glasses.",
+        "Serve chilled, garnished with a sprig of curry leaf if desired."
+      ],
+      "ingredients_es": [
+        "2 tazas de suero de leche (buttermilk)",
+        "1 cucharadita de jengibre rallado",
+        "2 chiles verdes finamente picados",
+        "5 hojas de curry",
+        "0.5 cucharadita de sal",
+        "0.5 taza de agua"
+      ],
+      "steps_es": [
+        "En un recipiente grande, añade el suero de leche y el agua, y bate bien hasta que se mezclen.",
+        "Añade el jengibre rallado, los chiles verdes finamente picados, las hojas de curry y la sal a la mezcla de suero de leche.",
+        "Mezcla todo bien y deja reposar entre 10 y 15 minutos para que se combinen los sabores.",
+        "Cuela la mezcla en una jarra de servir o en vasos.",
+        "Sirve frío y, si deseas, decora con una ramita de hojas de curry."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/sambharam.json",
+      "contributor": "Marvellousz",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/sambharam.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de Marvellousz; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "7afe030d8229c32f750ee5b0f9e42f561a9b1d76cbb5be1c0f0bbd6b9eff8794",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "Contiene lácteos; no se reproduce la etiqueta «vegan» incorrecta del proveedor.",
+        "La ramita de hojas de curry al servir es opcional; el original no indica una cantidad adicional para decorar."
+      ],
+      "original_name": "Sambharam",
+      "raw_source": "{\n    \"name\": \"Sambharam\",\n    \"description\": \"Sambharam is a traditional spiced buttermilk drink from Kerala, India. It's a refreshing and cooling beverage, especially popular during the hot and humid months. Sambharam is flavored with ginger, green chilies, curry leaves, and salt, making it a perfect drink to beat the heat.\",\n    \"github\": \"Marvellousz\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"cups\",\n            \"ingredient\": \"Buttermilk\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"tsp\",\n            \"ingredient\": \"Grated Ginger\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"\",\n            \"ingredient\": \"Green Chilies, finely chopped\"\n        },\n        {\n            \"quantity\": \"5\",\n            \"measure\": \"\",\n            \"ingredient\": \"Curry Leaves\"\n        },\n        {\n            \"quantity\": \"0.5\",\n            \"measure\": \"tsp\",\n            \"ingredient\": \"Salt\"\n        },\n        {\n            \"quantity\": \"0.5\",\n            \"measure\": \"cup\",\n            \"ingredient\": \"Water\"\n        }\n    ],\n    \"directions\": [\n        \"In a large bowl, add buttermilk and water, and whisk well until combined.\",\n        \"Add grated ginger, finely chopped green chilies, curry leaves, and salt to the buttermilk mixture.\",\n        \"Mix everything well and let it sit for about 10-15 minutes to allow the flavors to meld.\",\n        \"Strain the mixture into a serving jug or glasses.\",\n        \"Serve chilled, garnished with a sprig of curry leaf if desired.\"\n    ],\n    \"image\": \"sambharam.jpg\",\n    \"keywords\": [\n        \"buttermilk\",\n        \"spiced\",\n        \"traditional\",\n        \"Kerala\",\n        \"refreshing\",\n        \"non-alcoholic\",\n        \"vegan\"\n    ]\n}\n"
+    },
+    {
+      "id": "adonis",
+      "title": "Adonis",
+      "title_es": "Adonis de jerez y vermut",
+      "category": "cocktail",
+      "alcoholic": true,
+      "ingredients": [
+        "30 ml sweet vermouth, Carpano Antica",
+        "60 ml fino sherry, lustau La Ina",
+        "2 dashes orange bitters",
+        "1 piece orange zest"
+      ],
+      "steps": [
+        "Pour sherry, vermouth and bitters in to a mixing glass.",
+        "Fill glass with ice and stir quickly.",
+        "Strain into a coupe glass and garnish with orange zest"
+      ],
+      "ingredients_es": [
+        "30 ml de vermut dulce Carpano Antica",
+        "60 ml de jerez fino Lustau La Ina",
+        "2 golpes de bitter de naranja",
+        "1 trozo de piel de naranja"
+      ],
+      "steps_es": [
+        "Vierte el jerez, el vermut y el bitter en un vaso mezclador.",
+        "Llena el vaso con hielo y remueve rápidamente.",
+        "Cuela en una copa coupé y decora con la piel de naranja."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/adonis.json",
+      "contributor": "bitsam",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/adonis.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de bitsam; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "c12d325835aea91c584ce76c542b5bf78286c4fce67dc8e0298ec3b7f81fe07e",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "El original usa hielo en la preparación o al servir, pero no lo enumera entre los ingredientes ni fija una cantidad."
+      ],
+      "original_name": "Adonis",
+      "raw_source": "{\n    \"name\": \"Adonis\",\n    \"description\": \"Nineteenth Century aperitif using sherry.\",\n    \"github\": \"bitsam\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"30\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"sweet vermouth, Carpano Antica\"\n        },\n        {\n            \"quantity\": \"60\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"fino sherry, lustau La Ina\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"dashes\",\n            \"ingredient\": \"orange bitters\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"piece\",\n            \"ingredient\": \"orange zest\"\n        }\n    ],\n    \"directions\": [\n        \"Pour sherry, vermouth and bitters in to a mixing glass.\",\n        \"Fill glass with ice and stir quickly.\",\n        \"Strain into a coupe glass and garnish with orange zest\"\n    ],\n    \"image\": \"adonis.jpg\",\n    \"keywords\": [\n        \"sherry\",\n        \"vermouth\",\n        \"sherry\",\n        \"orange\",\n        \"bitters\"\n    ]\n}\n"
+    },
+    {
+      "id": "bees-kiss",
+      "title": "Bee's Kiss",
+      "title_es": "Bee’s Kiss de ron, crema y miel",
+      "category": "cocktail",
+      "alcoholic": true,
+      "ingredients": [
+        "40 ml white rum",
+        "30 ml cream",
+        "2 tsp honey",
+        "nutmeg"
+      ],
+      "steps": [
+        "Combine ingredients in a shaker and shake with ice until chilled.",
+        "Fine strain into a cocktail glass.",
+        "Garnish with grated nutmeg."
+      ],
+      "ingredients_es": [
+        "40 ml de ron blanco",
+        "30 ml de crema",
+        "2 cucharaditas de miel",
+        "Nuez moscada"
+      ],
+      "steps_es": [
+        "Combina los ingredientes en una coctelera y agita con hielo hasta que se enfríen.",
+        "Cuela con un colador fino en una copa de cóctel.",
+        "Decora con nuez moscada rallada."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/bees-kiss.json",
+      "contributor": "Donearm",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/bees-kiss.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de Donearm; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "b88d44d8b51cf2cfc6cfc80ef9934d4c7a79a1d59c60f4bcaa65cac43856f27f",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "El original usa hielo en la preparación o al servir, pero no lo enumera entre los ingredientes ni fija una cantidad."
+      ],
+      "original_name": "Bee's Kiss",
+      "raw_source": "{\n    \"name\": \"Bee's Kiss\",\n\t\"description\": \"This creamy after-dinner cocktail is an adaptation of a gin-based cocktail named the Bee’s Knees. Originally from the Ritz Bar in Paris (1936).\",\n    \"github\": \"Donearm\",\n\n    \"ingredients\": [\n        {\n            \"quantity\": \"40\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"white rum\"\n        },\n        {\n            \"quantity\": \"30\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"cream\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"tsp\",\n            \"ingredient\": \"honey\"\n        },\n\t\t{\n\t\t\t\"quantity\": \"\",\n\t\t\t\"measure\": \"\",\n\t\t\t\"ingredient\": \"nutmeg\"\n\t\t}\n    ],\n    \"directions\": [\n\t\t\"Combine ingredients in a shaker and shake with ice until chilled.\",\n\t\t\"Fine strain into a cocktail glass.\",\n\t\t\"Garnish with grated nutmeg.\"\n    ],\n    \"image\": \"bees-kiss.jpg\",\n        \"keywords\": [\n\t\t\"alcoholic\",\n\t\t\"rum\",\n\t\t\"cream\",\n\t\t\"honey\",\n        \"nutmeg\"\n        ]\n    \n}\n"
+    },
+    {
+      "id": "beton",
+      "title": "Beton",
+      "title_es": "Beton de Becherovka y tónica",
+      "category": "cocktail",
+      "alcoholic": true,
+      "ingredients": [
+        "60 ml Becherovka",
+        "120 ml Tonic",
+        "1 wedge Lemon"
+      ],
+      "steps": [
+        "Put ice into highball glass.",
+        "Add Becherovka and tonic water.",
+        "Garnish with a lemon wedge."
+      ],
+      "ingredients_es": [
+        "60 ml de Becherovka",
+        "120 ml de tónica",
+        "1 gajo de limón"
+      ],
+      "steps_es": [
+        "Pon hielo en un vaso alto.",
+        "Añade la Becherovka y el agua tónica.",
+        "Decora con un gajo de limón."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/beton.json",
+      "contributor": "4ndrej",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/beton.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de 4ndrej; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "7277b04332de6873a6718c757956f3291711a08bb49bfb68abe98597951b0994",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "El original usa hielo en la preparación o al servir, pero no lo enumera entre los ingredientes ni fija una cantidad."
+      ],
+      "original_name": "Beton",
+      "raw_source": "{\n    \"name\": \"Beton\",\n    \"description\": \"Herbal Becherovka variation to Gin-Tonic classic.\",\n    \"github\": \"4ndrej\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"60\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"Becherovka\"\n        },\n        {\n            \"quantity\": \"120\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"Tonic\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"wedge\",\n            \"ingredient\": \"Lemon\"\n        }\n    ],\n    \"directions\": [\n        \"Put ice into highball glass.\",\n        \"Add Becherovka and tonic water.\",\n        \"Garnish with a lemon wedge.\"\n    ],\n    \"image\": \"beton.jpg\",\n    \"keywords\": [\n        \"becherovka\",\n        \"tonic\",\n        \"lemon\",\n        \"alcoholic\",\n        \"vegan\"\n    ]\n}\n"
+    },
+    {
+      "id": "bijou",
+      "title": "Bijou",
+      "title_es": "Bijou de ginebra, Chartreuse y vermut",
+      "category": "cocktail",
+      "alcoholic": true,
+      "ingredients": [
+        "1 oz dry Gin",
+        "1 oz Chartreuse",
+        "1 oz Sweet Vermouth",
+        "1 dash Orange Bitters",
+        "1 piece Lemon Peel"
+      ],
+      "steps": [
+        "Combine in a mixing glass and fill with cracked ice",
+        "Stir for 20 seconds",
+        "Strain into a chilled cocktail glass.",
+        "Garnish with a twist of lemon peel over the drink."
+      ],
+      "ingredients_es": [
+        "1 oz de ginebra seca",
+        "1 oz de Chartreuse",
+        "1 oz de vermut dulce",
+        "1 golpe de bitter de naranja",
+        "1 trozo de piel de limón"
+      ],
+      "steps_es": [
+        "Combina en un vaso mezclador y llénalo de hielo troceado.",
+        "Remueve durante 20 segundos.",
+        "Cuela en una copa de cóctel enfriada.",
+        "Decora con una tira retorcida de piel de limón sobre la bebida."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/bijou.json",
+      "contributor": "cary-williams",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/bijou.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de cary-williams; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "5f61f009a0b0d7aef1239eb45755e85a9693bb003276cb8b54bc56f126ee3284",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "El original usa hielo en la preparación o al servir, pero no lo enumera entre los ingredientes ni fija una cantidad."
+      ],
+      "original_name": "Bijou",
+      "raw_source": "{\n    \"name\": \"Bijou\",\n    \"description\": \"Pronounced Bee-Jew, this is a somewhat drier version of the classic cocktail included in the Harry Johnson's Bartender Manual from 1900\",\n    \"github\": \"cary-williams\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"dry Gin\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Chartreuse\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Sweet Vermouth\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"dash\",\n            \"ingredient\": \"Orange Bitters\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"piece\",\n            \"ingredient\": \"Lemon Peel\"\n        }\n    ],\n    \"directions\": [\n        \"Combine in a mixing glass and fill with cracked ice\",\n        \"Stir for 20 seconds\",\n        \"Strain into a chilled cocktail glass.\",\n        \"Garnish with a twist of lemon peel over the drink.\"\n    ],\n    \"image\": \"bijou.jpg\",\n    \"keywords\": [\n        \"gin\",\n        \"vermouth\",\n        \"alcoholic\",\n        \"simple\",\n        \"chartreuse\",\n        \"dry\"\n    ]\n}\n"
+    },
+    {
+      "id": "bobby-burns",
+      "title": "Bobby Burns",
+      "title_es": "Bobby Burns de whisky escocés",
+      "category": "cocktail",
+      "alcoholic": true,
+      "ingredients": [
+        "60 ml scotch whisky",
+        "30 ml sweet vermouth",
+        "10 ml benedictine D.O.M.",
+        "1 lemon twist"
+      ],
+      "steps": [
+        "Combine ingredients in a shaker and shake with ice until chilled.",
+        "Fine strain into a cocktail glass.",
+        "Garnish with a lemon twist."
+      ],
+      "ingredients_es": [
+        "60 ml de whisky escocés",
+        "30 ml de vermut dulce",
+        "10 ml de Bénédictine D.O.M.",
+        "1 tira retorcida de piel de limón"
+      ],
+      "steps_es": [
+        "Combina los ingredientes en una coctelera y agita con hielo hasta que se enfríen.",
+        "Cuela con un colador fino en una copa de cóctel.",
+        "Decora con la tira de piel de limón."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/bobby-burns.json",
+      "contributor": "Donearm",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/bobby-burns.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de Donearm; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "e139497c2dec70516e804e21b88851693f7186464f7b64191c5a3ae136c06272",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "El original usa hielo en la preparación o al servir, pero no lo enumera entre los ingredientes ni fija una cantidad."
+      ],
+      "original_name": "Bobby Burns",
+      "raw_source": "{\n    \"name\": \"Bobby Burns\",\n\t\"description\": \"A whisky-based cocktail named after the scottish poet and lyricist.\",\n    \"github\": \"Donearm\",\n\n    \"ingredients\": [\n        {\n            \"quantity\": \"60\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"scotch whisky\"\n        },\n        {\n            \"quantity\": \"30\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"sweet vermouth\"\n        },\n        {\n            \"quantity\": \"10\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"benedictine D.O.M.\"\n        },\n\t\t{\n\t\t\t\"quantity\": \"1\",\n\t\t\t\"measure\": \"\",\n\t\t\t\"ingredient\": \"lemon twist\"\n\t\t}\n    ],\n    \"directions\": [\n\t\t\"Combine ingredients in a shaker and shake with ice until chilled.\",\n\t\t\"Fine strain into a cocktail glass.\",\n\t\t\"Garnish with a lemon twist.\"\n    ],\n    \"image\": \"bobby-burns.jpg\",\n        \"keywords\": [\n\t\t\"alcoholic\",\n\t\t\"whisky\",\n\t\t\"sweet vermouth\",\n\t\t\"benedictine dom\",\n        \"lemon\"\n        ]\n    \n}\n"
+    },
+    {
+      "id": "brandy-sour",
+      "title": "Brandy Sour",
+      "title_es": "Brandy Sour con limón y bitter",
+      "category": "cocktail",
+      "alcoholic": true,
+      "ingredients": [
+        "60 ml brandy",
+        "10 ml lemon juice",
+        "2-4 drops angostura bitters"
+      ],
+      "steps": [
+        "Stir ingredients with ice.",
+        "Strain into a highball glass with ice."
+      ],
+      "ingredients_es": [
+        "60 ml de brandy",
+        "10 ml de jugo de limón",
+        "2–4 gotas de bitter de Angostura"
+      ],
+      "steps_es": [
+        "Remueve los ingredientes con hielo.",
+        "Cuela en un vaso alto con hielo."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/brandy-sour.json",
+      "contributor": "Donearm",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/brandy-sour.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de Donearm; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "227bfcfcecef0b88a245ce6edf6a54fd9259ae3af6fc9ba9a61fb40f01c77c04",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "El original usa hielo en la preparación o al servir, pero no lo enumera entre los ingredientes ni fija una cantidad."
+      ],
+      "original_name": "Brandy Sour",
+      "raw_source": "{\n    \"name\": \"Brandy Sour\",\n    \"description\": \"The earliest Sour on record, dating back to the 1850s.\",\n    \"github\": \"Donearm\",\n\n    \"ingredients\": [\n        {\n            \"quantity\": \"60\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"brandy\"\n        },\n        {\n            \"quantity\": \"10\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"lemon juice\"\n        },\n        {\n            \"quantity\": \"2-4\",\n            \"measure\": \"drops\",\n            \"ingredient\": \"angostura bitters\"\n        }\n    ],\n    \"directions\": [\n\t\t\"Stir ingredients with ice.\",\n\t\t\"Strain into a highball glass with ice.\"\n    ],\n    \"image\": \"brandy-sour.jpg\",\n        \"keywords\": [\n\t\t\"brandy\",\n        \"angostura bitters\",\n\t\t\"lemon\",\n\t\t\"alcoholic\"\n        ]\n    \n}\n"
+    },
+    {
+      "id": "brass-monkey",
+      "title": "Brass Monkey",
+      "title_es": "Brass Monkey de ron, vodka y naranja",
+      "category": "cocktail",
+      "alcoholic": true,
+      "ingredients": [
+        "30 ml vodka",
+        "30 ml rum (preferably dark)",
+        "30 ml orange juice"
+      ],
+      "steps": [
+        "Shake with ice.",
+        "Strain into a highball glass with ice."
+      ],
+      "ingredients_es": [
+        "30 ml de vodka",
+        "30 ml de ron (preferentemente oscuro)",
+        "30 ml de jugo de naranja"
+      ],
+      "steps_es": [
+        "Agita con hielo.",
+        "Cuela en un vaso alto con hielo."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/brass-monkey.json",
+      "contributor": "Donearm",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/brass-monkey.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de Donearm; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "2f2eceeb49fd06dc472595f716768a6e89a5c74cbc731c13e3b2af51a7307bbd",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "El original usa hielo en la preparación o al servir, pero no lo enumera entre los ingredientes ni fija una cantidad."
+      ],
+      "original_name": "Brass Monkey",
+      "raw_source": "{\n    \"name\": \"Brass Monkey\",\n    \"description\": \"\",\n    \"github\": \"Donearm\",\n\n    \"ingredients\": [\n        {\n            \"quantity\": \"30\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"vodka\"\n        },\n        {\n            \"quantity\": \"30\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"rum (preferably dark)\"\n        },\n        {\n            \"quantity\": \"30\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"orange juice\"\n        }\n    ],\n    \"directions\": [\n\t\t\"Shake with ice.\",\n\t\t\"Strain into a highball glass with ice.\"\n    ],\n    \"image\": \"brass-monkey.jpg\",\n        \"keywords\": [\n\t\t\"vodka\",\n        \"rum\",\n\t\t\"dark rum\",\n\t\t\"orange juice\",\n\t\t\"alcoholic\"\n        ]\n    \n}\n"
+    },
+    {
+      "id": "chuhai",
+      "title": "Chuhai",
+      "title_es": "Chūhai de shōchū y yuzu",
+      "category": "cocktail",
+      "alcoholic": true,
+      "ingredients": [
+        "1/4 cup Shochu",
+        "1/4 cup Yuzu Juice or any fruit juice of choice",
+        "3/4 cup Club Soda",
+        "1 Tbsp of simple syrup (optional)"
+      ],
+      "steps": [
+        "Add Shochu, Yuzu juice, Simple Syrup and ice to your cup.",
+        "Stir the ingredients together.",
+        "Top your glass with the club soda."
+      ],
+      "ingredients_es": [
+        "1/4 taza de shōchū",
+        "1/4 taza de jugo de yuzu u otro jugo de fruta a elección",
+        "3/4 taza de agua con gas",
+        "1 cucharada de jarabe simple (opcional)"
+      ],
+      "steps_es": [
+        "Añade el shōchū, el jugo de yuzu, el jarabe simple y el hielo al vaso.",
+        "Remueve los ingredientes.",
+        "Completa el vaso con el agua con gas."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/chuhai.json",
+      "contributor": "jenzk",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/chuhai.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de jenzk; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "fa565602901bef480d9f7df06b946b594eda4e11e1f20efb2642491f473a4c1f",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "El original usa hielo en la preparación o al servir, pero no lo enumera entre los ingredientes ni fija una cantidad."
+      ],
+      "original_name": "Chuhai",
+      "raw_source": "{\n    \"name\": \"Chuhai\",\n    \"description\": \"Short for Shochu Highball, it is a carbonated fruit drink made from shochu or sometimes vodka.\",\n    \"github\": \"jenzk\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"1/4\",\n            \"measure\": \"cup\",\n            \"ingredient\": \"Shochu\"\n        },\n        {\n            \"quantity\": \"1/4\",\n            \"measure\": \"cup\",\n            \"ingredient\": \"Yuzu Juice or any fruit juice of choice\"\n        },\n        {\n            \"quantity\": \"3/4\",\n            \"measure\": \"cup\",\n            \"ingredient\": \"Club Soda\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"Tbsp\",\n            \"ingredient\": \"of simple syrup (optional)\"\n        }\n    ],\n    \"directions\": [\n        \"Add Shochu, Yuzu juice, Simple Syrup and ice to your cup.\",\n        \"Stir the ingredients together.\",\n        \"Top your glass with the club soda.\"\n    ],\n    \"image\": \"chuhai.jpg\",\n    \"keywords\": [\n        \"highball\",\n        \"alcoholic\",\n        \"vegan\"\n    ]\n}\n"
+    },
+    {
+      "id": "el-presidente",
+      "title": "El Presidente",
+      "title_es": "El Presidente de ron y curaçao",
+      "category": "cocktail",
+      "alcoholic": true,
+      "ingredients": [
+        "1½ oz White Rum",
+        "1 oz Dry Vermouth",
+        "1 oz Orange Curaçao (or Triple Sec, Cointreau)",
+        "1 dash Grenadine",
+        "1 peel Orange (garnish)",
+        "Ice"
+      ],
+      "steps": [
+        "Pour the rum, vermouth, orange curaçao and dash of grandine into a cocktail shaker.",
+        "Add ice and shake well.",
+        "Strain into a chilled cocktail glass.",
+        "Granish with orange peel."
+      ],
+      "ingredients_es": [
+        "1½ oz de ron blanco",
+        "1 oz de vermut seco",
+        "1 oz de curaçao de naranja (o triple sec o Cointreau)",
+        "1 golpe de granadina",
+        "1 piel de naranja (para decorar)",
+        "Hielo"
+      ],
+      "steps_es": [
+        "Vierte el ron, el vermut, el curaçao de naranja y el golpe de granadina en una coctelera.",
+        "Añade hielo y agita bien.",
+        "Cuela en una copa de cóctel enfriada.",
+        "Decora con piel de naranja."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/el-presidente.json",
+      "contributor": "kcusaac",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/el-presidente.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de kcusaac; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "18e44a0e9a7e616bc4bc11aeaa47b57797c27da239e030cccb2945f6039173a2",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria."
+      ],
+      "original_name": "El Presidente",
+      "raw_source": "{\n    \"name\": \"El Presidente\",\n    \"description\": \"A classic cuban cocktail from the 1930s.\",\n    \"github\": \"kcusaac\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"1½\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"White Rum\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Dry Vermouth\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Orange Curaçao (or Triple Sec, Cointreau)\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"dash\",\n            \"ingredient\": \"Grenadine\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"peel\",\n            \"ingredient\": \"Orange (garnish)\"\n        },\n        {\n            \"quantity\": \"\",\n            \"measure\": \"\",\n            \"ingredient\": \"Ice\"\n        }\n    ],\n    \"directions\": [\n        \"Pour the rum, vermouth, orange curaçao and dash of grandine into a cocktail shaker.\",\n        \"Add ice and shake well.\",\n        \"Strain into a chilled cocktail glass.\",\n        \"Granish with orange peel.\"\n    ],\n    \"image\": \"el-presidente.jpg\",\n    \"keywords\":[\n        \"rum\",\n        \"alcoholic\",\n        \"cocktail\",\n        \"vegan\"\n    ]\n}\n"
+    },
+    {
+      "id": "fuzzy-navel",
+      "title": "Fuzzy Navel",
+      "title_es": "Fuzzy Navel de durazno y naranja",
+      "category": "cocktail",
+      "alcoholic": true,
+      "ingredients": [
+        "2 oz Peach Schnapps",
+        "2 oz Orange Juice",
+        "1 cup Ice"
+      ],
+      "steps": [
+        "Add ice to a glass.",
+        "Add Orange Juice and Peach Schnapps.",
+        "(Optional) Add an orange slice to garnish."
+      ],
+      "ingredients_es": [
+        "2 oz de licor de durazno (peach schnapps)",
+        "2 oz de jugo de naranja",
+        "1 taza de hielo"
+      ],
+      "steps_es": [
+        "Añade hielo a un vaso.",
+        "Añade el jugo de naranja y el licor de durazno.",
+        "Opcionalmente, añade una rodaja de naranja para decorar."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/fuzzy-navel.json",
+      "contributor": "Lunarelements",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/fuzzy-navel.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de Lunarelements; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "eb9d7a397c3919d4bf2285f3cd51ab796dfdc48a34a7ecdba95d47b933ab70ad",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "La rodaja de naranja es una decoración opcional que aparece sólo en el último paso del original."
+      ],
+      "original_name": "Fuzzy Navel",
+      "raw_source": "{\n    \"name\": \"Fuzzy Navel\",\n    \"description\": \"A sweet and fruity alcoholic beverage thats easy to make with little ingredients.\",\n    \"github\": \"Lunarelements\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Peach Schnapps\"\n        },\n        {\n            \"quantity\": \"2\",\n            \"measure\": \"oz\",\n            \"ingredient\": \"Orange Juice\"\n        },\n        {\n            \"quantity\": \"1\",\n            \"measure\": \"cup\",\n            \"ingredient\": \"Ice\"\n        }\n    ],\n    \"directions\": [\n        \"Add ice to a glass.\",\n        \"Add Orange Juice and Peach Schnapps.\",\n        \"(Optional) Add an orange slice to garnish.\"\n    ],\n    \"image\": \"fuzzy-navel.jpg\",\n    \"keywords\": [\n        \"alcoholic\",\n        \"fruity\",\n        \"sweet\",\n        \"orange juice\"\n    ]\n}\n"
+    },
+    {
+      "id": "paper-plane",
+      "title": "Paper Plane",
+      "title_es": "Paper Plane de bourbon y Aperol",
+      "category": "cocktail",
+      "alcoholic": true,
+      "ingredients": [
+        "22.5 ml bourbon",
+        "22.5 ml Aperol",
+        "22.5 ml Amaro Nonino Quintessentia",
+        "22.5 ml fresh lemon juice",
+        "ice",
+        "lemon twist (optional garnish)"
+      ],
+      "steps": [
+        "Add bourbon, Aperol, Amaro Nonino, and lemon juice to a shaker with ice.",
+        "Shake until well chilled.",
+        "Strain into a chilled coupe glass.",
+        "Garnish with a lemon twist if you like."
+      ],
+      "ingredients_es": [
+        "22.5 ml de bourbon",
+        "22.5 ml de Aperol",
+        "22.5 ml de Amaro Nonino Quintessentia",
+        "22.5 ml de jugo de limón fresco",
+        "Hielo",
+        "Tira retorcida de piel de limón (decoración opcional)"
+      ],
+      "steps_es": [
+        "Añade el bourbon, el Aperol, el Amaro Nonino y el jugo de limón a una coctelera con hielo.",
+        "Agita hasta que esté bien frío.",
+        "Cuela en una copa coupé enfriada.",
+        "Decora con una tira de piel de limón si deseas."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/paper-plane.json",
+      "contributor": "alfg",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/paper-plane.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de alfg; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "21bc25646a72ddc02f16d079a0fb32eb934c69b59eb5dce5205d28ddc685dfd6",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria."
+      ],
+      "original_name": "Paper Plane",
+      "raw_source": "{\n    \"name\": \"Paper Plane\",\n    \"description\": \"A bright, equal-parts modern classic with bourbon, Aperol, Amaro Nonino, and fresh lemon juice.\",\n    \"github\": \"alfg\",\n    \"ingredients\": [\n        {\n            \"quantity\": \"22.5\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"bourbon\"\n        },\n        {\n            \"quantity\": \"22.5\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"Aperol\"\n        },\n        {\n            \"quantity\": \"22.5\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"Amaro Nonino Quintessentia\"\n        },\n        {\n            \"quantity\": \"22.5\",\n            \"measure\": \"ml\",\n            \"ingredient\": \"fresh lemon juice\"\n        },\n        {\n            \"quantity\": \"\",\n            \"measure\": \"\",\n            \"ingredient\": \"ice\"\n        },\n        {\n            \"quantity\": \"\",\n            \"measure\": \"\",\n            \"ingredient\": \"lemon twist (optional garnish)\"\n        }\n    ],\n    \"directions\": [\n        \"Add bourbon, Aperol, Amaro Nonino, and lemon juice to a shaker with ice.\",\n        \"Shake until well chilled.\",\n        \"Strain into a chilled coupe glass.\",\n        \"Garnish with a lemon twist if you like.\"\n    ],\n    \"image\": \"paper-plane.jpg\",\n    \"keywords\": [\n        \"alcoholic\",\n        \"cocktail\",\n        \"bourbon\",\n        \"aperol\",\n        \"amaro\",\n        \"lemon\",\n        \"equal parts\",\n        \"modern classic\"\n    ]\n}"
+    },
+    {
+      "id": "rusty-nail",
+      "title": "Rusty nail",
+      "title_es": "Rusty Nail de whisky y Drambuie",
+      "category": "cocktail",
+      "alcoholic": true,
+      "ingredients": [
+        "1 1/2 ounces Scotch whiskey",
+        "3/4 ounce Drambuie",
+        "Lemon twist"
+      ],
+      "steps": [
+        "Pour all ingredients directly into old-fashioned glass filled with ice.",
+        "Stir gently.",
+        "Garnish with a lemon twist. (optional)",
+        "Serve!"
+      ],
+      "ingredients_es": [
+        "1 1/2 onzas de whisky escocés",
+        "3/4 onza de Drambuie",
+        "Tira retorcida de piel de limón"
+      ],
+      "steps_es": [
+        "Vierte todos los ingredientes directamente en un vaso bajo lleno de hielo.",
+        "Remueve suavemente.",
+        "Decora con una tira de piel de limón (opcional).",
+        "Sirve."
+      ],
+      "source_url": "https://github.com/alfg/opendrinks/blob/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/recipes/rusty-nail.json",
+      "contributor": "danitulp",
+      "image_url": "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/rusty-nail.jpg",
+      "image_credit": "Contenido de Open Drinks, contribución de danitulp; licencia MIT del repositorio. Autor individual de la foto no declarado.",
+      "source_sha256": "069db777fdad98090f7dd2e7d390bfa053509bce2c7f76b6ae8e93a15e932737",
+      "notes_es": [
+        "Cantidades del lote original; la fuente no declara raciones. No se ha ensayado en la cocina de Roxy.",
+        "Traducción fiel de la receta aportada a Open Drinks; no es una certificación culinaria.",
+        "El original usa hielo en la preparación o al servir, pero no lo enumera entre los ingredientes ni fija una cantidad."
+      ],
+      "original_name": "Rusty nail",
+      "raw_source": "{\n    \"name\": \"Rusty nail\",\n    \"description\": \"Has a huge flavour and lots of alcohol, good for your rusty throat. Created in 1942 in Hawaii. You can play with the proportions, usually between 1:2 and 1:3.\",\n    \"github\": \"danitulp\",\n    \"ingredients\": [\n    {\n        \"quantity\": \"1 1/2\",\n        \"measure\": \"ounces\",\n        \"ingredient\": \"Scotch whiskey\"\n    },\n    {\n        \"quantity\": \"3/4\",\n        \"measure\": \"ounce\",\n        \"ingredient\": \"Drambuie\"\n    },\n    {\n        \"quantity\": \"\",\n        \"measure\": \"\",\n        \"ingredient\": \"Lemon twist\"\n    }],\n    \"directions\": [\n        \"Pour all ingredients directly into old-fashioned glass filled with ice.\",\n        \"Stir gently.\",\n        \"Garnish with a lemon twist. (optional)\",\n        \"Serve!\"\n    ],\n    \"image\": \"rusty-nail.jpg\",\n    \"keywords\": [\n        \"alcoholic\",\n        \"whiskey\",\n        \"scotch\"\n    ]\n}"
+    }
+  ]
+}
