@@ -40,6 +40,7 @@ function node(){
   append(child){this.children.push(child);child.parent=this;},
   remove(){this.isConnected=false;if(this.parent)this.parent.children=this.parent.children.filter(x=>x!==this);},
   addEventListener(name,fn,opts={}){if(!events.has(name))events.set(name,[]);events.get(name).push({fn,once:opts.once});},
+  removeEventListener(name,fn){events.set(name,(events.get(name)||[]).filter(x=>x.fn!==fn));},
   emit(name){const list=events.get(name)||[];events.set(name,list.filter(x=>!x.once));list.forEach(x=>x.fn());},
   set src(value){this._src=value;},get src(){return this._src;},
  };
@@ -164,8 +165,8 @@ const cases={
   const h=harness(async(_url,_options,index)=>response(index<3?202:200)),image=node(),host=node();
   const pending=h.context.hydrate(image,title,host);await flush();
   await h.nextTimer();await h.nextTimer();await pending;
-  assert.equal(h.calls.fetch.length,3);assert.equal(image.src,'blob:exact-1');assert.equal(h.timers.size,0);
-  image.emit('load');assert.equal(status(host),'');assert.equal(image.classList.contains('recipe-image-loading'),false);
+  assert.equal(h.calls.fetch.length,3);assert.equal(image.src,'blob:exact-1');assert.equal(h.timers.size,1);
+  image.emit('load');assert.equal(status(host),'');assert.equal(image.classList.contains('recipe-image-loading'),false);assert.equal(h.timers.size,0);
  },
  async fetch_timeout(){
   const h=harness((_url,{signal})=>new Promise((_resolve,reject)=>signal.addEventListener('abort',()=>reject(new Error('timeout')))));
@@ -193,7 +194,66 @@ const cases={
  },
  async decode_error(){
   const h=harness(),image=node(),host=node();await h.context.hydrate(image,title,host);
-  image.emit('error');failure(image,host);assert.deepEqual(h.calls.revoked,['blob:exact-1']);
+  image.emit('error');failure(image,host);assert.deepEqual(h.calls.revoked,['blob:exact-1']);assert.equal(h.timers.size,0);
+  image.emit('load');image.emit('error');assert.deepEqual(h.calls.revoked,['blob:exact-1']);
+  assert.ok(status(host).includes('No pude cargar'),'A late event cannot erase the failure state');
+ },
+ async decode_timeout(){
+  const h=harness(),image=node(),host=node();await h.context.hydrate(image,title,host);
+  assert.equal(status(host),'Cargando foto específica…');assert.equal(h.timers.size,1);
+  assert.equal(await h.nextTimer(),12000);failure(image,host);
+  assert.equal(h.calls.fetch.length,1);assert.equal(h.timers.size,0);
+  assert.deepEqual(h.calls.revoked,['blob:exact-1']);
+  image.emit('load');image.emit('error');assert.deepEqual(h.calls.revoked,['blob:exact-1']);
+  assert.ok(status(host).includes('No pude cargar'),'A late event cannot erase the timeout state');
+ },
+ async decode_success_cancels_deadline(){
+  const h=harness(),image=node(),host=node();await h.context.hydrate(image,title,host);
+  const expired=[...h.timers.values()][0].fn;
+  image.emit('load');assert.equal(h.timers.size,0);assert.equal(status(host),'');
+  expired();image.emit('error');assert.equal(image.isConnected,true);
+  assert.equal(image.classList.contains('recipe-image-loading'),false);
+  assert.equal(host.classList.contains('no-photo'),false);assert.equal(status(host),'');
+  assert.deepEqual(h.calls.revoked,['blob:exact-1']);
+ },
+ async decoded_without_event(){
+  const h=harness(),image=node(),host=node();await h.context.hydrate(image,title,host);
+  image.complete=true;image.naturalWidth=480;await h.nextTimer();
+  assert.equal(image.isConnected,true);assert.equal(image.classList.contains('recipe-image-loading'),false);
+  assert.equal(status(host),'');assert.equal(h.timers.size,0);assert.deepEqual(h.calls.revoked,['blob:exact-1']);
+ },
+ async replaced_decode_deadline_cannot_cancel_new_image(){
+  const h=harness(),image=node(),host=node();await h.context.hydrate(image,{title:'Recipe A'},host);
+  const expired=[...h.timers.values()][0].fn;
+  await h.context.hydrate(image,{title:'Recipe B'},host);
+  assert.deepEqual(h.calls.revoked,['blob:exact-1'],'Replacing a pending image releases its old blob immediately');
+  assert.equal(h.timers.size,1);expired();
+  assert.equal(image.isConnected,true);assert.equal(image.src,'blob:exact-2');
+  assert.equal(image.classList.contains('recipe-image-loading'),true);assert.equal(status(host),'Cargando foto específica…');
+  assert.deepEqual(h.calls.revoked,['blob:exact-1'],'A stale deadline must not revoke B');
+  image.emit('load');assert.equal(status(host),'');assert.equal(h.timers.size,0);
+  assert.deepEqual(h.calls.revoked,['blob:exact-1','blob:exact-2']);
+ },
+ async detached_during_decode(){
+  const h=harness(),image=node(),host=node();await h.context.hydrate(image,title,host);
+  image.isConnected=false;await h.nextTimer();
+  assert.equal(h.timers.size,0);assert.equal(status(host),'');
+  assert.equal(image.classList.contains('recipe-image-loading'),false);
+  assert.equal(host.classList.contains('no-photo'),false,'Detached images do not introduce a visible failure');
+  assert.deepEqual(h.calls.revoked,['blob:exact-1']);image.emit('load');image.emit('error');
+  assert.equal(status(host),'');assert.deepEqual(h.calls.revoked,['blob:exact-1']);
+ },
+ async asset_decode_timeout(){
+  const h=harness(),image=node(),host=node();
+  await h.context.hydrate(image,{...title,photo_asset:'/assets/roxy_home/recipes/exact.jpg'},host);
+  assert.equal(await h.nextTimer(),12000);failure(image,host);
+  assert.equal(h.calls.fetch.length,0);assert.equal(h.timers.size,0);assert.deepEqual(h.calls.revoked,[]);
+ },
+ async hidden_decode_timeout(){
+  const h=harness(),image=node(),host=node();await h.context.hydrate(image,title,host,{hideOnMissing:true});
+  await h.nextTimer();assert.equal(image.hidden,true);assert.equal(status(host),'');
+  assert.equal(image.classList.contains('recipe-image-loading'),false);assert.equal(h.timers.size,0);
+  assert.deepEqual(h.calls.revoked,['blob:exact-1']);
  },
  async hide_on_missing(){
   const h=harness(async()=>response(404)),image=node(),host=node();
@@ -240,6 +300,9 @@ const cases={
     "stale_202_cannot_restart_status_or_retry",
     "only_three_202_attempts", "pending_then_ready", "fetch_timeout", "body_timeout",
     "network_error", "http_failures", "decode_error", "hide_on_missing",
+    "decode_timeout", "decode_success_cancels_deadline", "decoded_without_event",
+    "replaced_decode_deadline_cannot_cancel_new_image", "detached_during_decode",
+    "asset_decode_timeout", "hidden_decode_timeout",
     "card_not_full_or_asset", "install_core_shell_only",
 ])
 def test_actual_loading_code(scenario):

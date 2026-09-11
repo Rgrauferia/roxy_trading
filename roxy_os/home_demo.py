@@ -62,7 +62,8 @@ def trial_access_mode(method: str, path: str) -> str:
     if method == "GET" and re.fullmatch(r"/v1/home-food/[^/]+/providers/recipes/status", path):
         # Configuration summary only; provider search/detail remain unavailable.
         return "local"
-    if method == "GET" and re.fullmatch(r"/v1/home-food/[^/]+/open-recipes", path):
+    if method == "GET" and re.fullmatch(
+            r"/v1/home-food/[^/]+/open-recipes(?:/summaries|/detail/[A-Za-z0-9][A-Za-z0-9_-]{0,127})?", path):
         # Bundled licensed originals: no API key, spend, AI or household writes.
         return "local"
     if re.fullmatch(r"/v1/assistant/command/[^/]+", path) and method == "POST":

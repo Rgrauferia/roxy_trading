@@ -25,7 +25,20 @@ body.family-mode .family-map-actions button[aria-pressed="true"] { background: #
 .provider-original-instructions { white-space: pre-wrap; }
 #recipeProviderPanel p, #openRecipePanel p { line-height: 1.55; }
 #openRecipePanel { margin-block: 20px; }
-#openRecipePanel .provider-recipe-card summary { font: 700 1.25rem/1.35 Georgia, serif; color: var(--forest); }
+#openRecipePanel .provider-recipe-card > summary { font: 700 1.25rem/1.35 Georgia, serif; color: var(--forest); min-height: 44px; padding-block: 8px; cursor: pointer; }
+#openRecipePanel .provider-recipe-results { display: grid; gap: 12px; }
+#openRecipePanel .provider-recipe-card { border: 1px solid var(--line); border-radius: 18px; padding: 16px; background: var(--paper); min-width: 0; }
+#openRecipePanel .provider-recipe-card[open] { border-color: var(--forest); }
+#openRecipePanel .kitchen-form { margin-block: 20px; }
+#openRecipePanel .kitchen-form label { min-width: 0; }
+#openRecipePanel .kitchen-form label:first-child { grid-column: 1 / -1; }
+#openRecipePanel .kitchen-form input, #openRecipePanel .kitchen-form select { width: 100%; min-width: 0; }
+.open-recipe-pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 20px; }
+.open-recipe-pagination > button { flex: 1 1 135px; min-height: 44px; }
+.open-recipe-pagination > span { flex-basis: 100%; text-align: center; order: -1; color: var(--muted); }
+.open-recipe-credits { margin-block: 12px; padding: 12px; border-radius: 12px; background: var(--sage-soft); }
+#openRecipePanel .open-recipe-credits > summary { font-family: inherit; font-size: .9rem; font-weight: 600; line-height: 1.5; cursor: pointer; }
+.open-recipe-credits > a { display: block; margin-block: 10px; color: var(--forest); text-underline-offset: 3px; }
 #openRecipePanel li { margin-block: 10px; line-height: 1.6; }
 #openRecipePanel .provider-recipe-card > button { margin: 10px 8px 10px 0; }
 .open-recipe-reader { padding: 20px; border: 1px solid var(--sage); border-radius: 20px; background: var(--sage-soft); }

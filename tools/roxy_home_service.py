@@ -36,7 +36,14 @@ from roxy_os.home_recipe_fallback import (
     personalized_pet_recipe_catalog,
 )
 from roxy_os import home_recipe_provider as recipe_provider
-from roxy_os.home_open_recipes import open_recipe_catalog
+from roxy_os.home_open_recipes import (
+    OpenRecipeCursorError,
+    OpenRecipeNotFound,
+    OpenRecipeVersionChanged,
+    open_recipe_catalog,
+    open_recipe_detail,
+    open_recipe_summaries,
+)
 from roxy_os.home_recipe_provenance import assess_recipe_provenance, pet_recipe_source_directory
 from roxy_os.home_recipe_library import (
     HomeRecipeLibraryStore,
@@ -3807,6 +3814,44 @@ def read_home_open_recipes(
     _rate_limit(request)
     _authorize_user(user_id, auth)
     return open_recipe_catalog(q.strip(), cuisine.strip())
+
+
+@app.get("/v1/home-food/{user_id}/open-recipes/summaries")
+def read_home_open_recipe_summaries(
+    user_id: str, request: Request,
+    q: str = Query(default=""), cuisine: str = Query(default=""),
+    language: str = Query(default="all"), limit: str = Query(default="24"),
+    cursor: str = Query(default=""),
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    _authorize_user(user_id, auth)
+    try:
+        if not re.fullmatch(r"[0-9]{1,2}", limit):
+            raise ValueError("invalid_limit")
+        return open_recipe_summaries(q, cuisine, language=language, limit=int(limit), cursor=cursor)
+    except OpenRecipeVersionChanged:
+        raise HTTPException(status_code=409, detail="El recetario cambió. Vuelve a cargar la lista.") from None
+    except (OpenRecipeCursorError, ValueError):
+        raise HTTPException(status_code=400, detail="No se pudo validar la búsqueda o la página del recetario.") from None
+
+
+@app.get("/v1/home-food/{user_id}/open-recipes/detail/{recipe_id}")
+def read_home_open_recipe_detail(
+    user_id: str, recipe_id: str, request: Request,
+    catalog_version: str = Query(default=""),
+    auth: AuthContext = Depends(_authenticate),
+) -> dict[str, Any]:
+    _rate_limit(request)
+    _authorize_user(user_id, auth)
+    try:
+        return open_recipe_detail(recipe_id, catalog_version=catalog_version)
+    except OpenRecipeVersionChanged:
+        raise HTTPException(status_code=409, detail="El recetario cambió. Vuelve a cargar la lista.") from None
+    except OpenRecipeNotFound:
+        raise HTTPException(status_code=404, detail="La receta no está disponible.") from None
+    except ValueError:
+        raise HTTPException(status_code=400, detail="No se pudo validar la versión del recetario.") from None
 
 
 @app.get("/v1/home-food/{user_id}/providers/recipes/search")

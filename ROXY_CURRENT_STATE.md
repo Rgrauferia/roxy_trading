@@ -1,9 +1,62 @@
 # Roxy Home — estado operativo
 
-Actualizado: 2026-09-10. Este documento pertenece exclusivamente a la rama Home.
+Actualizado: 2026-09-11. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 
-## 185 — candidato en validación; aún no publicado
+## 186 — candidato probado, publicación pendiente
+
+Se terminó el trabajo local de paginación que estaba incompleto: resúmenes24,
+detalle al abrir, búsqueda global/cocina/idioma ES+EN, edición ligada al cursor,
+cancelación por miembro/pestaña/filtros y plazo12s con reintento. API autenticada
+no-store, demo local sin proveedor/IA/escrituras. Resumen real7:4662bytes frente
+a43064bytes del cuerpo legacy; no es medición del rendimiento total del sitio.
+Foto de fuente arriba, créditos separados y lector sin duplicar la lista completa.
+Recetario abre enTodas. Carga de fotos tiene plazo de evento/decodificación propio,
+limpieza por solicitud; no demuestra la causa del incidente del teléfono.
+Pruebas encontraron cachéPinterestvacía en arranque<900s→KeyError, corregida.
+2114Pythonpass/11PGskip,272NodeCJS,20MJSoriginales+suiteproveedor; sintaxis/diffOK.
+QA393px:13categorías, India+ES, búsqueda/vacío/limpiar, Pohefoto/rango/11pasos,
+paso2ES/ENconservado, sin overflow/consola. Sólo hogar temporal en8767.
+HTML/APP186,JS188,CSS131,SW185,originales4. Informehome_release_186_20260911.md.
+Catálogo real NO ampliado:59/458local,7originales/7ES/3fotos;510candidatas0aprobadas.
+NO demo terminada, no nuevas claves/pagos/afiliaciones/registro público.
+ContextcheckHome sigue ausente; no copiar herramientas ni memoria deTrading.
+
+## 11/09 — estado solicitado por Roberto; funciones centrales incompletas
+
+Revisión de sólo lectura de código y UI pública: Ejercicio mantiene aviso de
+entrenamiento/guardado no disponibles. domain.preview_readiness devuelve siempre
+can_activate=False/sessions=[]; faltan asignador operativo, tablas/API de planes
+y sesiones y controles de ejecución. Mi semana sólo representa disponibilidad.
+Configurar PostgreSQL de preferencias NO basta para producir rutinas por día.
+La voz muestra «Lista para conversar» antes de conectar; no es prueba operativa.
+No se inició micrófono ni nueva llamada externa. Último fallo confirmado sigue
+siendo histórico payment_issue de ElevenLabs; estado de facturación actual no
+reverificado. No afirmar que una recarga del teléfono resuelve estas ausencias.
+
+Último despliegue comprobado185; ampliación de recetas posterior quedó LOCAL E
+INCOMPLETA: home_open_recipes.py añade índices/resúmenes/detalle y test paging;
+frontend tiene cambios parciales de presentación, sin rutas ni paginación
+conectadas. Revisión/pruebas finales pendientes. No desplegar estos cambios como
+si fueran186terminada ni atribuirles los2009tests del commit185. Preservarlos.
+Subtarea de pruebas frontend se interrumpió por límite de uso; no produjo suite.
+
+Automatización roxy-home-jornada-de-mejoras PAUSADA el11/09al comprobar vencimiento
+del plazo10/09 23:59ET. No nuevo día autónomo programado. Esta comprobación responde
+al nuevo mensaje del usuario; no cambios de producción/facturación/datos reales.
+Prioridad que necesita implementación: voz verificada de extremo a extremo y
+plan semanal real + inicio/registro/persistencia, respetando revisión de contenidos.
+
+## 185 — PUBLICADO y comprobado; NO demo terminada
+
+Commit966e9aac5644073d3935b66e8a8077eaf411bcaa, RenderLive
+dep-dahi68jrjlhs73b0t4q0 (54.5s,17:37:38EDT). Health200/ok y siete archivos
+públicos idénticos. Sesión/meta185 conservadas. Mapa inicialmente vacío otra vez:
+aviso nuevo apareció; un clic en Reintentar mapa recuperó teselas/atribución sin
+solicitar GPS. Recuperación verificada, causa original aún NO resuelta.
+Pohe público: foto3264px,rango1–2,11pasos,ES/ENconservapaso2,393pxsin overflow.
+Ejercicio abre junto a Recetas; vista educativa, entrenamiento/guardado aún gated.
+QA8768/8788/8789detenidos,tabs12–15cerradas,viewportreset,prototipo8796intacto.
 
 Clima: nubes suaves en capas y lluvia con profundidad; límite de píxeles/frecuencia
 y ahorro en dispositivos limitados. No rayos inventados. Datos desconocidos no
@@ -21,9 +74,13 @@ Lote510 intacto. Informe nuevo home_recipe_500_scaling_gap_20260910.md identific
 416 sin metadatos de foto y bloqueo técnico de200filas/24resultados sinpaginación.
 No volver a revisar ese lote desde cero ni confundir ausencia de alertas con calidad.
 Render mantiene Payment failed observado10/09; no cambios de facturación.
-2009Pythonpass/11PGskip,272Node+2mjs; sintaxis/diff correctos. Publicación pendiente.
+2009Pythonpass/11PGskip,272Node+2mjs; sintaxis/diff correctos.
 HTML/APP185,JS187,CSS130,SW184.
 Informe: reports/home_release_185_20260910.md. Prototipos/datos reales preservados.
+Siguiente: paginación de resúmenes/detalle bajo demanda/búsqueda global para
+capacidad500 sin ampliar aprobación editorial. Lector móvil demasiado texto
+antes de foto; reorganizar sin ocultar advertencias relevantes. No repetir Pohe,
+seis traducciones184 ni auditoría congelada510. Revisar otros módulos en paralelo.
 
 ## 184 — PUBLICADO y comprobado; NO demo terminada
 
@@ -124,7 +181,7 @@ comprobación de todas las fotos ni del teléfono físico. Capturas10/11 públic
 No aplicar Blueprint: su disco declarado1GB difiere del real10GB; no pagos.
 Render mantiene aviso Payment failed. Usuario debe resolver facturación.
 
-Heartbeat activo `roxy-home-jornada-de-mejoras`: cada hora hasta el 10/09/2026
+Heartbeat de la jornada `roxy-home-jornada-de-mejoras` (pausado el11/09): previsto cada hora hasta el 10/09/2026
 23:59 America/New_York (20260911T035900Z). Sólo Home, no pagos/contratos sin
 autoridad concreta; avisar sólo avances relevantes, fallo o acción necesaria.
 Prototipo8796 preservado; servidor QA8768 detenido y pestaña cerrada. Su carpeta

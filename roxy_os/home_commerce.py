@@ -591,7 +591,8 @@ def public_pinterest_design_trends(region: str = "US") -> dict[str, Any]:
         return {"status": "needs_setup", "source": "Pinterest Trends API", "items": []}
     region = region if re.fullmatch(r"[A-Z]{2}", region) else "US"
     cached = _PINTEREST_TRENDS_CACHE.get(region) or {}
-    if time.monotonic() - float(cached.get("at") or 0) < 900:
+    if (isinstance(cached.get("value"), dict) and type(cached.get("at")) in (int, float)
+            and 0 <= time.monotonic() - cached["at"] < 900):
         return deepcopy(cached["value"])
     request = urllib.request.Request(
         f"https://api.pinterest.com/v5/trends/keywords/{region}/top/growing?limit=20",

@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '185';
+  const APP_VERSION = '186';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -94,7 +94,7 @@
   let currentPreparation = null;
   let user = localStorage.getItem('roxyShoppingUser') || 'local_user';
   let category = 'ALL';
-  let recipeFilter = 'breakfast';
+  let recipeFilter = 'all';
   let recipeSearch = '';
   let recipeShowDrafts = false;
   let search = '';
@@ -339,19 +339,37 @@
     // native lazy image can defer its load event (and our opacity reset) again.
     const isCard=image.loading==='lazy';
     image.loading='eager';
-    recipeImageLoads.get(image)?.clearStatus?.();
+    recipeImageLoads.get(image)?.dispose?.();
     const ticket={};recipeImageLoads.set(image,ticket);
     const isCurrent=()=>recipeImageLoads.get(image)===ticket;
     let status=null;
     const showStatus=text=>{if(!host||!isCurrent())return;if(!status){status=document.createElement('small');status.className='recipe-photo-status';host.append(status)}status.textContent=text};
     const clearStatus=()=>{status?.remove();status=null};
-    ticket.clearStatus=clearStatus;
-    const markMissing=(message='Foto específica pendiente')=>{if(!isCurrent())return;image.classList.remove('recipe-image-loading');if(hideOnMissing){image.hidden=true;clearStatus()}else{image.remove();host&&host.classList.add('no-photo');showStatus(message)}};
+    let clearImageLoad=()=>{};
+    ticket.dispose=()=>{clearImageLoad();clearStatus()};
+    const markMissing=(message='Foto específica pendiente')=>{if(!isCurrent())return;clearImageLoad();image.classList.remove('recipe-image-loading');if(hideOnMissing){image.hidden=true;clearStatus()}else{image.remove();host&&host.classList.add('no-photo');showStatus(message)}};
+    const loadImage=(source,objectUrl='')=>{
+      let settled=false,deadline;
+      const cleanup=()=>{if(settled)return;settled=true;clearTimeout(deadline);image.removeEventListener('load',loaded);image.removeEventListener('error',failed);if(objectUrl)URL.revokeObjectURL(objectUrl)};
+      const loaded=()=>{if(settled)return;cleanup();if(isCurrent()){image.classList.remove('recipe-image-loading');clearStatus()}};
+      const failed=()=>{if(settled)return;cleanup();markMissing('No pude cargar la foto. Abre la receta para reintentar.')};
+      clearImageLoad=cleanup;
+      image.addEventListener('load',loaded,{once:true});
+      image.addEventListener('error',failed,{once:true});
+      // Download completion does not guarantee an image load/error event. Keep
+      // its own deadline alive through decoding, and release only this URL.
+      deadline=setTimeout(()=>{
+        if(settled)return;
+        if(!isCurrent()){cleanup();return}
+        if(image.isConnected===false){cleanup();image.classList.remove('recipe-image-loading');clearStatus();return}
+        if(image.complete&&image.naturalWidth>0){loaded();return}
+        failed();
+      },12000);
+      try{image.src=source}catch(error){failed()}
+    };
     let url=recipeImage(recipe);if(!url){markMissing();return}
     if(isCard&&url.startsWith('/v1/home-food/recipe-photo?'))url+='&variant=card';
-    image.addEventListener('load',()=>{if(isCurrent()){image.classList.remove('recipe-image-loading');clearStatus()}},{once:true});
-    image.addEventListener('error',()=>markMissing('No pude cargar la foto. Abre la receta para reintentar.'),{once:true});
-    if(url.startsWith('data:image/')||url.startsWith('/assets/')){image.src=url;return}
+    if(url.startsWith('data:image/')||url.startsWith('/assets/')){loadImage(url);return}
     showStatus('Cargando foto específica…');
     for(let attempt=0;attempt<3;attempt+=1){
       if(!isCurrent()||(attempt>0&&image.isConnected===false))return;
@@ -360,7 +378,7 @@
       try{
         const response=await fetch(url,{credentials:'same-origin',cache:'default',signal:controller.signal});
         if(!isCurrent())return;
-        if(response.status===200&&/^image\//i.test(response.headers.get('content-type')||'')){const blob=await response.blob();if(!isCurrent()||image.isConnected===false)return;const objectUrl=URL.createObjectURL(blob);const release=()=>URL.revokeObjectURL(objectUrl);image.addEventListener('load',release,{once:true});image.addEventListener('error',release,{once:true});image.src=objectUrl;host&&host.classList.remove('no-photo');return}
+        if(response.status===200&&/^image\//i.test(response.headers.get('content-type')||'')){const blob=await response.blob();if(!isCurrent()||image.isConnected===false)return;const objectUrl=URL.createObjectURL(blob);host&&host.classList.remove('no-photo');loadImage(objectUrl,objectUrl);return}
         if(response.status===404){markMissing();return}
         if(response.status!==202){markMissing('No pude cargar la foto. Abre la receta para reintentar.');return}
         showStatus('Roxy está preparando la foto específica…');
@@ -695,6 +713,7 @@
   function mountFitness(){window.RoxyFitness?.mount($('fitnessRoot'),{identity:account.id||account.mode||'preview',navigate:selectPanel})}
   function selectPanel(panel,{smooth=true}={}) {
     activePanel=panel;
+    window.RoxyOpenRecipes?.setActive($('openRecipePanel'),panel==='recipes');
     syncFamilyMapReadiness();
     if(panel!=='family'&&familyWeatherGlobeActive)exitFamilyWeatherGlobe();
     const contentPanel=panel==='pets'?'recipes':panel;
@@ -1114,7 +1133,8 @@
     const catalog=homeFood.local_catalog||{};
     const imageService=homeFood.recipe_image_service||{};const petMode=recipeAudience==='pet';
     if(window.RoxyRecipeProvider)window.RoxyRecipeProvider.render($('recipeProviderPanel'),{user,service:homeFood.recipe_provider_service||{},api,hidden:petMode});
-    if(window.RoxyOpenRecipes)window.RoxyOpenRecipes.render($('openRecipePanel'),{user,api,hidden:petMode});
+    const sourceOwner=user, sourceIdentity=collectionIdentity();
+    if(window.RoxyOpenRecipes)window.RoxyOpenRecipes.render($('openRecipePanel'),{user,identity:sourceIdentity,api,hidden:petMode,active:activePanel==='recipes',isCurrent:()=>user===sourceOwner&&collectionIdentity()===sourceIdentity});
     $('recipeSearch').disabled=false;
     $('petRecipeImportActions').hidden=!petMode||!petCapabilities(selectedPetProfile()).recipe_import;$('recipeEditorialFilters').hidden=petMode;document.querySelectorAll('#recipeEditorialFilters button').forEach(button=>button.setAttribute('aria-pressed',String((button.id==='recipeDraftShelf')===recipeShowDrafts)));
     $('recipesPanel').classList.toggle('pet-mode',petMode);
@@ -1427,7 +1447,7 @@
   async function previewPetPhoto(event){const file=event.currentTarget.files?.[0];if(!file)return;try{petProfilePhotoData=await imageDataUrl(file);if(petProfilePhotoData.length>1_500_000)throw new Error('La foto es demasiado grande. Usa una imagen más pequeña.');const image=document.createElement('img');image.src=petProfilePhotoData;image.alt='Vista previa de la mascota';$('petPhotoPreview').replaceChildren(image)}catch(error){petProfilePhotoData='';event.currentTarget.value='';$('petProfileError').textContent=error.message}}
   async function savePetProfile(event){event.preventDefault();const error=validatePetStep();if(error){$('petProfileError').textContent=error;return}const button=$('petProfileSave');button.disabled=true;try{const payload={pet_id:editingPetId,name:$('petProfileName').value.trim(),species:$('petProfileSpecies').value,exact_species:$('petProfileExactSpecies').value.trim(),breed:$('petProfileBreed').value.trim(),age_years:$('petProfileAge').value===''?null:Number($('petProfileAge').value),weight_kg:$('petProfileWeight').value===''?null:Number($('petProfileWeight').value),life_stage:$('petProfileLifeStage').value,sex:$('petProfileSex').value,sterilized:$('petProfileSterilized').value,size_class:$('petProfileSize').value,activity_level:$('petProfileActivity').value,body_condition:$('petProfileBody').value,goals:selectedChoiceValues('petGoalChoices'),allergies:[...selectedChoiceValues('petAllergyChoices'),...commaPetValues($('petProfileAllergies').value)],conditions:[...selectedChoiceValues('petConditionChoices'),...commaPetValues($('petProfileConditions').value)],current_food:$('petProfileCurrentFood').value.trim(),current_food_kind:$('petProfileFoodKind').value,feeding_amount:$('petProfileFeedingAmount').value===''?null:Number($('petProfileFeedingAmount').value),feeding_unit:$('petProfileFeedingUnit').value,feeding_frequency:$('petProfileFeedingFrequency').value===''?0:Number($('petProfileFeedingFrequency').value),feeding_times:commaPetValues($('petProfileFeedingTimes').value),feeding_amount_source:$('petProfileFeedingSource').value,feeding_notes:$('petProfileFeedingNotes').value.trim(),veterinarian_instructions:$('petProfileVetInstructions').value.trim(),habitat_type:$('petProfileHabitat').value.trim(),environment_notes:$('petProfileEnvironment').value.trim(),routine_notes:$('petProfileRoutine').value.trim(),photo_data_url:petProfilePhotoData};const result=await api('/v1/home-food/'+encodeURIComponent(user)+'/pets',{method:'POST',body:JSON.stringify(payload)});selectedPetId=String(result.pet.id);petSpecies=result.pet.species;$('petProfileDialog').close();recipeAudience='pet';await refreshHomeFood();selectPanel('pets');announce(result.pet.name+' ya tiene un perfil de cuidado personalizado')}catch(error){$('petProfileError').textContent=error.message}finally{button.disabled=false}}
   function addPet(){openPetProfile()}
-  function setRecipeAudience(value){recipeAudience=value==='pet'?'pet':'human';if(recipeAudience==='human'&&!recipeCategories.some(row=>row.id===recipeFilter))recipeFilter='breakfast';if(recipeAudience==='pet'&&savedPets().length)petHubTab='care';document.querySelectorAll('[data-recipe-audience]').forEach(button=>button.classList.toggle('active',button.dataset.recipeAudience===recipeAudience));$('petRecipeContext').hidden=recipeAudience!=='pet';renderPetProfiles();renderRecipes();if(recipeAudience==='pet'&&!savedPets().length)requestAnimationFrame(()=>$('recipeImportStudio').scrollIntoView({block:'start',behavior:'smooth'}))}
+  function setRecipeAudience(value){recipeAudience=value==='pet'?'pet':'human';if(recipeAudience==='human'&&!['all','favorite'].includes(recipeFilter)&&!recipeCategories.some(row=>row.id===recipeFilter))recipeFilter='all';if(recipeAudience==='pet'&&savedPets().length)petHubTab='care';document.querySelectorAll('[data-recipe-audience]').forEach(button=>button.classList.toggle('active',button.dataset.recipeAudience===recipeAudience));$('petRecipeContext').hidden=recipeAudience!=='pet';renderPetProfiles();renderRecipes();if(recipeAudience==='pet'&&!savedPets().length)requestAnimationFrame(()=>$('recipeImportStudio').scrollIntoView({block:'start',behavior:'smooth'}))}
   function openRecipeImporter(type){
     pendingImportedRecipe=null;$('recipeImportType').value=type;
     const pet=recipeAudience==='pet'?selectedPetProfile():null;

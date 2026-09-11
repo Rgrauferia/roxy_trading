@@ -1451,3 +1451,30 @@ def test_pinterest_trends_are_live_cached_and_never_fabricated(monkeypatch):
     assert second == first
     assert len(calls) == 1
     assert calls[0].get_header("Authorization") == "Bearer pinterest-home-token"
+
+
+@pytest.mark.parametrize("cached", [
+    None, {}, {"at": 1}, {"value": {"items": []}}, {"at": 1, "value": None},
+    {"at": "1", "value": {}}, {"at": True, "value": {}}, {"at": 2, "value": {}},
+])
+def test_pinterest_empty_or_invalid_cache_after_boot_fetches_and_returns_isolated_payload(monkeypatch, cached):
+    from roxy_os import home_commerce
+    monkeypatch.setenv("ROXY_HOME_PINTEREST_ACCESS_TOKEN", "synthetic-pinterest-token")
+    monkeypatch.setattr(home_commerce, "_PINTEREST_TRENDS_CACHE", {} if cached is None else {"US": deepcopy(cached)})
+    monkeypatch.setattr(home_commerce.time, "monotonic", lambda: 1.0)
+    calls = []
+    payload = {"items": [{"keyword": "synthetic test keyword", "pct_growth_mom": 42}]}
+    original_payload = deepcopy(payload)
+
+    def fake_provider(request, provider):
+        calls.append((request, provider))
+        return payload
+
+    monkeypatch.setattr(home_commerce, "_provider_json", fake_provider)
+    result = home_commerce.public_pinterest_design_trends()
+    expected = deepcopy(result)
+    result["items"][0]["keyword"] = "Changed caller copy"
+    assert home_commerce.public_pinterest_design_trends() == expected
+    assert home_commerce._PINTEREST_TRENDS_CACHE["US"] == {"at": 1.0, "value": expected}
+    assert len(calls) == 1 and calls[0][1] == "Pinterest"
+    assert payload == original_payload
