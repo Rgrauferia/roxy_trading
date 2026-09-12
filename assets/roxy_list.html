@@ -8,30 +8,30 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="192" />
+  <meta name="roxy-home-version" content="193" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=132" />
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=134" />
   <link rel="stylesheet" href="/assets/roxy_fitness.css?v=6" />
   <link rel="stylesheet" href="/assets/roxy_fitness_programs.css?v=1" />
   <link rel="stylesheet" href="/assets/roxy_garden_guide.css?v=1" />
-  <link rel="stylesheet" href="/assets/roxy_home_myplate_recipes.css?v=1" />
-  <link rel="stylesheet" href="/assets/roxy_home_drinks.css?v=3" />
+  <link rel="stylesheet" href="/assets/roxy_home_myplate_recipes.css?v=2" />
+  <link rel="stylesheet" href="/assets/roxy_home_drinks.css?v=4" />
   <script src="/assets/roxy_maplibre_loader.js?v=1" defer></script>
   <script src="/assets/roxy_home_recipe_provider.js?v=2" defer></script>
   <script src="/assets/roxy_home_open_recipes.js?v=4" defer></script>
-  <script src="/assets/roxy_home_myplate_recipes.js?v=1" defer></script>
-  <script src="/assets/roxy_home_drinks.js?v=3" defer></script>
+  <script src="/assets/roxy_home_myplate_recipes.js?v=2" defer></script>
+  <script src="/assets/roxy_home_drinks.js?v=4" defer></script>
   <script src="/assets/roxy_home_weather_renderer.js?v=2" defer></script>
   <script src="/assets/roxy_home_map_readiness.js?v=1" defer></script>
   <script src="/assets/roxy_fitness_catalog.js?v=2" defer></script>
   <script src="/assets/roxy_fitness_programs.js?v=1" defer></script>
   <script src="/assets/roxy_fitness.js?v=5" defer></script>
   <script src="/assets/roxy_garden_guide.js?v=1" defer></script>
-  <script src="/assets/roxy_list.js?v=194" defer></script>
+  <script src="/assets/roxy_list.js?v=195" defer></script>
   <script src="/assets/roxy_home_registration.js?v=1" defer></script>
 </head>
 <body>
@@ -369,7 +369,13 @@
       <div class="section-heading hero-heading"><div><p id="recipeHeroEyebrow">Roxy cocina contigo</p><h2 id="recipesTitle">Recetas</h2></div><span id="recipeHeroBadge">Guardado automático</span></div>
       <p id="recipeLead" class="lead">Explora preparaciones existentes y recetas con su fuente original. Los borradores pendientes permanecen separados. <span id="recipeCatalogHint"></span></p>
 
-      <section id="recipeImportStudio" class="recipe-import-studio" aria-labelledby="recipeImportTitle">
+      <div id="recipeNavigation" class="recipe-navigation human-recipe-only">
+        <nav id="recipeCollections" class="recipe-collections" aria-label="Categorías principales del recetario"></nav>
+        <div class="recipe-navigation-tools"><button id="recipeImportToggle" class="secondary" type="button" aria-expanded="false" aria-controls="recipeImportStudio">Añadir una receta</button><button id="recipeWorldButton" class="secondary" type="button">Fuentes del mundo</button></div>
+        <p id="recipeCollectionHint" class="recipe-collection-hint"></p>
+      </div>
+
+      <section id="recipeImportStudio" class="recipe-import-studio" aria-labelledby="recipeImportTitle" hidden>
         <div class="recipe-import-heading"><div><p class="eyebrow">Tus recetas, en un solo lugar</p><h3 id="recipeImportTitle">Trae cualquier receta a Roxy</h3></div><span class="material-symbols-rounded" aria-hidden="true">auto_awesome</span></div>
         <p class="recipe-import-copy">Escanea una página de un libro o una captura, o pega un enlace público de Instagram, YouTube, Facebook, TikTok, Pinterest o una web.</p>
         <div class="recipe-import-actions">
@@ -433,6 +439,7 @@
           <button id="recipeReadyShelf" type="button" class="secondary" aria-pressed="true">Recetas</button>
           <button id="recipeDraftShelf" type="button" class="secondary" aria-pressed="false">Propuestas por revisar</button>
         </div>
+        <div id="recipeLocalGroups" class="recipe-local-groups" role="group" aria-label="Grupos de mi recetario"></div>
         <div id="recipeFilters" class="recipe-filters" role="group" aria-label="Categorías de recetas"></div>
         <div id="petRecipeImportActions" class="pet-recipe-import-actions" hidden>
           <button id="petImportText" type="button" class="secondary">Pegar receta de una publicación</button>

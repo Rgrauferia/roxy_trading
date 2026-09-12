@@ -66,7 +66,7 @@ function fixture(options = {}) {
     cancelAnimationFrame() {},
     setTimeout(callback, ms) { const id = ++sequence; timers.set(id, { callback, ms }); return id; },
     clearTimeout: id => timers.delete(id),
-    renderRecipes() {}, mountFitness() {},
+    renderRecipes() {}, mountFitness() {}, activateRecipeSources() {},
     loadFamilyGoogleMaps() { calls.google++; return options.google ? options.google() : Promise.resolve(); },
     familyWeatherMapStyles(styles) { calls.mapStyles++; return styles; },
     google: { maps: { Map() { calls.googleCreate++; throw new Error('Offscreen test must not create a Google map'); } } },

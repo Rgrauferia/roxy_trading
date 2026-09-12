@@ -48,32 +48,39 @@
     if (Number(error?.status || error?.status_code) === 429) return 'La fuente alcanzó su límite de consultas. Inténtalo más tarde o abre la receta directamente en MyPlate.food. No se han generado instrucciones de reemplazo.';
     if (error?.name === 'TimeoutError') return 'La fuente está tardando demasiado. Puedes reintentar esta consulta; tus recetas guardadas no han cambiado.';
     return detail ? 'No pudimos cargar los ingredientes y la preparación originales. Reintenta o consulta la fuente.' :
-      'No pudimos consultar el catálogo en este momento. Reintenta; tus recetas guardadas siguen disponibles más abajo.';
+      'No pudimos consultar el catálogo en este momento. Reintenta; tus recetas guardadas siguen en Mi recetario.';
   };
 
   function setActive(container, active) { renders.get(container)?.activate(Boolean(active)); }
 
-  function render(container, {user, identity = '', api, hidden = false, active = true, isCurrent = () => true}) {
+  function render(container, {user, identity = '', api, hidden = false, active = true, isCurrent = () => true,
+    browseGroup = 'all', autoLoad = false}) {
     if (!container) return;
+    const group = ['all', 'food', 'dessert'].includes(browseGroup) ? browseGroup : 'all';
     const signature = JSON.stringify([user, identity, hidden]);
     const previous = renders.get(container);
-    if (previous?.signature === signature) { previous.isCurrent = isCurrent; previous.activate(active); return; }
+    if (previous?.signature === signature) {
+      previous.isCurrent = isCurrent; previous.configure?.(group, Boolean(autoLoad)); previous.activate(active); return;
+    }
     previous?.dispose();
     const state = {signature, active:Boolean(active), isCurrent, generation:0, controller:null,
-      busy:false, loaded:false, page:1, totalPages:0, canNext:false, category:'', query:'', selected:null};
+      busy:false, loaded:false, page:1, totalPages:0, canNext:false,
+      group, autoLoad:Boolean(autoLoad), initialLoadRequested:Boolean(autoLoad), loadAttempted:false,
+      category:group === 'food' ? 'Main dish' : group === 'dessert' ? 'Dessert' : '', query:'', selected:null,
+      categoryOptions:['Main dish', 'Dessert', 'Beverage', 'Salad', 'Soup', 'Breakfast', 'Bread', 'Side dish']};
     state.activate = () => {}; state.dispose = () => {};
     renders.set(container, state); container.replaceChildren(); container.hidden = hidden;
     if (hidden) return;
 
     const root = node('section', null, 'myplate-library');
     const heading = node('header', null, 'myplate-heading');
-    const introduction = node('div'); introduction.append(node('p', 'UN RECETARIO PARA EXPLORAR', 'myplate-eyebrow'),
-      node('h2', 'Más ideas para tu mesa'));
+    const introduction = node('div');
+    const title = node('h2'); introduction.append(title);
     const total = node('p', 'Catálogo en directo · MyPlate.food', 'myplate-total');
     introduction.append(total); heading.append(introduction);
-    const intro = node('p', 'Comidas, bebidas, postres y más. Abre cada receta para consultar sus ingredientes y preparación originales.', 'myplate-intro');
-    const language = node('p', 'Originales en inglés · enlace al español cuando la fuente lo ofrece.', 'myplate-note');
-    const quota = node('p', 'Hasta 100 fichas completas al día en esta conexión compartida de Roxy; después puedes consultar la fuente.', 'myplate-note');
+    const intro = node('p', 'Abre una receta para ver sus ingredientes y preparación originales.', 'myplate-intro');
+    const language = node('p', 'Originales en inglés · enlace al español cuando existe.', 'myplate-note myplate-language');
+    const quota = node('p', '100 fichas completas/día · cupo compartido de Roxy; después, consulta la fuente.', 'myplate-note myplate-quota');
     const explore = button('Explorar recetas', () => void load(1), 'myplate-button myplate-primary');
     const start = node('div', null, 'myplate-start'); start.append(intro, explore);
     const browser = node('div', null, 'myplate-browser'); browser.hidden = true;
@@ -83,6 +90,7 @@
     search.setAttribute('aria-label', 'Buscar en el catálogo'); label.append(search);
     const submit = node('button', 'Buscar recetas', 'myplate-button myplate-primary'); submit.type = 'submit'; form.append(label, submit);
     const categories = node('nav', null, 'myplate-categories'); categories.setAttribute('aria-label', 'Categorías del catálogo MyPlate');
+    const filterHint = node('p', '', 'myplate-filter-hint');
     const status = node('p', '', 'myplate-status'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite'); status.tabIndex = -1;
     const retry = button('Reintentar consulta', () => state.selected ? void openRecipe(state.selected) : void load(state.page)); retry.hidden = true;
     const grid = node('div', null, 'myplate-grid');
@@ -91,8 +99,9 @@
     const prev = button('Página anterior', () => { if (state.page > 1) void load(state.page - 1); });
     const next = button('Página siguiente', () => { if (state.canNext) void load(state.page + 1); });
     pagination.append(prev, pageLabel, next);
-    const clear = button('Ver todas', () => { search.value = ''; state.query = ''; state.category = ''; void load(1); }); clear.hidden = true;
-    browser.append(form, categories, grid, clear, pagination);
+    const baseCategory = () => state.group === 'food' ? 'Main dish' : state.group === 'dessert' ? 'Dessert' : '';
+    const clear = button('Ver todas', () => { search.value = ''; state.query = ''; state.category = baseCategory(); void load(1); }); clear.hidden = true;
+    browser.append(form, categories, filterHint, grid, clear, pagination);
     const detail = node('section', null, 'myplate-detail'); detail.hidden = true;
     const back = button('Volver a las recetas', () => closeDetail());
     const detailBody = node('div', null, 'myplate-detail-body'); detail.append(back, detailBody);
@@ -100,7 +109,7 @@
     const creditText = node('p', attribution); creditText.lang = 'en';
     credit.append(creditText, node('p', 'MyPlate.food es un archivo independiente, no el sitio oficial del USDA. El catálogo se consulta en directo; no se descarga ni se guarda completo en Roxy.'),
       node('p', 'Conservamos el texto original, sin completar pasos con IA ni adaptar cantidades o alergias. La colección no equivale a recetas ensayadas individualmente por Roxy. Algunas imágenes de la fuente se han ampliado con IA.'),
-      node('p', 'La fuente limita las consultas, incluido el número de fichas completas por día. La disponibilidad puede variar.'));
+      node('p', 'Hasta 100 fichas completas al día en esta conexión compartida de Roxy. La fuente permite hasta 20 consultas por minuto. Al alcanzar el cupo puedes consultar la receta directamente en MyPlate.food; la disponibilidad puede variar.'));
     sourceLink(credit, 'Conocer MyPlate.food', 'https://myplate.food/about');
     root.append(heading, language, quota, start, status, retry, browser, detail, credit); container.append(root);
 
@@ -131,11 +140,22 @@
         return api(path, {method:'GET', signal:controller.signal});
       }).then(value => finish(resolve, value), error => finish(reject, error));
     });
-    const categoryLabels = {'Main dish':'Comidas', Dessert:'Postres', Beverage:'Bebidas', Salad:'Ensaladas', Soup:'Sopas'};
-    const categoryButtons = values => {
+    const categoryLabels = {'Main dish':'Platos principales', Dessert:'Postres', Beverage:'Bebidas', Salad:'Ensaladas', Soup:'Sopas',
+      Breakfast:'Desayunos', Bread:'Panes', 'Side dish':'Acompañamientos', Snack:'Meriendas'};
+    const nativeOrQuery = (value, query, label) => state.categoryOptions.includes(value) ? {value, label} : {query, label};
+    const categoryButtons = () => {
       categories.replaceChildren();
-      const choices = [{value:'', label:'Todas'}, ...values.map(value => ({value, label:categoryLabels[value] || value})),
-        {query:'pasta', label:'Pastas'}, {query:'breakfast', label:'Desayunos'}];
+      categories.hidden = state.group === 'all' && state.autoLoad;
+      const choices = state.group === 'food' ? [
+        nativeOrQuery('Breakfast', 'breakfast', 'Desayunos'), {value:'Main dish', label:'Platos principales'},
+        {query:'pasta', label:'Pastas'}, {query:'rice', label:'Arroces'}, {value:'Salad', label:'Ensaladas'},
+        {value:'Soup', label:'Sopas'}, nativeOrQuery('Bread', 'bread', 'Panes'),
+        nativeOrQuery('Side dish', 'side dish', 'Acompañamientos'),
+      ] : state.group === 'dessert' ? [{value:'Dessert', label:'Todos los postres'},
+        {value:'Dessert', query:'cake', label:'Pasteles'}, {value:'Dessert', query:'cookie', label:'Galletas'},
+        {value:'Dessert', query:'fruit', label:'Frutas'}] :
+        [{value:'', label:'Todas'}, ...state.categoryOptions.map(value => ({value, label:categoryLabels[value] || value})),
+          {query:'pasta', label:'Pastas'}, ...(state.categoryOptions.includes('Breakfast') ? [] : [{query:'breakfast', label:'Desayunos'}])];
       choices.forEach(({value = '', label:categoryLabel, query = ''}) => {
         const item = button(categoryLabel, () => {
           state.category = value; state.query = query; search.value = query; void load(1);
@@ -143,20 +163,29 @@
         if (query) item.title = `Buscar “${query}” en la fuente`;
         item.setAttribute('aria-pressed', String(state.category === value && state.query === query)); categories.append(item);
       });
+      filterHint.textContent = state.query ? `Búsqueda en la fuente: “${state.query}”${state.category ? ` · ${categoryLabels[state.category] || state.category}` : ''}. Los resultados conservan la clasificación original.` :
+        state.category ? `Categoría de la fuente: ${categoryLabels[state.category] || state.category}.` : '';
+      filterHint.hidden = !filterHint.textContent;
     };
-    categoryButtons(['Main dish', 'Dessert', 'Beverage', 'Salad', 'Soup']);
+    const groupHeading = () => {
+      title.textContent = state.group === 'food' ? 'Comidas para tu mesa' : state.group === 'dessert' ? 'Un momento dulce' : 'Explora el recetario';
+      clear.textContent = state.group === 'food' ? 'Volver a platos principales' : state.group === 'dessert' ? 'Ver todos los postres' : 'Ver todas';
+      search.placeholder = state.group === 'dessert' ? 'Ej. chocolate, apple, cake' : state.group === 'food' ? 'Ej. chicken, pasta, rice' : 'Ej. pasta, chicken, smoothie';
+    };
+    groupHeading(); categoryButtons();
     const card = summary => {
       const article = node('article', null, 'myplate-recipe-card');
       article.append(photo(summary));
       const body = node('div', null, 'myplate-card-body');
       const title = node('h3', summary.title); title.lang = 'en';
-      const meta = node('p', summary.category ? `${summary.category} · EN` : 'Original en inglés', 'myplate-card-meta');
+      const meta = node('p', summary.category ? `${categoryLabels[summary.category] || summary.category} · EN` : 'Original en inglés', 'myplate-card-meta');
       const open = button('Ver receta', () => { if (!state.busy) void openRecipe(summary); });
       open.setAttribute('aria-label', `Ver receta: ${summary.title}`); body.append(title, meta, open); article.append(body); return article;
     };
-    async function load(page) {
+    async function load(page, {focus = true} = {}) {
       if (!current() || state.busy) return;
-      stop(); purgeDetail(); state.page = page; state.loaded = false; retry.hidden = true; start.hidden = true;
+      stop(); purgeDetail(); state.page = page; state.loaded = false; state.initialLoadRequested = false; state.loadAttempted = true;
+      retry.hidden = true; start.hidden = true; categoryButtons();
       browser.hidden = false; grid.replaceChildren(); clear.hidden = true; pagination.hidden = true;
       const generation = state.generation, controller = new AbortController(); state.controller = controller; setBusy(true);
       status.textContent = 'Consultando las recetas de la fuente…';
@@ -172,14 +201,14 @@
         state.totalPages = Math.ceil(data.total / 24); state.canNext = data.next_offset !== null; state.loaded = true;
         grid.replaceChildren(...data.recipes.map(card));
         if (Array.isArray(data.category_options) && data.category_options.length <= 30 && data.category_options.every(value =>
-          typeof value === 'string' && value.trim())) categoryButtons(data.category_options);
+          typeof value === 'string' && value.trim())) { state.categoryOptions = data.category_options; categoryButtons(); }
         total.textContent = `${data.total.toLocaleString('es')} recetas${state.query || state.category ? ' en esta selección' : ' en el catálogo'} · consulta en directo`;
         status.textContent = data.recipes.length ? `${offset + 1}–${offset + data.recipes.length} de ${data.total} · ingredientes y preparación al abrir cada ficha.` :
           'No encontramos recetas con estos filtros. Prueba otra palabra en inglés o vuelve a ver todas.';
-        clear.hidden = !state.query && !state.category;
+        clear.hidden = !state.query && state.category === baseCategory();
         pageLabel.textContent = `Página ${page} de ${Math.max(1, state.totalPages)}`;
         pagination.hidden = !data.recipes.length || state.totalPages <= 1;
-        status.focus({preventScroll:false});
+        if (focus) status.focus({preventScroll:false});
       } catch (error) {
         if (!current() || generation !== state.generation || (controller.signal.aborted && error?.name !== 'TimeoutError')) return;
         status.textContent = errorText(error); retry.hidden = false;
@@ -233,9 +262,21 @@
       event.preventDefault(); if (state.busy) return;
       state.query = search.value.trim().slice(0,100); void load(1);
     });
+    state.configure = (nextGroup, nextAutoLoad) => {
+      if (state.group === nextGroup && state.autoLoad === nextAutoLoad) return;
+      if (state.group !== nextGroup) {
+        stop(); purgeDetail(); grid.replaceChildren();
+        state.group = nextGroup; state.category = baseCategory(); state.query = ''; search.value = '';
+        state.page = 1; state.totalPages = 0; state.canNext = false; state.loaded = false; state.loadAttempted = false;
+        state.initialLoadRequested = true; status.textContent = ''; retry.hidden = true; pagination.hidden = true;
+        clear.hidden = true; browser.hidden = true; start.hidden = false; total.textContent = 'Catálogo en directo · MyPlate.food';
+      }
+      if (nextAutoLoad && !state.autoLoad && !state.loaded && !state.loadAttempted) state.initialLoadRequested = true;
+      state.autoLoad = nextAutoLoad; groupHeading(); categoryButtons(); setBusy(state.busy);
+    };
     state.activate = value => {
       state.active = Boolean(value);
-      if (current()) return;
+      if (current()) { if (state.initialLoadRequested && !state.busy) void load(1, {focus:false}); return; }
       const wasBusy = state.busy, hadDetail = Boolean(state.selected); stop(); purgeDetail();
       if (hadDetail) { browser.hidden = !state.loaded; start.hidden = state.loaded; }
       if (wasBusy) { status.textContent = 'Consulta pausada. Pulsa Reintentar consulta para continuar.'; retry.hidden = false; }
@@ -243,6 +284,7 @@
     const visibility = () => state.activate(state.active);
     document.addEventListener('visibilitychange', visibility);
     state.dispose = () => { stop(); purgeDetail(); document.removeEventListener('visibilitychange', visibility); };
+    state.activate(active);
   }
   window.RoxyMyPlateRecipes = Object.freeze({render, setActive});
 })();

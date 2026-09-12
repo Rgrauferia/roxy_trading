@@ -42,6 +42,7 @@ function harness({voice = true} = {}) {
     get textContent() { return this._text + this.children.map(child => child.textContent).join(''); }
     set textContent(value) { this._text = String(value); this.children.forEach(child => { child.parent = null; }); this.children = []; }
     get isConnected() { return this.root || Boolean(this.parent?.isConnected); }
+    closest(selector) { if (selector !== '[hidden]') throw new Error(`Unsupported selector ${selector}`); for (let el = this; el; el = el.parent) if (el.hidden) return el; return null; }
     get firstChild() { return this.children[0]; }
     append(...children) { children.forEach(child => { child.parent = this; this.children.push(child); }); }
     replaceChildren(...children) { this.children.forEach(child => { child.parent = null; }); this.children = []; this._text = ''; this.append(...children); }
@@ -93,7 +94,89 @@ test('bounded local gallery loads explicitly once and defaults to nonalcoholic p
   await button(panel, 'Explorar bebidas').click(); assert.equal(mock.calls.length, 1); assert.equal(byClass(panel, 'drinks-card').length, 24);
   const titles = all(byClass(panel, 'drinks-grid')[0], 'h3').map(el => el.textContent); assert.ok(titles.includes(rows[0].title_es)); assert.ok(!titles.includes(rows[4].title_es));
   assert.ok(all(panel, 'img').every(img => img.loading === 'lazy' && img.referrerPolicy === 'no-referrer'));
-  assert.ok(panel.textContent.includes('60 bebidas en esta colección: 48 sin licores y 12 cócteles con alcohol')); assert.deepEqual(h.storageWrites, []); assert.equal(h.speechCalls.length, 0);
+  assert.ok(panel.textContent.includes('60 bebidas · 48 sin licores · 12 cócteles (21+)')); assert.deepEqual(h.storageWrites, []); assert.equal(h.speechCalls.length, 0);
+});
+
+test('autoLoad opens the gallery once without another explore button, focus jump or rerender duplicates', async () => {
+  const h = harness(), panel = h.container(), pending = deferred(), mock = server(payload(), n => n === 1 ? pending.promise : undefined);
+  const options = {user:'household/a', identity:'member-a', api:mock.api, autoLoad:true};
+  h.render(panel, options); const root = panel.firstChild; h.render(panel, options); h.setActive(panel, true); await settle();
+  assert.equal(mock.calls.length, 1); assert.equal(button(panel, 'Explorar bebidas').hidden, true); assert.equal(panel.firstChild, root);
+  pending.resolve(payload()); await settle(); h.render(panel, options); h.setActive(panel, true); await settle();
+  assert.equal(mock.calls.length, 1); assert.equal(byClass(panel, 'drinks-card').length, 24); assert.equal(h.activeElement, undefined);
+  assert.equal(all(panel, 'dialog').length, 1); assert.deepEqual(h.storageWrites, []); assert.equal(h.speechCalls.length, 0);
+});
+
+test('autoLoad is strictly opt-in and may be enabled on the existing render without rebuilding it', async () => {
+  const h = harness(), panel = h.container(), mock = server(), options = {user:'household/a', identity:'member-a', api:mock.api};
+  h.render(panel, {...options, autoLoad:'true'}); await settle(); assert.equal(mock.calls.length, 0);
+  const root = panel.firstChild; h.render(panel, {...options, autoLoad:true}); await settle();
+  assert.equal(panel.firstChild, root); assert.equal(mock.calls.length, 1);
+  await category(panel, 'juice').click(); h.render(panel, {...options, autoLoad:false});
+  assert.equal(byClass(panel, 'drinks-card').length, 12); assert.equal(button(panel, 'Explorar bebidas').hidden, true); assert.equal(mock.calls.length, 1);
+});
+
+test('inactive autoLoad waits for the selected collection and does not accept adult content', async () => {
+  const h = harness(), panel = h.container(), mock = server();
+  h.render(panel, {user:'household/a', identity:'member-a', api:mock.api, active:false, autoLoad:true}); await settle();
+  h.setActive(panel, false); await h.tick(60000); assert.equal(mock.calls.length, 0);
+  h.setActive(panel, true); h.setActive(panel, true); await settle(); assert.equal(mock.calls.length, 1);
+  assert.equal(byClass(panel, 'drinks-card').length, 24); assert.equal(all(panel, 'select').length, 0);
+  await category(panel, 'cocktail').click(); assert.equal(button(panel, 'Ver cócteles con alcohol').disabled, true);
+  assert.equal(byClass(panel, 'drinks-card').some(card => card.textContent.includes('Con alcohol')), false);
+});
+
+test('hidden pet or other collection never auto-loads even if setActive is called', async () => {
+  const h = harness(), panel = h.container(), mock = server(), options = {user:'household/a', identity:'member-a', api:mock.api, autoLoad:true};
+  h.render(panel, {...options, hidden:true}); h.setActive(panel, true); await h.tick(60000);
+  assert.equal(mock.calls.length, 0); assert.equal(panel.children.length, 0);
+  h.render(panel, {...options, hidden:false, active:true}); await settle(); assert.equal(mock.calls.length, 1);
+});
+
+test('a hidden ancestor prevents autoLoad until the parent collection is visible', async () => {
+  const h = harness(), outer = h.container(), panel = h.container(), mock = server(); outer.append(panel); outer.hidden = true;
+  h.render(panel, {user:'household/a', identity:'member-a', api:mock.api, autoLoad:true}); await settle(); assert.equal(mock.calls.length, 0);
+  outer.hidden = false; h.setActive(panel, true); await settle(); assert.equal(mock.calls.length, 1);
+});
+
+test('hidden document and detached containers cannot auto-load', async () => {
+  const h = harness(), panel = h.container(), mock = server(); await h.visibility(true);
+  h.render(panel, {user:'household/a', identity:'member-a', api:mock.api, autoLoad:true}); await settle(); assert.equal(mock.calls.length, 0);
+  await h.visibility(false); assert.equal(mock.calls.length, 1);
+  h.setActive(panel, false); panel.remove(); h.setActive(panel, true); await settle(); assert.equal(mock.calls.length, 1);
+});
+
+test('stale identity before dispatch makes no automatic request outside the selected scope', async () => {
+  const h = harness(), panel = h.container(), mock = server(); let current = true;
+  h.render(panel, {user:'household/a', identity:'member-a', api:mock.api, autoLoad:true, isCurrent:() => current});
+  current = false; await settle(); assert.equal(mock.calls.length, 0);
+  assert.equal(byClass(panel, 'drinks-card').length, 0);
+});
+
+test('failed automatic attempt offers manual retry without a parent-render request loop', async () => {
+  const h = harness(), panel = h.container(), mock = server(payload(), n => n === 1 ? Promise.reject(new Error('offline')) : undefined);
+  const options = {user:'household/a', identity:'member-a', api:mock.api, autoLoad:true}; h.render(panel, options); await settle();
+  h.render(panel, options); h.setActive(panel, true); await settle();
+  assert.equal(mock.calls.length, 1); assert.equal(button(panel, 'Reintentar bebidas').hidden, false); assert.equal(button(panel, 'Explorar bebidas').hidden, true);
+  await button(panel, 'Reintentar bebidas').click(); assert.equal(mock.calls.length, 2); assert.equal(byClass(panel, 'drinks-card').length, 24);
+});
+
+test('exiting cancels automatic loading; returning loads once and ignores the old response', async () => {
+  const h = harness(), panel = h.container(), pending = deferred(), mock = server(payload(), n => n === 1 ? pending.promise : undefined);
+  const options = {user:'household/a', identity:'member-a', api:mock.api, autoLoad:true}; h.render(panel, options); await settle();
+  h.setActive(panel, false); assert.equal(mock.calls[0].options.signal.aborted, true);
+  h.setActive(panel, true); h.render(panel, options); await settle(); assert.equal(mock.calls.length, 2);
+  pending.resolve(payload(rows.slice(0, 1))); await settle(); assert.equal(byClass(panel, 'drinks-card').length, 24);
+  assert.ok(panel.textContent.includes('60 bebidas ·')); assert.equal(all(panel, 'select').length, 0);
+});
+
+test('actual beverage selection auto-loads summaries only and preserves nonalcoholic default', async () => {
+  const actual = JSON.parse(fs.readFileSync(new URL('../data/home_open_drinks.json', import.meta.url), 'utf8')).drinks;
+  const h = harness(), panel = h.container(), mock = server(payload(actual));
+  h.render(panel, {user:'household/a', identity:'member-a', api:mock.api, autoLoad:true}); await settle();
+  assert.equal(actual.length, 96); assert.equal(mock.calls.length, 1); assert.match(mock.calls[0].path, /\/summaries\?/);
+  assert.ok(panel.textContent.includes('96 bebidas · 37 sin licores · 59 cócteles (21+)'));
+  assert.equal(byClass(panel, 'drinks-card').length, 24); assert.equal(byClass(panel, 'drinks-steps').length, 0);
 });
 
 test('card counts use singular Spanish for one ingredient or step', async () => {

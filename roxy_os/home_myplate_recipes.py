@@ -25,7 +25,10 @@ import requests
 
 API_BASE = "https://myplate.food/api/v1"
 PROVIDER = "MyPlate.food"
-CATEGORY_OPTIONS = ("Main dish", "Dessert", "Beverage", "Salad", "Soup")
+# Native source filters, not labels inferred from recipe names. Breakfast, Bread
+# and Side dish were checked with one live summary each on 2026-09-11.
+CATEGORY_OPTIONS = ("Main dish", "Dessert", "Beverage", "Salad", "Soup",
+                    "Breakfast", "Bread", "Side dish")
 MAX_RESPONSE_BYTES = 512 * 1024
 MAX_PAGE_SIZE = 24
 MAX_OFFSET = 100_000

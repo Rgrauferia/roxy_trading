@@ -38,22 +38,22 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "script-src 'none'" in privacy.headers["content-security-policy"]
     assert "roxy_privacy.html assets/roxy_privacy.css" in Path("Dockerfile.roxy-home").read_text(encoding="utf-8")
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="192"' in page.text
+    assert 'name="roxy-home-version" content="193"' in page.text
     assert 'href="/assets/vendor/maplibre-gl.css?v=1"' not in page.text
     assert 'src="/assets/vendor/maplibre-gl.js?v=1"' not in page.text
     assert 'src="/assets/roxy_maplibre_loader.js?v=1"' in page.text
-    assert 'href="/assets/roxy_list.css?v=132"' in page.text
-    assert 'src="/assets/roxy_list.js?v=194"' in page.text
+    assert 'href="/assets/roxy_list.css?v=134"' in page.text
+    assert 'src="/assets/roxy_list.js?v=195"' in page.text
     assert '/assets/vendor/maplibre-gl.css?v=1' in worker.text
     assert '/assets/vendor/maplibre-gl.js?v=1' in worker.text
-    assert '/assets/roxy_list.css?v=132' in worker.text
-    assert '/assets/roxy_list.js?v=194' in worker.text
-    for asset in ('roxy_home_weather_renderer.js?v=2', 'roxy_home_map_readiness.js?v=1', 'roxy_home_open_recipes.js?v=4', 'roxy_home_recipe_provider.js?v=2', 'roxy_home_myplate_recipes.js?v=1', 'roxy_home_myplate_recipes.css?v=1'):
+    assert '/assets/roxy_list.css?v=134' in worker.text
+    assert '/assets/roxy_list.js?v=195' in worker.text
+    for asset in ('roxy_home_weather_renderer.js?v=2', 'roxy_home_map_readiness.js?v=1', 'roxy_home_open_recipes.js?v=4', 'roxy_home_recipe_provider.js?v=2', 'roxy_home_myplate_recipes.js?v=2', 'roxy_home_myplate_recipes.css?v=2'):
         assert '/assets/' + asset in worker.text
         assert '/assets/' + asset in page.text
         assert client.get('/assets/' + asset).status_code == 200
-    assert 'roxy-list-shell-v191' in worker.text
-    for asset in ('roxy_home_drinks.js?v=3', 'roxy_home_drinks.css?v=3'):
+    assert 'roxy-list-shell-v192' in worker.text
+    for asset in ('roxy_home_drinks.js?v=4', 'roxy_home_drinks.css?v=4'):
         assert '/assets/' + asset in page.text and '/assets/' + asset in worker.text
         assert client.get('/assets/' + asset).status_code == 200
     assert client.get('/assets/open-drinks-license.txt').status_code == 200
@@ -95,7 +95,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="designProjectForm"' in page.text
     assert '/v1/home-design/' in script.text
     assert 'Revisar productos' in script.text
-    assert "const APP_VERSION = '192'" in script.text
+    assert "const APP_VERSION = '193'" in script.text
     assert '/assets/roxy_home_recipe_provider.js?v=2' in page.text
     assert '/assets/roxy_home_recipe_provider.js?v=2' in worker.text
     assert client.get('/assets/roxy_home_recipe_provider.js').status_code == 200
@@ -145,7 +145,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "data-route-back" in script.text
     assert "family:'nexo'" in script.text
     assert 'data-close-dialog="pairDialog"' in page.text
-    assert "propuestas pendientes de revisión" in script.text
+    assert "Los borradores no cuentan como recetas listas" in script.text
     assert "provider.affiliate_connected?'afiliado':'catálogo oficial'" in script.text
     assert "la foto, medidas, disponibilidad y precio real" in script.text
     assert 'Analizar y rediseñar' in script.text
@@ -465,7 +465,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "icon:'salad'" not in script.text
     assert "hydrateRecipeImage" in script.text
     assert "seenSavedTitles" in script.text
-    assert "para personas" in script.text
+    assert "¿Qué te apetece preparar?" in script.text
     assert "para perros" in script.text
     for asset in ("pan-cubano.jpg", "cafe-americano.jpg", "cafe-con-canela.jpg", "affogato.jpg"):
         assert (roxy_home_service.ASSETS_DIR / "roxy_home" / "recipe_custom" / asset).is_file()

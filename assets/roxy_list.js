@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '192';
+  const APP_VERSION = '193';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -97,6 +97,10 @@
   let recipeFilter = 'all';
   let recipeSearch = '';
   let recipeShowDrafts = false;
+  let recipeCollection = 'all';
+  let recipeLocalGroup = 'all';
+  let recipeNavigationIdentity = '';
+  let recipeImportExpanded = false;
   let search = '';
   let showAllStaples = false;
   let busy = false;
@@ -591,6 +595,7 @@
       populateHomeForms();
       render();
       load.renderedScope={owner:requestedOwner,identity};$('app').hidden=false;
+      activateRecipeSources();
       resumeFamilyBaseMap();
       renderAccount();
       renderHomeMoment();
@@ -639,6 +644,7 @@
         populateHomeForms();
         render();
         load.renderedScope={owner:requestedOwner,identity};$('app').hidden=false;
+        activateRecipeSources();
       }
       if (!cached) setConnection('No se pudo cargar Roxy Home','offline');
     } finally {
@@ -711,11 +717,19 @@
 
   let activePanel='';
   function mountFitness(){window.RoxyFitness?.mount($('fitnessRoot'),{identity:account.id||account.mode||'preview',navigate:selectPanel})}
+  function recipeSourcesReady(){
+    return !$('app').hidden&&load.renderedScope?.owner===user&&load.renderedScope?.identity===collectionIdentity();
+  }
+  function activateRecipeSources(){
+    const active=activePanel==='recipes'&&recipeSourcesReady();
+    window.RoxyOpenRecipes?.setActive($('openRecipePanel'),active&&recipeCollection==='world');
+    window.RoxyMyPlateRecipes?.setActive($('myplateRecipePanel'),active&&['all','food','dessert'].includes(recipeCollection));
+    window.RoxyDrinks?.setActive($('drinksRecipePanel'),active&&recipeCollection==='drinks');
+  }
   function selectPanel(panel,{smooth=true}={}) {
     activePanel=panel;
-    window.RoxyOpenRecipes?.setActive($('openRecipePanel'),panel==='recipes');
-    window.RoxyMyPlateRecipes?.setActive($('myplateRecipePanel'),panel==='recipes');
-    window.RoxyDrinks?.setActive($('drinksRecipePanel'),panel==='recipes');
+    // Do not browse before authentication has resolved the visible household.
+    activateRecipeSources();
     window.RoxyFitness?.setActive(panel==='fitness');
     syncFamilyMapReadiness();
     if(panel!=='family'&&familyWeatherGlobeActive)exitFamilyWeatherGlobe();
@@ -1131,36 +1145,88 @@
     const requiresReview=recipe.editorial_status==='needs_canonical_review'||(recipe.audience==='pet'&&recipe.provenance?.can_cook_from_source!==true);
     copy.append(strong,small);if(requiresReview){const review=document.createElement('em');review.textContent='Pendiente de revisión · no lista para cocinar';copy.append(review)}if(recipe.audience==='pet'&&recipe.personalization_reason){const match=document.createElement('em');match.className='pet-recipe-match';match.textContent=requiresReview?'Filtrada con su perfil; la idoneidad de la preparación sigue pendiente de revisión.':recipe.personalization_reason;copy.append(match)}button.append(img,copy);button.addEventListener('click',()=>openRecipe(recipe));return button;
   }
+  const recipeCollectionChoices=[
+    {id:'all',title:'Explorar',icon:'apps'},
+    {id:'food',title:'Comidas',icon:'restaurant'},
+    {id:'drinks',title:'Bebidas',icon:'local_cafe'},
+    {id:'dessert',title:'Postres',icon:'cake'},
+    {id:'local',title:'Mi recetario',icon:'menu_book'},
+  ];
+  function localRecipeGroup(category){
+    if(['coffee_hot','juices','smoothies','cocktails'].includes(category))return 'drinks';
+    return category==='desserts'?'dessert':'food';
+  }
+  function humanRecipeMatchesBrowse(recipe){
+    const category=recipeCategoryId(recipe);
+    const matchesSearch=!recipeSearch||normalize(`${recipe.title||''} ${recipe.subcategory||''}`).includes(recipeSearch);
+    const matchesCategory=recipeFilter==='favorite'?recipe.favorite:recipeFilter==='all'||category===recipeFilter;
+    const matchesGroup=['all','favorite'].includes(recipeLocalGroup)||localRecipeGroup(category)===recipeLocalGroup;
+    return Boolean(matchesSearch&&matchesCategory&&matchesGroup);
+  }
+  function chooseRecipeCollection(value){
+    if(![...recipeCollectionChoices.map(row=>row.id),'world'].includes(value))return;
+    recipeCollection=value;recipeImportExpanded=false;renderRecipes();
+    $('recipeCollections').querySelector(`[data-recipe-collection="${value}"]`)?.focus({preventScroll:true});
+  }
+  function renderRecipeNavigation(petMode){
+    const identity=JSON.stringify([user,collectionIdentity()]);
+    if(recipeNavigationIdentity!==identity){
+      recipeNavigationIdentity=identity;recipeCollection='all';recipeLocalGroup='all';recipeImportExpanded=false;
+      recipeSearch='';recipeFilter='all';recipeShowDrafts=false;$('recipeSearch').value='';
+    }
+    $('recipeNavigation').hidden=petMode;
+    const choices=$('recipeCollections');choices.replaceChildren();
+    recipeCollectionChoices.forEach(({id,title,icon})=>{
+      const item=makeButton(title,'recipe-collection-button',()=>chooseRecipeCollection(id));
+      const glyph=document.createElement('span');glyph.className='material-symbols-rounded';glyph.setAttribute('aria-hidden','true');glyph.textContent=icon;
+      item.prepend(glyph);item.setAttribute('aria-pressed',String(recipeCollection===id));item.dataset.recipeCollection=id;choices.append(item);
+    });
+    $('recipeWorldButton').setAttribute('aria-pressed',String(recipeCollection==='world'));
+    $('recipeImportToggle').setAttribute('aria-expanded',String(recipeImportExpanded));
+    const hints={all:'Explora el catálogo completo por páginas. Las fichas se cargan al abrirlas.',food:'Comidas → elige desayuno, plato principal, pasta, sopa o acompañamiento.',drinks:'Bebidas → café y té, jugos, batidos, refrescantes y cócteles.',dessert:'Postres → explora todos o busca pasteles, galletas y opciones con fruta.',local:'Tus recetas guardadas y las incluidas en Roxy. Los borradores no cuentan como recetas listas.',world:'Publicaciones originales con atribución y traducciones disponibles.'};
+    $('recipeCollectionHint').textContent=hints[recipeCollection]||'';
+    $('recipeLocalGroups').hidden=petMode;
+  }
   function renderRecipes() {
     const root=$('recipeLibrary'); root.replaceChildren();
     const catalog=homeFood.local_catalog||{};
     const imageService=homeFood.recipe_image_service||{};const petMode=recipeAudience==='pet';
     if(window.RoxyRecipeProvider)window.RoxyRecipeProvider.render($('recipeProviderPanel'),{user,service:homeFood.recipe_provider_service||{},api,hidden:petMode});
+    renderRecipeNavigation(petMode);
     const sourceOwner=user, sourceIdentity=collectionIdentity();
-    if(window.RoxyMyPlateRecipes)window.RoxyMyPlateRecipes.render($('myplateRecipePanel'),{user,identity:sourceIdentity,api,hidden:petMode,active:activePanel==='recipes',isCurrent:()=>user===sourceOwner&&collectionIdentity()===sourceIdentity});
-    if(window.RoxyDrinks)window.RoxyDrinks.render($('drinksRecipePanel'),{user,identity:sourceIdentity,api,hidden:petMode,active:activePanel==='recipes',isCurrent:()=>user===sourceOwner&&collectionIdentity()===sourceIdentity});
-    if(window.RoxyOpenRecipes)window.RoxyOpenRecipes.render($('openRecipePanel'),{user,identity:sourceIdentity,api,hidden:petMode,active:activePanel==='recipes',isCurrent:()=>user===sourceOwner&&collectionIdentity()===sourceIdentity});
+    const sourceContext={user,identity:sourceIdentity,api,isCurrent:()=>recipeSourcesReady()&&user===sourceOwner&&collectionIdentity()===sourceIdentity};
+    const sourceActive=recipeSourcesReady()&&activePanel==='recipes';
+    const myplateSelected=!petMode&&['all','food','dessert'].includes(recipeCollection);
+    if(window.RoxyMyPlateRecipes)window.RoxyMyPlateRecipes.render($('myplateRecipePanel'),{...sourceContext,hidden:!myplateSelected,active:sourceActive&&myplateSelected,autoLoad:true,browseGroup:myplateSelected?recipeCollection:'all'});
+    if(window.RoxyDrinks)window.RoxyDrinks.render($('drinksRecipePanel'),{...sourceContext,hidden:petMode||recipeCollection!=='drinks',active:sourceActive&&recipeCollection==='drinks',autoLoad:true});
+    if(window.RoxyOpenRecipes)window.RoxyOpenRecipes.render($('openRecipePanel'),{...sourceContext,hidden:petMode||recipeCollection!=='world',active:sourceActive&&recipeCollection==='world'});
     $('recipeSearch').disabled=false;
     $('petRecipeImportActions').hidden=!petMode||!petCapabilities(selectedPetProfile()).recipe_import;$('recipeEditorialFilters').hidden=petMode;document.querySelectorAll('#recipeEditorialFilters button').forEach(button=>button.setAttribute('aria-pressed',String((button.id==='recipeDraftShelf')===recipeShowDrafts)));
     $('recipesPanel').classList.toggle('pet-mode',petMode);
     $('recipeHeroEyebrow').textContent=petMode?'Bienestar personalizado':'Roxy cocina contigo';
     $('recipesTitle').textContent=petMode?'Mascotas':'Recetas';
-    $('recipeHeroBadge').textContent=petMode?'Perfil privado':'Guardado automático';
+    $('recipeHeroBadge').textContent=petMode?'Perfil privado':'Explora a tu ritmo';
     $('recipeImportTitle').textContent=petMode?'Tus mascotas':'Trae cualquier receta a Roxy';
-    $('recipeLead').firstChild.textContent=petMode?'Cuidados, alimentación y salud organizados para cada mascota. ':'Explora por categoría. Las propuestas pendientes de revisión se identifican antes de guardarlas o cocinarlas. ';
+    $('recipeLead').firstChild.textContent=petMode?'Cuidados, alimentación y salud organizados para cada mascota. ':'¿Qué te apetece preparar? Encuentra una receta y consulta su preparación completa. ';
     const humanCatalog=(homeFood.local_recipes||[]).filter(recipe=>recipe.audience!=='pet');
     const humanReady=humanRecipeShelf(humanCatalog).length;const humanDrafts=humanRecipeShelf(humanCatalog,true).length;
-    $('recipeCatalogHint').textContent=petMode?'':humanCatalog.length?`${humanReady} recetas en tu recetario de Roxy. Encuentra más comidas, bebidas y postres en el catálogo ampliado. Las preparaciones para animales están en Mascotas.`:'';
+    $('recipeCatalogHint').textContent='';
     $('editPetProfile').setAttribute('aria-label','Editar perfil de la mascota');
     const filters=$('recipeFilters');filters.replaceChildren();filters.hidden=false;
     const pets=savedPets();const onboarding=$('petOnboardingEmpty');const catalogSection=$('recipeCatalogSection');const importStudio=$('recipeImportStudio');const petHub=$('petPersonalizedHub');
     $('petRecipeContext').hidden=!petMode;if(petMode)renderPetProfiles();
     catalogSection.setAttribute('role','region');catalogSection.setAttribute('aria-labelledby','libraryTitle');
     importStudio.classList.toggle('pet-profile-mode',petMode);
+    if(!petMode)importStudio.classList.remove('pet-onboarding-mode');
+    importStudio.hidden=!petMode&&!recipeImportExpanded;
+    if(!petMode&&recipeCollection!=='local'){
+      onboarding.hidden=true;petHub.hidden=true;catalogSection.hidden=true;
+      return;
+    }
     $('petLoadingStatus').hidden=!petMode||homeFoodReady;
     $('addPetButton').disabled=petMode&&!homeFoodReady;
     if(!petMode&&!homeFoodReady){
-      onboarding.hidden=true;petHub.hidden=true;catalogSection.hidden=false;importStudio.hidden=false;
+      onboarding.hidden=true;petHub.hidden=true;catalogSection.hidden=false;
       $('recipeSearch').disabled=true;filters.hidden=true;$('recipeEditorialFilters').hidden=true;
       $('recipeCount').textContent=homeFoodLoadFailed?'No se pudo cargar':'Cargando…';
       const loading=document.createElement('p');loading.setAttribute('role','status');
@@ -1180,9 +1246,17 @@
     }else catalogSection.hidden=false;
     $('recipeLibraryEyebrow').textContent=petMode?'Adaptado a su perfil':'Incluidas y disponibles';
     $('libraryTitle').textContent=petMode?'Recetas para '+selectedPetProfile().name:recipeShowDrafts?'Propuestas pendientes':'Recetario de Roxy';
-    $('recipeLibraryHint').textContent=petMode?'Fichas conservadas y filtradas por su perfil. La fuente original se verifica aparte: no son recetas veterinarias aprobadas. Los cuidados permanecen en Información.':recipeShowDrafts?'Estas propuestas no están listas para cocinar. Requieren una publicación original y revisión de sus pasos.':'Preparaciones existentes de Roxy. Las recetas de fuentes originales están en Recetas del mundo.';
+    $('recipeLibraryHint').textContent=petMode?'Fichas conservadas y filtradas por su perfil. La fuente original se verifica aparte: no son recetas veterinarias aprobadas. Los cuidados permanecen en Información.':recipeShowDrafts?'Estas propuestas no están listas para cocinar. Requieren una publicación original y revisión de sus pasos.':'Preparaciones existentes de Roxy. Para consultar el catálogo ampliado, vuelve a Explorar.';
     $('recipeSearch').placeholder=petMode?'Buscar una preparación…':'Buscar huevos, pollo, café…';
-    if(recipeAudience==='human')[{id:'all',title:'Todas',icon:'apps'},...recipeCategories,{id:'favorite',title:'Favoritas',icon:'favorite'}].forEach(category=>{const button=document.createElement('button');button.type='button';button.className=`recipe-filter-card${recipeFilter===category.id?' active':''}`;button.dataset.recipeFilter=category.id;if(category.icon){const icon=document.createElement('span');icon.className='material-symbols-rounded';icon.setAttribute('aria-hidden','true');icon.textContent=category.icon;button.append(icon)}const label=document.createElement('span');label.textContent=category.title;button.append(label);button.addEventListener('click',()=>{recipeFilter=category.id;renderRecipes()});filters.append(button)});
+    if(recipeAudience==='human'){
+      const groupRoot=$('recipeLocalGroups');groupRoot.replaceChildren();
+      [{id:'all',title:'Todo mi recetario'},{id:'food',title:'Comidas'},{id:'drinks',title:'Bebidas'},{id:'dessert',title:'Postres'},{id:'favorite',title:'Favoritas'}].forEach(group=>{
+        const item=makeButton(group.title,'recipe-local-group',()=>{recipeLocalGroup=group.id;recipeFilter=group.id==='favorite'?'favorite':'all';renderRecipes();});
+        item.setAttribute('aria-pressed',String(recipeLocalGroup===group.id));groupRoot.append(item);
+      });
+      [{id:'all',title:'Todas',icon:'apps'},...recipeCategories.filter(row=>['all','favorite'].includes(recipeLocalGroup)||localRecipeGroup(row.id)===recipeLocalGroup)].forEach(category=>{const button=document.createElement('button');button.type='button';button.className=`recipe-filter-card${recipeFilter===category.id?' active':''}`;button.dataset.recipeFilter=category.id;if(category.icon){const icon=document.createElement('span');icon.className='material-symbols-rounded';icon.setAttribute('aria-hidden','true');icon.textContent=category.icon;button.append(icon)}const label=document.createElement('span');label.textContent=category.title;button.append(label);button.addEventListener('click',()=>{recipeFilter=category.id;renderRecipes()});filters.append(button)});
+      filters.hidden=recipeLocalGroup==='favorite';
+    }
     else [{id:'all',title:'Todas',icon:'apps'},{id:'treat',title:'Premios',icon:'cookie'},{id:'favorite',title:'Favoritas',icon:'favorite'}].forEach(category=>{const button=document.createElement('button');button.type='button';button.className=`recipe-filter-card${petRecipeFilter===category.id?' active':''}`;const icon=document.createElement('span');icon.className='material-symbols-rounded';icon.setAttribute('aria-hidden','true');icon.textContent=category.icon;const label=document.createElement('span');label.textContent=category.title;button.append(icon,label);button.addEventListener('click',()=>{petRecipeFilter=category.id;renderRecipes()});filters.append(button)});
     if(petMode&&renderPetRecipeAvailability(selectedPetProfile(),root))return;
     const sessions=homeFood.cooking_sessions||[];
@@ -1201,14 +1275,14 @@
     const audienceRows=allRows.filter(recipe=>recipeAudience==='pet'?recipe.audience==='pet'&&recipe.pet_species===petSpecies&&String(recipe.pet_id)===String(pet?.id):humanRecipeShelf([recipe],recipeShowDrafts).length>0);
     if(!petMode){
       const available=new Set(audienceRows.map(recipeCategoryId));
-      if(!['all','favorite'].includes(recipeFilter)&&!available.has(recipeFilter))recipeFilter='all';
+      // Keep a selected empty filter explicit; never silently broaden it.
       filters.querySelectorAll('button').forEach(button=>{const id=button.dataset.recipeFilter;button.hidden=!['all','favorite'].includes(id)&&!available.has(id);button.classList.toggle('active',recipeFilter===id);button.setAttribute('aria-pressed',String(recipeFilter===id));});
       $('recipeReadyShelf').textContent=`Recetas (${humanReady})`;$('recipeDraftShelf').textContent=`Borradores (${humanDrafts})`;
     }
     const exactPetRows=recipeAudience==='pet'?audienceRows.filter(recipe=>(recipe.pet_exact_terms||[]).length):[];
-    const rows=audienceRows.filter(recipe=>{const matchesSearch=!recipeSearch||normalize(`${recipe.title||''} ${recipe.subcategory||''}`).includes(recipeSearch);const matchesCategory=recipeAudience==='pet'?(petRecipeFilter==='all'||(petRecipeFilter==='favorite'?recipe.favorite:recipe.safety_class===petRecipeFilter)):recipeFilter==='favorite'?recipe.favorite:recipeFilter==='all'||recipeSearch||recipeCategoryId(recipe)===recipeFilter;return matchesSearch&&matchesCategory});
+    const rows=audienceRows.filter(recipe=>{if(!petMode)return humanRecipeMatchesBrowse(recipe);const matchesSearch=!recipeSearch||normalize(`${recipe.title||''} ${recipe.subcategory||''}`).includes(recipeSearch);const matchesCategory=petRecipeFilter==='all'||(petRecipeFilter==='favorite'?recipe.favorite:recipe.safety_class===petRecipeFilter);return matchesSearch&&matchesCategory});
     const speciesLabel={dog:'para perros',cat:'para gatos',ferret:'para ferrets',rabbit:'para conejos',guinea_pig:'para cobayas',hamster:'para hámsteres',bird:'para aves',fish:'para peces',reptile:'para reptiles',amphibian:'para anfibios',other:'para otras mascotas'}[petSpecies]||'para mascotas';
-    $('recipeCount').textContent=recipeAudience==='pet'?`${rows.length} fichas ${speciesLabel} · ${rows.filter(row=>row.provenance?.can_cook_from_source!==true).length} por verificar`:recipeSearch||recipeFilter==='favorite'?`${rows.length} ${rows.length===1?'resultado':'resultados'}`:`${audienceRows.length} ${recipeShowDrafts?'por revisar':'para personas'}`;
+    $('recipeCount').textContent=recipeAudience==='pet'?`${rows.length} fichas ${speciesLabel} · ${rows.filter(row=>row.provenance?.can_cook_from_source!==true).length} por verificar`:`${rows.length} ${recipeShowDrafts?'por revisar':rows.length===1?'receta':'recetas'} en esta selección`;
     if(recipeAudience==='pet'){
       const feedingHub=['fish','reptile','amphibian','invertebrate','farm_pet','other'].includes(petSpecies);const section=document.createElement('section');section.className='recipe-category';
       const heading=document.createElement('div');heading.className='recipe-category-heading';const copy=document.createElement('div');const title=document.createElement('h3');title.textContent=`${feedingHub?'Alimentación':'Recetario'} de ${pet?.name||'tu mascota'}`;const description=document.createElement('p');description.textContent=blockedIngredients.length?`Filtrado según su especie y ${blockedIngredients.length} ${blockedIngredients.length===1?'restricción':'restricciones'} registradas`:exactPetRows.length?`Selección para ${pet.name}: ${pet.breed||pet.exact_species}, ${({baby:'bebé',young:'joven',adult:'adulta',senior:'senior'})[pet.life_stage]||'etapa pendiente'}. Son premios ocasionales, no su comida completa.`:feedingHub?'Guías específicas; la etiqueta y el especialista determinan cantidad y frecuencia':'Premios y complementos separados de su alimento completo';copy.append(title,description);const count=document.createElement('span');count.textContent=String(rows.length);heading.append(copy,count);section.append(heading);
@@ -1501,6 +1575,7 @@
   }
   function showAllHumanRecipes(){
     recipeSearch='';$('recipeSearch').value='';recipeFilter='all';recipeShowDrafts=false;
+    recipeCollection='local';recipeLocalGroup='all';
     selectPanel('recipes');
   }
   function showMealRecipeUnavailable(mealOrTitle){
@@ -1527,7 +1602,7 @@
     if(recipe.editorial_status==='needs_canonical_review'&&recipe.audience!=='pet'){
       $('recipeDialogEyebrow').textContent='Propuesta pendiente de revisión';
       const notice=document.createElement('p');notice.textContent='Esta ficha necesita comprobar sus ingredientes y su preparación. No se mostrará como una receta terminada ni se enviarán sus ingredientes a Compra antes de revisarla.';
-      const review=makeButton('Explorar recetas originales','primary',()=>{$('recipeDialog').close();setRecipeAudience('human');const panel=$('openRecipePanel');const details=panel?.querySelector('details');if(details)details.open=true;panel?.scrollIntoView({block:'start',behavior:'smooth'})});
+      const review=makeButton('Explorar recetas originales','primary',()=>{$('recipeDialog').close();recipeCollection='world';selectPanel('recipes');const panel=$('openRecipePanel');const details=panel?.querySelector('details');if(details)details.open=true;panel?.scrollIntoView({block:'start',behavior:'smooth'})});
       root.append(notice,review);$('recipePersonalForm').hidden=true;if(!$('recipeDialog').open)$('recipeDialog').showModal();return;
     }
     const hero=document.createElement('div');hero.className='recipe-detail-hero';const img=document.createElement('img');img.alt=`Ilustración de ${recipeDisplayTitle(recipe)}`;if(recipe.photo_focus)img.style.objectPosition=recipe.photo_focus;hydrateRecipeImage(img,recipe,hero);
@@ -3013,6 +3088,8 @@
     $('scanRecipeButton').addEventListener('click',()=>openRecipeImporter('image'));
     $('importRecipeUrlButton').addEventListener('click',()=>openRecipeImporter('url'));
     $('recipeReadyShelf').addEventListener('click',()=>{recipeShowDrafts=false;renderRecipes()});$('recipeDraftShelf').addEventListener('click',()=>{recipeShowDrafts=true;renderRecipes()});$('petImportText').addEventListener('click',()=>openRecipeImporter('text'));
+    $('recipeImportToggle').addEventListener('click',()=>{recipeImportExpanded=!recipeImportExpanded;renderRecipes();if(recipeImportExpanded)$('recipeImportStudio').scrollIntoView({block:'nearest',behavior:'smooth'});});
+    $('recipeWorldButton').addEventListener('click',()=>chooseRecipeCollection('world'));
     $('petImportImage').addEventListener('click',()=>openRecipeImporter('image'));
     $('petImportUrl').addEventListener('click',()=>openRecipeImporter('url'));
     $('recipeImportForm').addEventListener('submit',analyzeRecipeImport);

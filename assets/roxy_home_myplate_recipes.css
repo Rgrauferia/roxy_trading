@@ -14,10 +14,12 @@
 .myplate-library * { box-sizing: border-box; }
 .myplate-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
 .myplate-library .myplate-eyebrow { margin: 0 0 7px; color: #8a692d; font-size: 11px; font-weight: 800; letter-spacing: .13em; }
-.myplate-heading h2 { margin: 0; color: var(--mp-ink); font: 600 clamp(28px, 5vw, 36px)/1.08 Georgia, serif; }
-.myplate-total { margin: 10px 0 0; color: var(--mp-green); font-size: 14px; font-weight: 700; line-height: 1.5; }
+.myplate-heading h2 { margin: 0; color: var(--mp-ink); font: 600 clamp(25px, 4.5vw, 32px)/1.1 Georgia, serif; }
+.myplate-total { margin: 8px 0 0; color: var(--mp-green); font-size: 14px; font-weight: 700; line-height: 1.5; }
 .myplate-intro { max-width: 640px; margin: 16px 0 7px; line-height: 1.6; }
 .myplate-note { color: #59675c; font-size: 12px; line-height: 1.6; }
+.myplate-language { margin: 5px 0 0; }
+.myplate-quota { margin: 3px 0 0; font-size: 11px; }
 .myplate-start > .myplate-button { margin-top: 6px; }
 .myplate-library .myplate-button {
   display: inline-flex; align-items: center; justify-content: center;
@@ -29,7 +31,7 @@
 .myplate-library button:disabled { opacity: .48; cursor: default; }
 .myplate-library button:focus-visible, .myplate-library input:focus-visible,
 .myplate-library a:focus-visible, .myplate-library summary:focus-visible { outline: 3px solid var(--gold, #b58b3d); outline-offset: 3px; }
-.myplate-status { margin: 14px 0; color: #506453; font-size: 13px; line-height: 1.6; }
+.myplate-status { margin: 11px 0; color: #506453; font-size: 12px; line-height: 1.6; }
 .myplate-status:empty { display: none; }
 .myplate-controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 9px; margin: 19px 0 13px; }
 .myplate-controls label { display: grid; gap: 6px; margin: 0; min-width: 0; font-size: 12px; font-weight: 700; color: var(--mp-green); }
@@ -38,7 +40,8 @@
   border: 1px solid #c9d2c6; border-radius: 13px; color: #20352a; background: #fff;
   font: inherit; font-size: 16px;
 }
-.myplate-categories { display: flex; flex-wrap: wrap; gap: 7px; margin: 0 0 18px; }
+.myplate-categories { display: flex; flex-wrap: wrap; gap: 7px; margin: 0 0 10px; }
+.myplate-filter-hint { margin: 0 0 15px; color: #61705f; font-size: 11px; line-height: 1.55; }
 .myplate-library .myplate-category { min-height: 42px; padding: 9px 13px; border: 1px solid #d7dfd2; border-radius: 99px; background: transparent; color: var(--mp-green); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
 .myplate-library .myplate-category[aria-pressed="true"] { background: #e9efe3; border-color: #a4b29b; color: var(--mp-ink); }
 .myplate-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; }

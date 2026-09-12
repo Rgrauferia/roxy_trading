@@ -44,25 +44,26 @@
   }
   const sourceLink = (parent, row) => { if (!safeSource(row.source_url)) return; const a = node('a', 'Ver receta y autoría en la fuente'); a.href = row.source_url; a.target = '_blank'; a.rel = 'noopener noreferrer'; parent.append(a); };
   function setActive(container, active) { renders.get(container)?.activate(Boolean(active)); }
-  function render(container, {user, identity = '', api, hidden = false, active = true, isCurrent = () => true}) {
+  function render(container, {user, identity = '', api, hidden = false, active = true, autoLoad = false, isCurrent = () => true}) {
     if (!container) return;
     const signature = JSON.stringify([user, identity, hidden]); const previous = renders.get(container);
-    if (previous?.signature === signature) { previous.isCurrent = isCurrent; previous.activate(active); return; }
+    if (previous?.signature === signature) { previous.isCurrent = isCurrent; previous.autoLoad = autoLoad === true; previous.activate(active); return; }
     previous?.dispose(); container.replaceChildren(); container.hidden = hidden;
-    const state = {signature, active:Boolean(active), isCurrent, rows:[], counts:{}, page:1, category:'all', spiritBase:'', query:'',
+    const state = {signature, active:Boolean(active), autoLoad:autoLoad === true, autoLoadAttempted:false, isCurrent, rows:[], counts:{}, page:1, category:'all', spiritBase:'', query:'',
       loaded:false, busy:false, adult:false, generation:0, controller:null, detailGeneration:0, detailController:null, detailId:'',
       utterance:null, speechToken:0, returnFocus:null};
     state.activate = () => {}; state.dispose = () => {}; renders.set(container, state); if (hidden) return;
     const root = node('section', null, 'drinks-library');
-    const header = node('header', null, 'drinks-heading'); header.append(node('p', 'LA PAUSA TAMBIÉN TIENE SU RECETA', 'drinks-eyebrow'), node('h2', 'Bebidas para cada momento'));
-    const summary = node('p', 'Café, té, jugos, batidos y refrescantes. Ingredientes y pasos de una fuente comunitaria, con su versión en español.', 'drinks-intro');
+    const header = node('header', null, 'drinks-heading'); header.append(node('h2', 'Bebidas para cada momento'));
+    const summary = node('p', 'Café, té, jugos, batidos y refrescantes. Pasos en español y original en inglés.', 'drinks-intro');
     const status = node('p', '', 'drinks-status'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite'); status.tabIndex = -1;
     const explore = button('Explorar bebidas', () => void load(), 'drinks-button drinks-primary');
+    explore.hidden = state.autoLoad;
     const retry = button('Reintentar bebidas', () => void load()); retry.hidden = true;
     const browser = node('div', null, 'drinks-browser'); browser.hidden = true;
     const form = node('form', null, 'drinks-search'); const label = node('label'); label.append(node('span', 'Busca una bebida por nombre'));
     const search = node('input'); search.type = 'search'; search.maxLength = 100; search.placeholder = 'Café, limonada, coffee…'; label.append(search);
-    const submit = node('button', 'Buscar bebidas', 'drinks-button'); submit.type = 'submit'; form.append(label, submit);
+    const submit = node('button', 'Buscar', 'drinks-button'); submit.type = 'submit'; submit.setAttribute('aria-label', 'Buscar bebidas'); form.append(label, submit);
     const tabs = node('nav', null, 'drinks-categories'); tabs.setAttribute('aria-label', 'Categorías de bebidas');
     const spirits = node('div', null, 'drinks-spirit-filter'); spirits.hidden = true;
     const grid = node('div', null, 'drinks-grid');
@@ -77,7 +78,7 @@
     const dialog = node('dialog', null, 'drinks-dialog'); dialog.setAttribute('aria-modal', 'true');
     const dialogInner = node('div', null, 'drinks-dialog-inner'); dialog.append(dialogInner);
     root.append(header, summary, explore, status, retry, browser, note, license, dialog); container.append(root);
-    const current = () => renders.get(container) === state && container.isConnected && !container.hidden && !document.hidden && state.active && state.isCurrent();
+    const current = () => renders.get(container) === state && container.isConnected && !container.hidden && !container.closest?.('[hidden]') && !document.hidden && state.active && state.isCurrent();
     const stopSpeech = () => {
       state.speechToken++;
       if (state.utterance) { state.utterance.onend = null; state.utterance.onerror = null; state.utterance = null; window.speechSynthesis?.cancel(); }
@@ -145,8 +146,8 @@
         const open = button('Preparar bebida', () => { if (current()) void openRecipe(row, open); }); open.setAttribute('aria-label', `Preparar bebida: ${title.textContent}`);
         body.append(title, node('p', `${row.ingredient_count} ${row.ingredient_count === 1 ? 'ingrediente' : 'ingredientes'} · ${row.step_count} ${row.step_count === 1 ? 'paso' : 'pasos'}${row.alcoholic ? ' · Con alcohol' : ''}`, 'drinks-card-meta'), open); card.append(body); return card;
       }));
-      summary.textContent = `${state.rows.length} bebidas en esta colección: ${state.rows.filter(row => !row.alcoholic).length} sin licores y ${state.rows.filter(row => row.alcoholic).length} cócteles con alcohol en una sección opcional para mayores de 21 años.`;
-      status.textContent = matches.length ? `${(state.page - 1) * 24 + 1}–${Math.min(state.page * 24, matches.length)} de ${matches.length} ${matches.length === 1 ? 'bebida' : 'bebidas'}. Abre una ficha para ver sus ingredientes y pasos.` : 'No hay bebidas con esos filtros. Prueba otro nombre en español o inglés, o quita los filtros.';
+      summary.textContent = `${state.rows.length} bebidas · ${state.rows.filter(row => !row.alcoholic).length} sin licores · ${state.rows.filter(row => row.alcoholic).length} cócteles (21+).`;
+      status.textContent = matches.length ? `${(state.page - 1) * 24 + 1}–${Math.min(state.page * 24, matches.length)} de ${matches.length} ${matches.length === 1 ? 'bebida' : 'bebidas'}.` : 'No hay bebidas con esos filtros. Prueba otro nombre en español o inglés, o quita los filtros.';
       pageLabel.textContent = `Página ${state.page} de ${pages}`; prev.disabled = state.page === 1; next.disabled = state.page === pages; pager.hidden = pages <= 1;
       clear.hidden = !state.query && state.category === 'all'; if (focus) status.focus({preventScroll:false});
     }
@@ -235,11 +236,12 @@
       const aborted = () => finish(reject, Object.assign(new Error('cancelled'), {name:'AbortError'}));
       const timer = setTimeout(() => { finish(reject, Object.assign(new Error('timeout'), {name:'TimeoutError'})); controller.abort(); }, 12000);
       controller.signal.addEventListener('abort', aborted, {once:true});
-      Promise.resolve().then(() => { if (controller.signal.aborted) throw Object.assign(new Error('cancelled'), {name:'AbortError'}); return api(path, {method:'GET', signal:controller.signal}); })
+      Promise.resolve().then(() => { if (controller.signal.aborted || !current()) throw Object.assign(new Error('cancelled'), {name:'AbortError'}); return api(path, {method:'GET', signal:controller.signal}); })
         .then(value => finish(resolve, value), error => finish(reject, error));
     });
-    async function load() {
+    async function load({focus = true} = {}) {
       if (!current() || state.busy) return;
+      state.autoLoadAttempted = true;
       stop(); closeDialog(false); state.loaded = false; state.rows = []; grid.replaceChildren(); browser.hidden = true; retry.hidden = true;
       state.busy = true; explore.disabled = true; root.setAttribute('aria-busy', 'true'); status.textContent = 'Cargando el recetario de bebidas…';
       const generation = state.generation, controller = new AbortController(); state.controller = controller;
@@ -252,7 +254,7 @@
         for (const key of Object.keys(categories).filter(key => key !== 'all')) {
           if (data.counts[key] !== data.drinks.filter(row => row.category === key).length) throw new Error('invalid_count');
         }
-        state.rows = data.drinks; state.counts = data.counts; state.loaded = true; state.page = 1; browser.hidden = false; explore.hidden = true; showPage(true);
+        state.rows = data.drinks; state.counts = data.counts; state.loaded = true; state.page = 1; browser.hidden = false; explore.hidden = true; showPage(focus);
       } catch (error) {
         if (!current() || generation !== state.generation || (controller.signal.aborted && error?.name !== 'TimeoutError')) return;
         status.textContent = error?.name === 'TimeoutError' ? 'La carga tardó demasiado. Puedes reintentar sin perder tus recetas guardadas.' : 'No pudimos cargar las bebidas. Reintenta; no se han generado recetas de reemplazo.'; retry.hidden = false;
@@ -261,13 +263,20 @@
     form.addEventListener('submit', event => { event.preventDefault(); state.query = normalize(search.value.trim().slice(0,100)); state.page = 1; showPage(true); });
     const visibility = () => state.activate(state.active);
     state.activate = value => {
-      state.active = Boolean(value); if (current()) return;
+      state.active = Boolean(value); explore.hidden = state.autoLoad || state.loaded;
+      if (current()) {
+        // One attempt per visible lifecycle, never a retry loop on parent render.
+        if (state.autoLoad && !state.autoLoadAttempted && !state.loaded && !state.busy) void load({focus:false});
+        return;
+      }
       stop(); closeDialog(false); state.adult = false; state.category = 'all'; state.spiritBase = ''; state.loaded = false; state.rows = []; state.counts = {};
+      state.autoLoadAttempted = false;
       state.query = ''; search.value = ''; state.page = 1;
-      grid.replaceChildren(); tabs.replaceChildren(); spirits.replaceChildren(); spirits.hidden = true; browser.hidden = true; explore.hidden = false; retry.hidden = true; status.textContent = '';
+      grid.replaceChildren(); tabs.replaceChildren(); spirits.replaceChildren(); spirits.hidden = true; browser.hidden = true; explore.hidden = state.autoLoad; retry.hidden = true; status.textContent = '';
     };
     state.dispose = () => { stop(); closeDialog(false); state.rows = []; document.removeEventListener('visibilitychange', visibility); };
     document.addEventListener('visibilitychange', visibility);
+    state.activate(active);
   }
   window.RoxyDrinks = Object.freeze({render, setActive});
 })();

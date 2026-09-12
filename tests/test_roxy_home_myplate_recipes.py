@@ -90,8 +90,25 @@ def test_source_text_quantities_and_notes_not_rewritten_or_split():
     assert len(calls) == 1 and response.closed
 
 
+@pytest.mark.parametrize("category", ["Main dish", "Dessert", "Beverage", "Salad", "Soup",
+                                      "Breakfast", "Bread", "Side dish"])
+def test_native_categories_are_explicit_filters_not_inferred_text_searches(category):
+    row = {**card(), "category": category}
+    p, calls, response = provider(search_payload([row]))
+    result = p.search(category=category, offset=0, limit=24)
+    assert calls[0][1]["params"] == {"category": category, "limit": 24, "offset": 0}
+    assert len(calls) == 1 and response.closed
+    assert result["recipes"][0]["category"] == category
+    assert result["recipes"][0]["can_cook"] is False
+    assert result["recipes"][0]["can_add_to_shopping"] is False
+    assert result["category_options"] == ["Main dish", "Dessert", "Beverage", "Salad", "Soup",
+                                           "Breakfast", "Bread", "Side dish"]
+
+
 @pytest.mark.parametrize("kwargs", [{"q": "x" * 121}, {"q": "a\nb"}, {"q": None},
-                                     {"category": "Snake"}, {"category": "pasta"}, {"offset": -1},
+                                     {"category": "Snake"}, {"category": "pasta"},
+                                     {"category": "Snack"}, {"category": "Desayunos"},
+                                     {"category": "side dish"}, {"offset": -1},
                                      {"offset": True}, {"offset": 100001}, {"limit": 0},
                                      {"limit": 25}, {"limit": True}, {"limit": 1.0}])
 def test_invalid_search_parameters_never_consume_network(kwargs):

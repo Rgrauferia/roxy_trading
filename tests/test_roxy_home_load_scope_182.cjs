@@ -41,6 +41,7 @@ function harness(options = {}) {
     setBusy: value => busy.push(value), setConnection() {}, announce() {},
     populateHomeForms() {}, render() { renders.push({ user: ctx.user, identity: ctx.collectionIdentity(), hiddenDuringRender: $('app').hidden, snapshot: copy(ctx.snapshot), plants: copy(ctx.homePlants), design: copy(ctx.homeDesign) }); },
     renderAccount() {}, renderHomeMoment() {}, renderRecipes() {}, openAccountDialog() {},
+    activateRecipeSources() { assert.equal($('app').hidden, false, 'sources activate only after scoped content is visible'); },
     // Actual map lifecycle is covered separately by map_integration_185.
     syncFamilyMapReadiness() {}, resumeFamilyBaseMap() {},
     redeemNexoInvitationFromUrl() {}, resumeFamilyLocationIfEnabled() {}, autoSyncGoogleCalendar() {}, loadPriceRecommendations() {},

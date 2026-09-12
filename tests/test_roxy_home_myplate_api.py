@@ -37,7 +37,7 @@ def api_client(tmp_path, monkeypatch):
         calls.append(("search", deepcopy(kwargs)))
         limit, offset = kwargs.get("limit", 24), kwargs.get("offset", 0)
         return {"recipes": [deepcopy(SUMMARY)], "total": 1072, "offset": offset, "limit": limit,
-                "next_offset": offset + limit, "category_options": ["Main dish", "Dessert", "Beverage", "Salad", "Soup"],
+                "next_offset": offset + limit, "category_options": list(service.myplate_recipes.CATEGORY_OPTIONS),
                 "source": "Synthetic source", "provider": "MyPlate.food", "live": True, "audience": "human"}
 
     def get_recipe(slug):
@@ -110,6 +110,17 @@ def test_source_detail_is_original_readonly_and_never_stored(api_client):
     assert client.post(BASE + "/synthetic-dish", params={"requested": "true"}).status_code == 405
     assert client.post(BASE, params={"requested": "true"}).status_code == 405
     assert len(calls) == 1
+
+
+@pytest.mark.parametrize("category", ["Breakfast", "Bread", "Side dish"])
+def test_native_category_browse_keeps_explicit_readonly_contract(api_client, category):
+    client, calls = api_client
+    result = client.get(BASE, params={"requested": "true", "category": category})
+    assert result.status_code == 200
+    assert result.headers["Cache-Control"] == "private, no-store"
+    assert calls == [("search", {"q": "", "category": category, "offset": 0, "limit": 24})]
+    assert result.json()["category_options"] == list(service.myplate_recipes.CATEGORY_OPTIONS)
+    assert "Snack" not in result.json()["category_options"]
 
 
 @pytest.mark.parametrize("suffix", ["", "/synthetic-dish"])

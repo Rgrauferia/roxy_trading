@@ -87,7 +87,7 @@ function server({items = rows, intercept, detailMutation} = {}) {
       assert.equal(limit, 24); const filtered = items.filter(row => row.title.toLowerCase().includes(q) && (!category || row.category === category));
       return {recipes:structuredClone(filtered.slice(offset, offset + limit)), total:filtered.length, offset, limit,
         next_offset:offset + limit < filtered.length ? offset + limit : null,
-        category_options:['Main dish', 'Dessert', 'Beverage', 'Salad', 'Soup'], source:'Synthetic original source', provider:'MyPlate.food', live:true, audience:'human'};
+        category_options:['Main dish', 'Dessert', 'Beverage', 'Salad', 'Soup', 'Breakfast', 'Bread', 'Side dish'], source:'Synthetic original source', provider:'MyPlate.food', live:true, audience:'human'};
     }
     assert.match(url.pathname, /\/myplate-recipes\/[a-z0-9-]+$/);
     const slug = url.pathname.split('/').at(-1), item = items.find(row => row.slug === slug); assert.ok(item, `Unknown synthetic slug ${slug}`);
@@ -252,3 +252,139 @@ for (const mutation of [{provider:'InventedSource'}, {live:false}, {recipes:[row
     assert.deepEqual(h.storageWrites, []);
   });
 }
+
+test('unified explore auto-loads one summary page without focus, details, duplicate requests or a redundant flat menu', async () => {
+  const h = harness(), panel = h.container(), mock = server();
+  const options = {user:'household/a', identity:'member-a', api:mock.api, browseGroup:'all', autoLoad:true};
+  h.render(panel, options); await settle();
+  assert.equal(mock.requests.length, 1); assert.equal(byClass(panel, 'myplate-recipe-card').length, 24);
+  assert.equal(byClass(panel, 'myplate-start')[0].hidden, true);
+  assert.equal(byClass(panel, 'myplate-categories')[0].hidden, true); assert.equal(h.activeElement, undefined);
+  assert.equal(byClass(panel, 'myplate-directions').length, 0);
+  assert.ok(byClass(panel, 'myplate-quota')[0].textContent.includes('100 fichas completas/día'));
+  assert.ok(!byClass(panel, 'myplate-quota')[0].hidden);
+  h.render(panel, options); h.setActive(panel, true); await settle();
+  assert.equal(mock.requests.length, 1);
+  await button(panel, 'Página siguiente').click(); assert.equal(mock.requests.length, 2);
+  assert.equal(h.activeElement, byClass(panel, 'myplate-status')[0]);
+  h.render(panel, options); await settle();
+  assert.equal(mock.requests.length, 2); assert.equal(mock.requests.at(-1).url.searchParams.get('offset'), '24');
+});
+
+test('auto-load waits for active visibility and identity, then executes only once', async () => {
+  const h = harness(), panel = h.container(), mock = server(); let ownerMatches = false;
+  const options = {user:'household/a', identity:'member-a', api:mock.api, autoLoad:true, active:false, isCurrent:() => ownerMatches};
+  h.render(panel, options); await settle(); assert.equal(mock.requests.length, 0);
+  h.setActive(panel, true); await settle(); assert.equal(mock.requests.length, 0);
+  ownerMatches = true; await h.visibility(true); h.setActive(panel, true); await settle(); assert.equal(mock.requests.length, 0);
+  await h.visibility(false); assert.equal(mock.requests.length, 1); assert.equal(h.activeElement, undefined);
+  await h.visibility(true); await h.visibility(false); h.render(panel, {...options, active:true}); await settle();
+  assert.equal(mock.requests.length, 1);
+});
+
+test('hidden pet container never auto-loads and rendering human context starts exactly one page', async () => {
+  const h = harness(), panel = h.container(), mock = server();
+  const options = {user:'household/a', identity:'member-a', api:mock.api, autoLoad:true};
+  h.render(panel, {...options, hidden:true}); await settle(); assert.equal(mock.requests.length, 0);
+  assert.equal(panel.children.length, 0); h.render(panel, options); await settle(); assert.equal(mock.requests.length, 1);
+});
+
+test('food subcategories use verified native categories while pasta and rice remain explicit source searches', async () => {
+  const h = harness(), panel = h.container(), mock = server();
+  const options = {user:'household/a', identity:'member-a', api:mock.api, browseGroup:'food', autoLoad:true};
+  h.render(panel, options); await settle();
+  assert.equal(mock.requests[0].url.searchParams.get('category'), 'Main dish');
+  assert.equal(mock.requests[0].url.searchParams.get('q'), '');
+  assert.equal(button(panel, 'Platos principales').getAttribute('aria-pressed'), 'true');
+  assert.equal(byClass(panel, 'myplate-categories')[0].hidden, false);
+  for (const [label, category] of [['Desayunos','Breakfast'], ['Panes','Bread'], ['Acompañamientos','Side dish'], ['Ensaladas','Salad'], ['Sopas','Soup']]) {
+    await button(panel, label).click();
+    assert.equal(mock.requests.at(-1).url.searchParams.get('category'), category);
+    assert.equal(mock.requests.at(-1).url.searchParams.get('q'), '');
+    assert.equal(mock.requests.at(-1).url.searchParams.get('offset'), '0');
+  }
+  for (const [label, q] of [['Pastas','pasta'], ['Arroces','rice']]) {
+    await button(panel, label).click();
+    assert.equal(mock.requests.at(-1).url.searchParams.get('category'), '');
+    assert.equal(mock.requests.at(-1).url.searchParams.get('q'), q);
+    assert.ok(byClass(panel, 'myplate-filter-hint')[0].textContent.includes(`Búsqueda en la fuente: “${q}”`));
+  }
+  await button(panel, 'Volver a platos principales').click();
+  assert.equal(mock.requests.at(-1).url.searchParams.get('category'), 'Main dish');
+  assert.equal(mock.requests.at(-1).url.searchParams.get('q'), '');
+  assert.ok(mock.requests.every(call => call.url.pathname.endsWith('/myplate-recipes')));
+});
+
+test('dessert search, subcategories and clearing remain scoped to Dessert', async () => {
+  const h = harness(), panel = h.container(), mock = server();
+  h.render(panel, {user:'household/a', identity:'member-a', api:mock.api, browseGroup:'dessert', autoLoad:true}); await settle();
+  assert.equal(mock.requests.length, 1); assert.equal(mock.requests[0].url.searchParams.get('category'), 'Dessert');
+  await button(panel, 'Página siguiente').click(); assert.equal(mock.requests.at(-1).url.searchParams.get('offset'), '24');
+  for (const [label, q] of [['Pasteles','cake'], ['Galletas','cookie'], ['Frutas','fruit']]) {
+    await button(panel, label).click(); assert.equal(mock.requests.at(-1).url.searchParams.get('q'), q);
+    assert.equal(mock.requests.at(-1).url.searchParams.get('offset'), '0');
+  }
+  all(panel, 'input')[0].value = 'chocolate'; await all(panel, 'form')[0].emit('submit');
+  assert.equal(mock.requests.at(-1).url.searchParams.get('q'), 'chocolate');
+  await button(panel, 'Ver todos los postres').click(); assert.equal(mock.requests.at(-1).url.searchParams.get('q'), '');
+  assert.ok(mock.requests.every(call => call.url.searchParams.get('category') === 'Dessert'));
+});
+
+test('changing group cancels an in-flight list and ignores its late response without duplicate automatic loads', async () => {
+  const pending = deferred(), h = harness(), panel = h.container();
+  const mock = server({intercept:(call, number) => number === 1 ? pending.promise : undefined});
+  const options = {user:'household/a', identity:'member-a', api:mock.api, autoLoad:true};
+  h.render(panel, {...options, browseGroup:'all'}); await settle(); assert.equal(mock.requests.length, 1);
+  h.render(panel, {...options, browseGroup:'dessert'}); h.render(panel, {...options, browseGroup:'dessert'}); await settle();
+  assert.equal(mock.requests.length, 2); assert.equal(mock.requests[0].options.signal.aborted, true);
+  assert.equal(mock.requests[1].url.searchParams.get('category'), 'Dessert'); assert.equal(h.activeElement, undefined);
+  const visible = byClass(panel, 'myplate-grid')[0].textContent;
+  pending.resolve({recipes:[], provider:'MyPlate.food', live:true, total:0, offset:0, limit:24, next_offset:null}); await settle();
+  assert.equal(byClass(panel, 'myplate-grid')[0].textContent, visible); assert.equal(h.timers.size, 0);
+});
+
+test('changing group clears pending source detail and loads only the selected summary page', async () => {
+  const pending = deferred(), h = harness(), panel = h.container();
+  const mock = server({intercept:call => call.url.pathname.endsWith('/synthetic-000') ? pending.promise : undefined});
+  const options = {user:'household/a', identity:'member-a', api:mock.api, autoLoad:true};
+  h.render(panel, options); await settle(); await button(panel, 'Ver receta').click();
+  assert.equal(mock.requests.length, 2);
+  h.render(panel, {...options, browseGroup:'dessert'}); await settle();
+  assert.equal(mock.requests[1].options.signal.aborted, true); assert.equal(mock.requests.length, 3);
+  assert.equal(byClass(panel, 'myplate-detail')[0].hidden, true);
+  pending.resolve({recipe:detail(rows[0])}); await settle(); assert.equal(byClass(panel, 'myplate-directions').length, 0);
+  assert.equal(byClass(panel, 'myplate-recipe-card').length, 24);
+});
+
+test('group changes while inactive defer their single automatic query until activation', async () => {
+  const h = harness(), panel = h.container(), mock = server();
+  const options = {user:'household/a', identity:'member-a', api:mock.api, autoLoad:true};
+  h.render(panel, options); await settle();
+  h.render(panel, {...options, browseGroup:'food', active:false}); await settle(); assert.equal(mock.requests.length, 1);
+  assert.equal(byClass(panel, 'myplate-recipe-card').length, 0);
+  h.render(panel, {...options, browseGroup:'dessert', active:false}); await settle(); assert.equal(mock.requests.length, 1);
+  h.setActive(panel, true); await settle(); assert.equal(mock.requests.length, 2);
+  assert.equal(mock.requests[1].url.searchParams.get('category'), 'Dessert'); assert.equal(h.activeElement, undefined);
+});
+
+test('automatic request failure does not retry on rerender or visibility; explicit retry is required', async () => {
+  const h = harness(), panel = h.container();
+  const mock = server({intercept:(call, number) => number === 1 ? Promise.reject(Object.assign(new Error('quota'), {status:429})) : undefined});
+  const options = {user:'household/a', identity:'member-a', api:mock.api, autoLoad:true};
+  h.render(panel, options); await settle(); assert.equal(mock.requests.length, 1);
+  h.render(panel, options); h.setActive(panel, false); h.setActive(panel, true); await h.visibility(true); await h.visibility(false);
+  assert.equal(mock.requests.length, 1); assert.equal(button(panel, 'Reintentar consulta').hidden, false);
+  await button(panel, 'Reintentar consulta').click(); assert.equal(mock.requests.length, 2);
+});
+
+test('changing identity with auto-load aborts the old response and requests only new-owner summaries', async () => {
+  const pending = deferred(), h = harness(), panel = h.container();
+  const mock = server({intercept:(call, number) => number === 1 ? pending.promise : undefined});
+  const options = {user:'household/a', identity:'member-a', api:mock.api, autoLoad:true};
+  h.render(panel, options); await settle();
+  h.render(panel, {...options, user:'household/b', identity:'member-b'}); await settle();
+  assert.equal(mock.requests.length, 2); assert.equal(mock.requests[0].options.signal.aborted, true);
+  assert.equal(mock.requests[1].url.pathname, '/v1/home-food/household%2Fb/myplate-recipes');
+  pending.resolve({recipes:[], provider:'MyPlate.food', live:true, total:0, offset:0, limit:24, next_offset:null}); await settle();
+  assert.equal(byClass(panel, 'myplate-recipe-card').length, 24); assert.deepEqual(h.storageWrites, []);
+});

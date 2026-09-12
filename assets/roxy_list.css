@@ -1294,3 +1294,28 @@ body.design-module-mode .design-panel{display:grid;gap:22px;max-width:760px;padd
 .meal-plan-recipe-notice{padding:16px;margin-bottom:18px;border:1px solid #d5bf8f;border-radius:18px;background:#faf5e8;color:#254c3b}
 .meal-plan-recipe-notice p{margin:0 0 12px;line-height:1.5}
 .meal-plan-missing-photo{display:grid;place-items:center;width:72px;min-height:72px;border-radius:14px;background:#eef1e9;color:#6b756d;font-size:30px;flex-shrink:0}
+/* One recipe destination, with broad collections and nested categories. */
+.recipe-navigation{margin:12px 0 18px;min-width:0}
+.recipe-collections{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.recipe-collection-button{display:flex;align-items:center;justify-content:center;gap:7px;min-height:58px;border:1px solid #d7ded4;border-radius:17px;background:#fffdf8;color:var(--forest);padding:12px 8px;font:inherit;font-weight:750;cursor:pointer}
+.recipe-collection-button[aria-pressed="true"]{background:var(--forest);border-color:var(--forest);color:#fff}
+.recipe-collection-button:focus-visible,.recipe-local-group:focus-visible{outline:3px solid #b28d43;outline-offset:3px}
+.recipe-navigation-tools{display:flex;justify-content:flex-end;gap:8px;margin-top:12px;flex-wrap:wrap}
+.recipe-navigation-tools button{min-height:44px;padding:8px 12px;font-size:13px}
+.recipe-collection-hint{font-size:14px;line-height:1.5;color:#526058;margin:10px 0 0}
+.recipe-local-groups{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 8px}
+.recipe-local-group{min-height:44px;border:1px solid #d7ded4;border-radius:13px;padding:9px 12px;background:#fff;color:var(--forest);font:inherit;font-size:14px;font-weight:700;cursor:pointer}
+.recipe-local-group[aria-pressed="true"]{background:var(--forest);color:#fff;border-color:var(--forest)}
+#recipesPanel:not(.pet-mode)>.hero-heading{margin-bottom:8px}
+#recipesPanel:not(.pet-mode)>.hero-heading>span{display:none}
+#recipesPanel:not(.pet-mode)>#recipeLead{margin:8px 0 16px;max-width:760px}
+#recipesPanel:not(.pet-mode) #recipeFilters{flex-wrap:wrap;overflow:visible;gap:7px}
+#recipesPanel:not(.pet-mode) .recipe-filter-card{min-height:44px;padding:10px 12px;font-size:13px}
+@media(max-width:600px){
+  .recipe-collections{grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}
+  .recipe-collection-button{min-height:74px;flex-direction:column;gap:5px;padding:8px 3px;font-size:12px;line-height:1.2}
+  .recipe-collection-button .material-symbols-rounded{font-size:23px}
+  .recipe-navigation-tools{justify-content:flex-start;margin-top:8px}
+  .recipe-collection-hint{font-size:13px}
+  #recipesPanel:not(.pet-mode)>#recipeLead{font-size:14px;line-height:1.5}
+}

@@ -3,7 +3,18 @@
 Actualizado: 2026-09-11. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 
-## 192 — candidato: agenda educativa de ejercicio, no plan personalizado
+## 193 — CANDIDATO: catálogo visible y categorías por niveles
+
+Entrada directa a catálogo MyPlate1072consultables, grupos Explorar/Comidas/
+Bebidas/Postres/Mi recetario y subcategorías; locales59y458borradores preservados.
+Bebidas96se abren desde su grupo;21+intacto. Fuente EN/cupo100fichas completas
+por día/IP compartida explícitos; no afirmar500recetas revisadas o listas para plan.
+Carga sólo tras scope confirmado visible, cancelación y no precarga de locales
+ocultas.543Node y QA móvil sintético aprobados;2392Python/11PGomitidas aprobadas.
+Sin datos públicos modificados. Informe reports/home_release_193_20260911.md.
+Publicación193todavía NO comprobada; público192hasta verificar Render y assets.
+
+## 192 — PUBLICADO: agenda educativa de ejercicio, no plan personalizado
 
 Programas generales fuerza7/equilibrio5/flexibilidad4 con instrucciones EN/ES,
 fuentes/licencia y agenda temporal de siete fechas elegidas por el usuario.
@@ -12,7 +23,11 @@ persistencia de sesiones ni cambios al calendario. Corregidas cancelación,
 identidad al volver y pérdida de campos no recogidos del formulario.
 QA móvil sintética393px y descargas reales comprobadas;364Node/244Python focalizadas
 aprobadas. SuiteHome general:2378aprobadas/11PGomitidas después de reparar
-presupuesto de precargaSW. Publicación192 pendiente. Informe reports/home_release_192_20260911.md.
+presupuesto de precargaSW. Publicado commit ec19f0c35ec326ad5a08ba9c8eeb749d3e8fdf8c,
+Render dep-dai2rf8ae00c73b8nkj0,57s. Ochoassets públicos200idénticos/health200ok.
+Sesión pública conservada,meta192,3programas/16movimientos y guíaFuerza abiertos;
+ningún día elegido por el usuario en QA pública;sin errores ni overflow765px.
+Informe reports/home_release_192_20260911.md. No redesplegar sólo por estas notas.
 Bloqueos reales: constructor/plantillas profesionales y guardado privado de
 planes/sesiones. El módulo completo NO está terminado; no afirmar lo contrario.
 
