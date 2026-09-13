@@ -8,6 +8,7 @@ const catalog = JSON.parse(fs.readFileSync(new URL('../data/home_open_recipes.js
 catalog.recipes = catalog.recipes.filter(row => row.audit?.publishable !== false);
 const translations = JSON.parse(fs.readFileSync(new URL('../data/home_open_recipes_es.json', import.meta.url), 'utf8')).translations;
 const code = fs.readFileSync(new URL('../assets/roxy_home_open_recipes.js', import.meta.url), 'utf8');
+const guideCode = fs.readFileSync(new URL('../assets/roxy_recipe_guide.js', import.meta.url), 'utf8');
 const fullRows = (spanish = false) => structuredClone(catalog.recipes).map(row => ({...row,
   attribution:row.rights.attribution, license_url:row.rights.license_url, can_cook_with_roxy:false, can_add_to_shopping:false,
   ...(spanish ? {translation:structuredClone(translations.find(value => value.source_id === row.id))} : {})}));
@@ -22,8 +23,8 @@ const control = (parent, label, tag) => {
   const input = all(found, tag)[0]; assert.ok(input, `Missing ${tag}: ${label}`); return input;
 };
 
-function harness() {
-  const downloads = [], blobs = [], revoked = [], timers = new Map(), documentListeners = {};
+function harness({guide = false, voice = true} = {}) {
+  const downloads = [], blobs = [], revoked = [], timers = new Map(), documentListeners = {}, speechCalls = [], guideMounts = [];
   let activeElement, nextTimer = 1, now = 0;
   class Element {
     constructor(tag) { this.tagName = tag.toUpperCase(); this.children = []; this.listeners = {}; this._text = ''; this.value = ''; this.hidden = false; this.parent = null; this.dataset = {}; }
@@ -31,6 +32,7 @@ function harness() {
     set textContent(text) { this._text = String(text); this.children.forEach(child => { child.parent = null; }); this.children = []; }
     get firstChild() { return this.children[0]; }
     get isConnected() { return this.root || Boolean(this.parent?.isConnected); }
+    closest(selector) { if (selector !== '[hidden]') throw new Error(`Unsupported selector ${selector}`); for (let el = this; el; el = el.parent) if (el.hidden) return el; return null; }
     append(...children) { children.forEach(child => { child.parent = this; this.children.push(child); }); }
     replaceChildren(...children) { this.children.forEach(child => { child.parent = null; }); this.children = []; this._text = ''; this.append(...children); }
     remove() { if (this.parent) { this.parent.children.splice(this.parent.children.indexOf(this), 1); this.parent = null; } }
@@ -51,9 +53,20 @@ function harness() {
     static createObjectURL(blob) { blobs.push(blob); return `blob:original-${blobs.length}`; }
     static revokeObjectURL(url) { revoked.push(url); }
   }
-  const sandbox = {window:{}, document, URL:TestURL, URLSearchParams, Blob, AbortController,
+  const speechSynthesis = {speaking:false, pending:false, getVoices:() => [{lang:'es', localService:true}, {lang:'en', localService:true}],
+    speak(utterance) { this.speaking = true; speechCalls.push({type:'speak', utterance}); }, cancel() { this.speaking = false; speechCalls.push({type:'cancel'}); }};
+  const window = voice ? {speechSynthesis, SpeechSynthesisUtterance:class { constructor(text) { this.text = text; } }} : {};
+  const sandbox = {window, document, URL:TestURL, URLSearchParams, Blob, AbortController,
     setTimeout:(fn, delay = 0) => { const id = nextTimer++; timers.set(id, {fn, due:now + delay}); return id; }, clearTimeout:id => timers.delete(id),
     fetch() { throw new Error('No frontend external/network/AI fetch is allowed'); }};
+  if (guide) {
+    vm.runInNewContext(guideCode, sandbox);
+    const mount = window.RoxyRecipeGuide.mount;
+    window.RoxyRecipeGuide = {mount:(el, options) => {
+      const controller = mount(el, options), record = {options, disposed:false}; guideMounts.push(record);
+      return {...controller, dispose() { record.disposed = true; controller.dispose(); }};
+    }};
+  }
   vm.runInNewContext(code, sandbox);
   const container = () => { const el = new Element('div'); document.body.append(el); return el; };
   const open = async details => { details.open = true; await details.emit('toggle'); };
@@ -67,7 +80,7 @@ function harness() {
     now = end; await settle();
   };
   const visibility = async hidden => { document.hidden = hidden; for (const action of [...(documentListeners.visibilitychange || [])]) await action(); await settle(); };
-  return {...sandbox.window.RoxyOpenRecipes, container, open, close, tick, visibility, downloads, blobs, revoked,
+  return {...sandbox.window.RoxyOpenRecipes, container, open, close, tick, visibility, downloads, blobs, revoked, speechCalls, guideMounts,
     get activeElement() { return activeElement; }};
 }
 
@@ -103,6 +116,70 @@ function server(rows = fullRows(), {version = 'fixture-v1', intercept} = {}) {
   return {api, requests};
 }
 const searchFor = async (h, panel, query) => { const search = control(panel, 'Buscar en español o inglés', 'input'); search.value = query; await search.emit('input'); await h.tick(300); };
+
+test('Roxy source guide mounts exact bilingual text, preserves position and starts speech only after listening', async () => {
+  const h = harness({guide:true}), panel = h.container(), rows = fullRows(true).slice(0, 1), mock = server(rows);
+  h.render(panel, {user:'reader', identity:'member-a', api:mock.api}); await h.open(panel.firstChild); const card = cards(panel)[0]; await h.open(card);
+  assert.equal(h.guideMounts.length, 0); assert.equal(h.speechCalls.length, 0); assert.equal(findButton(card, 'Leer paso a paso'), undefined);
+  await findButton(card, 'Paso a paso con Roxy').click(); const first = h.guideMounts[0];
+  assert.equal(first.options.title, rows[0].translation.title); assert.equal(first.options.language, 'es'); assert.equal(first.options.initialStep, 0);
+  assert.deepEqual(first.options.steps, rows[0].translation.steps); assert.deepEqual(first.options.ingredients, rows[0].translation.ingredients);
+  assert.equal(first.options.isCurrent(), true); assert.equal(h.speechCalls.length, 0);
+  await findButton(card, 'Listo, siguiente').click(); await findButton(card, 'Ver original en inglés').click();
+  const original = h.guideMounts[1]; assert.equal(first.disposed, true); assert.equal(original.options.initialStep, 1); assert.equal(original.options.language, 'en');
+  assert.deepEqual(original.options.steps, rows[0].steps_original); assert.deepEqual(original.options.ingredients, rows[0].ingredients_original);
+  assert.equal(original.options.title, rows[0].title); assert.equal(h.speechCalls.length, 0);
+  await findButton(card, 'Escuchar este paso').click(); assert.equal(h.speechCalls.at(-1).utterance.text, rows[0].steps_original[1]); assert.equal(h.speechCalls.at(-1).utterance.lang, 'en');
+  await findButton(card, 'Ver traducción al español').click(); assert.equal(original.disposed, true); assert.equal(h.guideMounts[2].options.initialStep, 1);
+  assert.equal(h.speechCalls.at(-1).type, 'cancel'); assert.equal(h.speechCalls.filter(call => call.type === 'speak').length, 1);
+  await findButton(card, 'Volver a la receta').click(); assert.equal(h.guideMounts[2].disposed, true);
+  assert.equal(findButton(card, 'Paso a paso con Roxy').hidden, false); assert.equal(h.activeElement, findButton(card, 'Paso a paso con Roxy'));
+  assert.equal(mock.requests.length, 2); assert.equal(h.downloads.length, 0);
+  const credits = all(card, 'details').find(el => el.className === 'open-recipe-credits');
+  assert.ok(credits.textContent.includes(rows[0].attribution)); assert.equal(credits.open, undefined);
+  assert.ok(card.children.some(el => el.textContent === 'Cantidades originales, sin conversión automática ni adaptación a tus alergias.'));
+});
+
+for (const mode of ['card', 'library', 'inactive', 'hidden', 'identity', 'document', 'scope', 'filter', 'recipe', 'ancestor']) test(`Roxy source guide disposes owned speech on ${mode}`, async () => {
+  const h = harness({guide:true}), panel = h.container(), mock = server(fullRows(true).slice(0, 2));
+  const options = {user:'reader', identity:'member-a', api:mock.api, isCurrent:() => true};
+  h.render(panel, options); const library = panel.firstChild; await h.open(library); const card = cards(panel)[0]; await h.open(card);
+  await findButton(card, 'Paso a paso con Roxy').click(); await findButton(card, 'Escuchar este paso').click();
+  const mount = h.guideMounts[0], oldNext = findButton(card, 'Listo, siguiente');
+  if (mode === 'card') await h.close(card);
+  if (mode === 'library') await h.close(library);
+  if (mode === 'inactive') h.setActive(panel, false);
+  if (mode === 'hidden') h.render(panel, {...options, hidden:true});
+  if (mode === 'identity') h.render(panel, {...options, identity:'member-b'});
+  if (mode === 'document') await h.visibility(true);
+  if (mode === 'scope') h.render(panel, {...options, isCurrent:() => false});
+  if (mode === 'filter') await searchFor(h, panel, 'unknown fixture');
+  if (mode === 'recipe') await h.open(cards(panel)[1]);
+  if (mode === 'ancestor') { const outer = h.container(); outer.append(panel); outer.hidden = true; h.setActive(panel, true); }
+  assert.equal(mount.disposed, true); assert.equal(mount.options.isCurrent(), false); assert.equal(h.speechCalls.at(-1).type, 'cancel');
+  assert.equal(all(panel, 'section').some(el => el.className === 'recipe-guide'), false);
+  await oldNext.click(); await h.tick(3000); assert.equal(h.speechCalls.filter(call => call.type === 'speak').length, 1);
+});
+
+test('source cards can restart a disposed guide after reopening without another detail request', async () => {
+  const h = harness({guide:true, voice:false}), panel = h.container(), mock = server(fullRows(true).slice(0, 1));
+  h.render(panel, {user:'reader', api:mock.api}); const library = panel.firstChild; await h.open(library); const card = cards(panel)[0]; await h.open(card);
+  await findButton(card, 'Paso a paso con Roxy').click(); await findButton(card, 'Listo, siguiente').click(); await h.close(card);
+  assert.equal(h.guideMounts[0].disposed, true); await h.open(card); await findButton(card, 'Paso a paso con Roxy').click();
+  assert.equal(h.guideMounts[1].options.initialStep, 0); assert.equal(h.guideMounts[1].options.isCurrent(), true);
+  assert.equal(findButton(card, 'Escuchar este paso').disabled, true); assert.equal(h.speechCalls.length, 0);
+  await h.close(library); await h.open(library); await findButton(card, 'Paso a paso con Roxy').click();
+  assert.equal(h.guideMounts[2].options.isCurrent(), true); assert.equal(mock.requests.length, 2);
+});
+
+test('starting a guide in another already-open source card stops the previous guide', async () => {
+  const h = harness({guide:true}), panel = h.container(), mock = server(fullRows(true).slice(0, 2));
+  h.render(panel, {user:'reader', api:mock.api}); await h.open(panel.firstChild); const [first, second] = cards(panel);
+  await h.open(first); await h.open(second); await findButton(first, 'Paso a paso con Roxy').click(); await findButton(first, 'Escuchar este paso').click();
+  await findButton(second, 'Paso a paso con Roxy').click();
+  assert.equal(h.guideMounts[0].disposed, true); assert.equal(h.speechCalls.at(-1).type, 'cancel'); assert.equal(h.guideMounts[1].options.isCurrent(), true);
+  assert.equal(all(panel, 'section').filter(el => el.className === 'recipe-guide').length, 1); assert.equal(h.speechCalls.filter(call => call.type === 'speak').length, 1);
+});
 
 test('same-origin summaries defer detail and licensed photos until card opening; originals remain exact', async () => {
   const h = harness(), panel = h.container(), mock = server(); h.render(panel, {user:'household/a', identity:'member-a', api:mock.api});

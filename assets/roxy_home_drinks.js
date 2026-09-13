@@ -51,7 +51,7 @@
     previous?.dispose(); container.replaceChildren(); container.hidden = hidden;
     const state = {signature, active:Boolean(active), autoLoad:autoLoad === true, autoLoadAttempted:false, isCurrent, rows:[], counts:{}, page:1, category:'all', spiritBase:'', query:'',
       loaded:false, busy:false, adult:false, generation:0, controller:null, detailGeneration:0, detailController:null, detailId:'',
-      utterance:null, speechToken:0, returnFocus:null};
+      utterance:null, speechToken:0, guide:null, returnFocus:null};
     state.activate = () => {}; state.dispose = () => {}; renders.set(container, state); if (hidden) return;
     const root = node('section', null, 'drinks-library');
     const header = node('header', null, 'drinks-heading'); header.append(node('h2', 'Bebidas para cada momento'));
@@ -77,21 +77,24 @@
     const license = node('a', 'Créditos y licencia de Open Drinks', 'drinks-license'); license.href = '/assets/open-drinks-license.txt'; license.target = '_blank'; license.rel = 'noopener noreferrer';
     const dialog = node('dialog', null, 'drinks-dialog'); dialog.setAttribute('aria-modal', 'true');
     const dialogInner = node('div', null, 'drinks-dialog-inner'); dialog.append(dialogInner);
-    root.append(header, summary, explore, status, retry, browser, note, license, dialog); container.append(root);
+    const libraryCredits = node('details', null, 'drinks-credits'); libraryCredits.append(node('summary', 'Fuente del recetario'), note, license);
+    root.append(header, summary, explore, status, retry, browser, libraryCredits, dialog); container.append(root);
     const current = () => renders.get(container) === state && container.isConnected && !container.hidden && !container.closest?.('[hidden]') && !document.hidden && state.active && state.isCurrent();
     const stopSpeech = () => {
       state.speechToken++;
       if (state.utterance) { state.utterance.onend = null; state.utterance.onerror = null; state.utterance = null; window.speechSynthesis?.cancel(); }
     };
+    const stopGuide = () => { state.guide?.dispose(); state.guide = null; };
     const cancelDetail = () => {
       state.detailGeneration++; state.detailController?.abort(); state.detailController = null; state.detailId = ''; dialog.setAttribute('aria-busy', 'false');
     };
     const closeDialog = (restore = true) => {
-      cancelDetail(); stopSpeech(); if (dialog.open) dialog.close(); dialogInner.replaceChildren();
+      cancelDetail(); stopGuide(); stopSpeech(); if (dialog.open) dialog.close(); dialogInner.replaceChildren();
       if (restore && current() && state.returnFocus?.isConnected) state.returnFocus.focus({preventScroll:true}); state.returnFocus = null;
     };
     dialog.addEventListener('cancel', event => { event.preventDefault(); closeDialog(); });
     dialog.addEventListener('click', event => { if (event.target === dialog) closeDialog(); });
+    dialog.addEventListener('close', () => { if (!dialog.open) closeDialog(false); });
     const openDialog = (title, opener) => {
       closeDialog(false); state.returnFocus = opener; const id = `roxy-drink-dialog-${++dialogSequence}`;
       const head = node('div', null, 'drinks-dialog-heading'); const heading = node('h3', title); heading.id = id; heading.tabIndex = -1;
@@ -177,10 +180,12 @@
     function showRecipe(row, opener) {
       let spanish = translated(row), position = 0, reading = false;
       const title = openDialog(spanish ? row.title_es : row.title, opener);
+      const guideAvailable = typeof window.RoxyRecipeGuide?.mount === 'function';
+      const recipeCurrent = () => current() && dialog.open && title.isConnected;
       const lang = () => spanish ? 'es' : 'en'; const ingredientLines = () => spanish ? row.ingredients_es : row.ingredients; const stepLines = () => spanish ? row.steps_es : row.steps;
       const languageLabel = node('p', '', 'drinks-note');
-      const toggle = button('Ver original en inglés', () => { stopSpeech(); spanish = !spanish; paint(); });
-      dialogInner.append(languageLabel); if (translated(row)) dialogInner.append(toggle);
+      const toggle = button('Ver original en inglés', () => { if (!recipeCurrent()) return; stopGuide(); stopSpeech(); spanish = !spanish; paint(); if (reading && guideAvailable) mountGuide(); });
+      if (translated(row)) dialogInner.append(toggle);
       dialogInner.append(photo(row, true));
       if (row.alcoholic) dialogInner.append(node('p', 'Contiene alcohol · contenido opcional para mayores de 21 años.', 'drinks-alcohol-note'));
       const body = node('div', null, 'drinks-recipe-body'); const reader = node('section', null, 'drinks-reader'); reader.hidden = true;
@@ -203,19 +208,42 @@
       const pause = button('Detener voz', () => { stopSpeech(); speechStatus.textContent = 'Voz detenida.'; });
       const previousStep = button('Paso anterior', () => { if (position > 0) { stopSpeech(); position--; paint(); step.focus({preventScroll:false}); } });
       const nextStep = button('Paso siguiente', () => { if (position < row.steps.length - 1) { stopSpeech(); position++; paint(); step.focus({preventScroll:false}); } });
-      const start = button('Leer paso a paso', () => { reading = true; position = 0; paint(); step.focus({preventScroll:false}); }, 'drinks-button drinks-primary');
+      const start = button(guideAvailable ? 'Paso a paso con Roxy' : 'Leer paso a paso', () => {
+        if (!recipeCurrent()) return;
+        reading = true; position = 0; paint();
+        if (guideAvailable) mountGuide(); else step.focus({preventScroll:false});
+      }, 'drinks-button drinks-primary');
       const finish = button('Ver preparación completa', () => { stopSpeech(); reading = false; paint(); start.focus({preventScroll:false}); });
-      reader.append(progress, step, previousStep, nextStep);
-      if (speechAvailable) reader.append(node('p', 'Voz del dispositivo · reproducción opcional', 'drinks-note'), speak, pause, speechStatus);
-      reader.append(finish); dialogInner.append(start, reader, body);
+      if (!guideAvailable) {
+        reader.append(progress, step, previousStep, nextStep);
+        if (speechAvailable) reader.append(node('p', 'Voz del dispositivo · reproducción opcional', 'drinks-note'), speak, pause, speechStatus);
+        reader.append(finish);
+      }
+      dialogInner.append(start, reader, body);
       const notes = Array.isArray(row.notes_es) ? row.notes_es : typeof row.notes_es === 'string' && row.notes_es ? [row.notes_es] : [];
-      if (notes.length) { const box = node('aside', null, 'drinks-editorial-notes'); box.append(node('h4', 'Notas de Roxy')); notes.forEach(text => box.append(node('p', text))); dialogInner.append(box); }
       const credits = node('details', null, 'drinks-credits'); credits.append(node('summary', 'Fuente y créditos'));
+      credits.append(languageLabel);
+      const importantNote = text => /alerg|allerg|crudo|raw|conduc|embaraz|pregnan|alcohol|cafe[ií]na/i.test(text);
+      for (const [important, parent] of [[true, dialogInner], [false, credits]]) {
+        const selected = notes.filter(text => importantNote(text) === important);
+        if (selected.length) { const box = node('aside', null, 'drinks-editorial-notes'); box.append(node('h4', 'Notas de Roxy')); selected.forEach(text => box.append(node('p', text))); parent.append(box); }
+      }
       if (row.image_credit) credits.append(node('p', `Foto: ${row.image_credit}`, 'drinks-note'));
       if (row.contributor) credits.append(node('p', `Autoría de la fuente: ${row.contributor}`, 'drinks-note')); sourceLink(credits, row);
       const licenseLink = node('a', 'Leer la licencia MIT completa de Open Drinks'); licenseLink.href = '/assets/open-drinks-license.txt'; licenseLink.target = '_blank'; licenseLink.rel = 'noopener noreferrer'; credits.append(licenseLink);
       dialogInner.append(credits);
       dialogInner.append(node('p', 'Cantidades originales, sin escalado ni cálculo de porciones. Comprueba ingredientes y alergias; no adaptamos automáticamente estas recetas.', 'drinks-note'));
+      function mountGuide() {
+        stopGuide();
+        if (!recipeCurrent() || !reading) return;
+        state.guide = window.RoxyRecipeGuide.mount(reader, {
+          title:spanish ? row.title_es : row.title, steps:stepLines(), ingredients:ingredientLines(), language:lang(),
+          sourceLabel:spanish ? 'la traducción al español de Open Drinks' : 'Open Drinks, original en inglés',
+          initialStep:position, isCurrent:() => recipeCurrent() && reading,
+          onStepChange:index => { if (recipeCurrent() && reading) position = index; },
+          onClose:() => { state.guide = null; if (!recipeCurrent()) return; reading = false; paint(); start.focus({preventScroll:true}); },
+        });
+      }
       function paint() {
         title.textContent = spanish ? row.title_es : row.title; title.lang = lang(); toggle.textContent = spanish ? 'Ver original en inglés' : 'Ver traducción al español';
         languageLabel.textContent = spanish ? 'Traducción al español; puedes comparar el original de Open Drinks.' : 'Original de Open Drinks en inglés, sin alterar medidas ni pasos.';

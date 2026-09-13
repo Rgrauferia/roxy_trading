@@ -38,7 +38,7 @@
       (url.hostname === 'commons.wikimedia.org' && url.pathname.startsWith('/wiki/File:')))) return;
     const el = node('a', label); el.href = url.href; el.target = '_blank'; el.rel = 'noopener noreferrer'; parent.append(el);
   };
-  function sourcePhoto(card, recipe) {
+  function sourcePhoto(card, recipe, credits) {
     const image = safeURL(recipe.image_url), source = safeURL(recipe.image_source_url), license = safeURL(recipe.image_license_url);
     const fallback = node('p', 'No hay una fotografía de la fuente disponible para esta receta.', 'pet-product-method'); card.append(fallback);
     if (!image || image.hostname !== 'upload.wikimedia.org' || image.search || image.hash || recipe.image_mime !== 'image/jpeg' ||
@@ -53,11 +53,9 @@
     photo.addEventListener('error', () => { photo.remove(); fallback.textContent = 'La fotografía original no se pudo cargar; puedes consultar su fuente.'; fallback.hidden = false; });
     const load = () => { if (card.open && !photo.src) photo.src = image.href; };
     card.addEventListener('toggle', load); load();
-    card.append(node('p', recipe.photo_scope, 'pet-product-method'), node('p', `Foto: ${recipe.image_author} · ${recipe.image_license}`, 'pet-product-method'));
-    const credits = node('details', null, 'open-recipe-credits'); credits.append(node('summary', 'Licencia y procedencia de la foto'));
+    credits.append(node('p', recipe.photo_scope, 'pet-product-method'), node('p', `Foto: ${recipe.image_author} · ${recipe.image_license}`, 'pet-product-method'));
     link(credits, 'Fotografía y créditos · Wikimedia Commons', recipe.image_source_url); link(credits, 'Licencia de esta fotografía', recipe.image_license_url);
     if (recipe.image_changes) { const changes = node('p', recipe.image_changes, 'pet-product-method'); changes.lang = 'en'; credits.append(changes); }
-    card.append(credits);
   };
   const originalList = (parent, title, values, ordered = false, language = 'en') => {
     if (!values.length) return;
@@ -84,27 +82,35 @@
     const anchor = node('a'); anchor.href = url; anchor.download = `roxy-${spanish ? 'es' : 'original'}-${String(recipe.id).replace(/[^a-z0-9-]/gi, '')}.txt`;
     document.body.append(anchor); anchor.click(); anchor.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  function recipeCard(recipe, card = node('details', null, 'provider-recipe-card')) {
+  function recipeCard(recipe, card, isCurrent, beforeStart) {
     const spanish = translationOf(recipe);
     let useSpanish = Boolean(spanish);
     const original = {title:recipe.title, time:recipe.time_original, ingredients:recipe.ingredients_original,
       steps:recipe.steps_original, equipment:recipe.equipment_original, notes:recipe.notes_original};
     const content = () => useSpanish ? spanish : original;
     const language = () => useSpanish ? 'es' : recipe.language;
+    const recipeCurrent = () => isCurrent() && card.open && card.isConnected;
+    const guideAvailable = typeof window.RoxyRecipeGuide?.mount === 'function';
+    let guide = null, position = 0, reading = false;
     card.replaceChildren(); const title = node('summary'); card.append(title);
     card.append(node('p', [countries[recipe.cuisine] || recipe.cuisine,
       `${recipe.servings_original} ${recipe.servings === 1 ? 'ración' : 'raciones'}`].filter(Boolean).join(' · ')));
     const time = node('p'); card.append(time);
-    sourcePhoto(card, recipe);
-    const languageLabel = node('p', null, 'pet-product-method'); card.append(languageLabel);
-    const languageButton = button('Ver original en inglés', () => { useSpanish = !useSpanish; showContent(); showStep(); });
+    const credits = node('details', null, 'open-recipe-credits'); credits.append(node('summary', 'Fuentes, licencia y cambios editoriales'));
+    sourcePhoto(card, recipe, credits);
+    const languageLabel = node('p', null, 'pet-product-method'); credits.append(languageLabel);
+    const languageButton = button('Ver original en inglés', () => {
+      if (!recipeCurrent()) return;
+      guide?.dispose(); guide = null; useSpanish = !useSpanish; showContent(); showStep();
+      if (reading && guideAvailable) mountGuide();
+    });
     if (spanish) card.append(languageButton);
     if (spanish?.editorial_notes?.length) {
       const notes = node('aside', null, 'pet-product-method');
       originalList(notes, 'Antes de usar esta fuente · notas de Roxy', spanish.editorial_notes, false, 'es');
       card.append(notes);
     }
-    const body = node('div');
+    const body = node('div'), sourceNotes = node('div'); credits.append(sourceNotes);
     const showContent = () => {
       const value = content(); title.textContent = value.title; title.lang = language();
       time.textContent = value.time; time.lang = language(); time.hidden = !value.time;
@@ -114,24 +120,29 @@
       originalList(body, language() === 'es' ? 'Ingredientes · medidas de la fuente' : 'Ingredients · medidas originales', value.ingredients, false, language());
       originalList(body, language() === 'es' ? 'Equipo' : 'Equipment · equipo de la fuente', value.equipment, false, language());
       originalList(body, language() === 'es' ? 'Preparación · pasos de la fuente' : 'Instructions · pasos originales', value.steps, true, language());
-      originalList(body, language() === 'es' ? 'Notas y variantes de la fuente' : 'Notes · notas originales', value.notes, false, language());
+      sourceNotes.replaceChildren();
+      originalList(sourceNotes, language() === 'es' ? 'Notas y variantes de la fuente' : 'Notes · notas originales', value.notes, false, language());
     };
     const reader = node('section', null, 'open-recipe-reader'); reader.hidden = true;
     const progress = node('p'); progress.setAttribute('role', 'status');
     const step = node('p', null, 'provider-original-instructions'); step.lang = 'en'; step.tabIndex = -1;
-    let position = 0;
     const showStep = () => { progress.textContent = `Paso ${position + 1} de ${recipe.steps_original.length}`;
       step.textContent = content().steps[position]; step.lang = language(); previous.disabled = position === 0; next.disabled = position === recipe.steps_original.length - 1; };
     const previous = button('Anterior', () => { if (position > 0) { position--; showStep(); } });
     const next = button('Siguiente', () => { if (position < recipe.steps_original.length - 1) { position++; showStep(); } });
-    const start = button('Leer paso a paso', () => { position = 0; showStep(); reader.hidden = false; start.hidden = true; body.hidden = true; step.focus({preventScroll:true}); });
-    const end = button('Terminar lectura', () => { reader.hidden = true; start.hidden = false; body.hidden = false; start.focus({preventScroll:true}); });
-    reader.append(progress, step, previous, next, end); card.append(start, reader, body, button('Descargar original TXT', () => download(recipe)));
-    if (spanish) card.append(button('Descargar traducción TXT', () => download(recipe, true)),
+    const start = button(guideAvailable ? 'Paso a paso con Roxy' : 'Leer paso a paso', () => {
+      if (!recipeCurrent()) return;
+      beforeStart();
+      position = 0; reading = true; showStep(); reader.hidden = false; start.hidden = true; body.hidden = true;
+      if (guideAvailable) mountGuide(); else step.focus({preventScroll:true});
+    });
+    const end = button('Terminar lectura', () => { stopReader(); if (recipeCurrent()) start.focus({preventScroll:true}); });
+    if (!guideAvailable) reader.append(progress, step, previous, next, end);
+    card.append(start, reader, body); credits.append(button('Descargar original TXT', () => download(recipe)));
+    if (spanish) credits.append(button('Descargar traducción TXT', () => download(recipe, true)),
       node('p', `${spanish.attribution} · ${spanish.license}`, 'pet-product-method'));
     const rights = recipe.rights || {};
-    card.append(node('p', recipe.attribution || rights.attribution));
-    const credits = node('details', null, 'open-recipe-credits'); credits.append(node('summary', 'Fuentes, licencia y cambios editoriales'));
+    credits.append(node('p', recipe.attribution || rights.attribution));
     link(credits, 'Fuente original · Wikibooks', recipe.source_url);
     link(credits, `Revisión conservada ${recipe.revid}`, recipe.source_revision_url);
     link(credits, rights.license || 'CC BY-SA 4.0', recipe.license_url || rights.license_url);
@@ -140,8 +151,26 @@
     if (spanish) { const changes = node('p', spanish.changes, 'pet-product-method'); changes.lang = 'en'; credits.append(changes); }
     card.append(credits);
     card.append(node('p', 'Cantidades originales, sin conversión automática ni adaptación a tus alergias.', 'pet-product-method'));
+    function stopReader() {
+      guide?.dispose(); guide = null; reading = false;
+      reader.hidden = true; start.hidden = false; body.hidden = false;
+    }
+    function mountGuide() {
+      guide?.dispose(); guide = null;
+      if (!recipeCurrent() || !reading) return;
+      const value = content();
+      guide = window.RoxyRecipeGuide.mount(reader, {
+        title:value.title, steps:value.steps, ingredients:value.ingredients, language:language(),
+        sourceLabel:useSpanish ? 'la traducción al español de Wikibooks' : `Wikibooks, original en ${language() === 'es' ? 'español' : 'inglés'}`,
+        initialStep:position, isCurrent:() => recipeCurrent() && reading,
+        onStepChange:index => { if (recipeCurrent() && reading) position = index; },
+        onClose:() => { stopReader(); if (recipeCurrent()) start.focus({preventScroll:true}); },
+      });
+    }
+    const toggled = () => { if (!card.open) stopReader(); };
+    card.addEventListener('toggle', toggled);
     showContent();
-    return card;
+    return {stop:stopReader, dispose:() => { stopReader(); card.removeEventListener('toggle', toggled); }};
   }
   function setActive(container, active) {
     const state = renders.get(container);
@@ -151,10 +180,10 @@
     if (!container) return;
     const signature = JSON.stringify([user, identity, hidden]);
     const previousState = renders.get(container);
-    if (previousState?.signature === signature) { previousState.activate(active); return; }
+    if (previousState?.signature === signature) { previousState.isCurrent = isCurrent; previousState.activate(active); return; }
     previousState?.dispose();
-    const state = {signature, active:Boolean(active), loaded:false, version:'', pages:[''], next:'',
-      generation:0, controller:null, detailRequests:new Map(), cache:new Map(), timer:null};
+    const state = {signature, active:Boolean(active), isCurrent, loaded:false, version:'', pages:[''], next:'',
+      generation:0, controller:null, detailRequests:new Map(), readers:new Map(), cache:new Map(), timer:null};
     state.activate = () => {}; state.dispose = () => {};
     renders.set(container, state);
     container.replaceChildren(); container.hidden = hidden; if (hidden) return;
@@ -162,8 +191,8 @@
     details.append(node('summary', 'Recetas del mundo · fuentes originales'));
     details.append(node('p', 'Explora por cocina, idioma o ingrediente. Cada ficha conserva las cantidades y todos los pasos de su fuente; puedes comparar el original y leer paso a paso.'));
     details.append(node('p', 'Esta colección es de consulta: no equivale a recetas ensayadas por Roxy ni se adapta automáticamente a alergias.', 'pet-product-method'));
-    const current = () => renders.get(container) === state && container.isConnected && !container.hidden &&
-      state.active && details.open && !document.hidden && isCurrent();
+    const current = () => renders.get(container) === state && container.isConnected && !container.hidden && !container.closest?.('[hidden]') &&
+      state.active && details.open && !document.hidden && state.isCurrent();
     // Bound both HTTP and body decoding, including mocks/transports that do not
     // settle after abort. Lifecycle cancellation must not look like a failure.
     const request = (path, controller) => new Promise((resolve, reject) => {
@@ -214,11 +243,18 @@
     const stop = () => {
       clearTimeout(state.timer); state.timer = null; state.generation++;
       if (state.controller) { state.controller.abort(); state.controller = null; }
-      cancelDetails(); results.setAttribute('aria-busy', 'false');
+      cancelDetails(); for (const reader of state.readers.values()) reader.stop(); results.setAttribute('aria-busy', 'false');
+    };
+    const clearReaders = () => { for (const reader of state.readers.values()) reader.dispose(); state.readers.clear(); };
+    const showRecipe = (recipe, card) => {
+      state.readers.get(card)?.dispose();
+      state.readers.set(card, recipeCard(recipe, card, current, () => {
+        for (const [otherCard, reader] of state.readers) { if (otherCard !== card) reader.stop(); }
+      }));
     };
     const versionChanged = () => {
       stop(); state.cache.clear(); state.version = ''; state.pages = ['']; state.next = ''; state.loaded = false;
-      results.replaceChildren(); pagination.hidden = true; retry.hidden = false;
+      clearReaders(); results.replaceChildren(); pagination.hidden = true; retry.hidden = false;
       status.textContent = 'La selección se actualizó. Pulsa Reintentar para leer la nueva edición sin mezclar pasos de versiones distintas.';
     };
     const validDetail = (recipe, summary) => recipe && recipe.id === summary.id && recipe.title && recipe.servings_original &&
@@ -237,11 +273,13 @@
       card.append(title, meta, label, detailStatus, again);
       let loaded = false;
       const open = async () => {
-        if (!card.open || loaded || state.detailRequests.has(card) || !current() || !card.isConnected) return;
+        if (!card.open || !current() || !card.isConnected) return;
+        for (const [otherCard, reader] of state.readers) { if (otherCard !== card) reader.stop(); }
+        if (loaded || state.detailRequests.has(card)) return;
         const version = state.version, generation = state.generation;
         const cacheKey = `${version}:${summary.id}`;
         const cached = state.cache.get(cacheKey);
-        if (cached) { loaded = true; recipeCard(cached, card); return; }
+        if (cached) { loaded = true; showRecipe(cached, card); return; }
         const controller = new AbortController();
         const pending = {controller, cancel:() => { detailStatus.textContent = 'Carga pausada. Vuelve a abrir la receta o pulsa Reintentar receta.'; again.hidden = false; }};
         state.detailRequests.set(card, pending); again.hidden = true; detailStatus.textContent = 'Cargando ingredientes y pasos originales…';
@@ -252,7 +290,7 @@
           if (!validDetail(data.recipe, summary)) throw new Error('invalid_detail');
           state.cache.set(cacheKey, data.recipe);
           while (state.cache.size > 12) state.cache.delete(state.cache.keys().next().value);
-          loaded = true; recipeCard(data.recipe, card);
+          loaded = true; showRecipe(data.recipe, card);
         } catch (error) {
           if ((controller.signal.aborted && error?.name !== 'TimeoutError') || generation !== state.generation || !current() || !card.isConnected) return;
           if (error?.status === 409) { versionChanged(); return; }
@@ -267,7 +305,7 @@
     };
     async function load(pages = ['']) {
       if (!current()) return;
-      stop(); state.pages = pages; state.loaded = false; retry.hidden = true; pagination.hidden = true; results.replaceChildren();
+      stop(); clearReaders(); state.pages = pages; state.loaded = false; retry.hidden = true; pagination.hidden = true; results.replaceChildren();
       const generation = state.generation, controller = new AbortController(); state.controller = controller;
       status.textContent = 'Cargando la selección de recetas…'; results.setAttribute('aria-busy', 'true');
       const params = new URLSearchParams({q:search.value.trim().slice(0,100), cuisine:cuisine.value, language:language.value, limit:'24', cursor:pages.at(-1) || ''});
@@ -301,7 +339,7 @@
       }
     }
     function filter(debounce) {
-      stop(); state.pages = ['']; state.next = ''; state.loaded = false; results.replaceChildren(); pagination.hidden = true; retry.hidden = true;
+      stop(); clearReaders(); state.pages = ['']; state.next = ''; state.loaded = false; results.replaceChildren(); pagination.hidden = true; retry.hidden = true;
       status.textContent = 'Buscando en toda la colección…';
       if (debounce) state.timer = setTimeout(() => void load(), 300); else void load();
     }
@@ -312,7 +350,7 @@
     };
     const visibility = () => state.activate(state.active);
     document.addEventListener('visibilitychange', visibility);
-    state.dispose = () => { stop(); state.cache.clear(); document.removeEventListener('visibilitychange', visibility); };
+    state.dispose = () => { stop(); clearReaders(); state.cache.clear(); document.removeEventListener('visibilitychange', visibility); };
     details.addEventListener('toggle', () => {
       if (!details.open) stop(); else if (!state.loaded && !state.controller) void load(state.pages);
     });

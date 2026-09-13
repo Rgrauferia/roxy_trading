@@ -1,9 +1,27 @@
 # Roxy Home — estado operativo
 
-Actualizado: 2026-09-11. Este documento pertenece exclusivamente a la rama Home.
+Actualizado: 2026-09-13. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 
-## 193 — CANDIDATO: catálogo visible y categorías por niveles
+## 194 — CANDIDATO: guía de recetas con voz y controles
+
+Guía común para MyPlate, Open Drinks y originales abiertos: lectura literal,
+pasos, repetir/pausar, controles escritos y micrófono opt-in para comandos.
+No es conversación abierta ni adaptación culinaria por IA. MyPlate sigue EN;
+source_steps conserva directions exactamente, incluidas notas y numeración.
+Cocina local: fallback de ElevenLabs a voz del dispositivo sin truncar el paso.
+Configuración conversacional exclusivamente ROXY_HOME_ELEVENLABS_AGENT_ID;
+CONFIGURED no equivale a proveedor sano. Nunca heredar agente/secretos Trading.
+Paginación superior y fuentes secundarias plegadas; catálogos sin cambios:
+1072 consultables,96 bebidas,59 locales y458 borradores (no sumarlos como únicos).
+671 pruebas Node aprobadas;2494Python/11PGomitidas aprobadas. QA local comprobó
+guía de café ES4pasos y comienzo de lectura EN mediante onstart, no audio físico
+en el teléfono del usuario. Pancakes EN8pasos y comando escrito listo→paso2
+comprobados. Falta verificación pública; no afirmar publicado.
+500 recetas revisadas ES/plan/Compra y conversación habitual siguen pendientes.
+Informe: reports/home_release_194_20260913.md.
+
+## 193 — PUBLICADO: catálogo visible y categorías por niveles
 
 Entrada directa a catálogo MyPlate1072consultables, grupos Explorar/Comidas/
 Bebidas/Postres/Mi recetario y subcategorías; locales59y458borradores preservados.
@@ -12,7 +30,10 @@ por día/IP compartida explícitos; no afirmar500recetas revisadas o listas para
 Carga sólo tras scope confirmado visible, cancelación y no precarga de locales
 ocultas.543Node y QA móvil sintético aprobados;2392Python/11PGomitidas aprobadas.
 Sin datos públicos modificados. Informe reports/home_release_193_20260911.md.
-Publicación193todavía NO comprobada; público192hasta verificar Render y assets.
+Commit e2ad09a2eaa98ca0a19414042ff01a95d07b4141,Renderdep-daibgl15efls738rd570
+Live52.4s.502transitorio de reinicio→health200ok;8assets200byte-idénticos.
+Público193sesiónconservada:1072→Comidas318→Desayunos53→ficha original6ingredientes,
+foto1440/enlaceES;sin errores/overflow765px. No redeploy sólo por estas notas.
 
 ## 192 — PUBLICADO: agenda educativa de ejercicio, no plan personalizado
 

@@ -2201,19 +2201,18 @@ def home_family_revoke_connection(
 
 @app.get("/v1/assistant/session/{user_id}")
 def assistant_session(user_id: str, request: Request, auth: str = Depends(_authenticate)) -> dict[str, Any]:
-    """Return non-secret configuration for the shared public ElevenLabs agent."""
+    """Return Home-only configuration; this is not a provider health check."""
     _rate_limit(request)
     user = _authorize_user(user_id, auth)
-    agent_id = str(
-        os.getenv("ELEVENLABS_AGENT_ID") or "agent_6101kwchebzdf91rfk9757wq0mk4"
-    ).strip()
+    agent_id = _home_voice_config().agent_id
     if not agent_id:
-        raise HTTPException(status_code=503, detail="Roxy ElevenLabs no está configurada")
+        raise HTTPException(status_code=503, detail="Falta configurar el agente de voz exclusivo de Roxy Home. Puedes escribir y escuchar la respuesta con la voz del dispositivo.")
     snapshot = _store().snapshot(user, limit=100)
     member = _member_for_auth(auth)
     display_name = member["display_name"] if member else user
     return {
-        "status": "READY",
+        "status": "CONFIGURED",
+        "provider_health_verified": False,
         "provider": "ElevenLabs",
         "agent_id": agent_id,
         "voice_mode": "public_websocket",

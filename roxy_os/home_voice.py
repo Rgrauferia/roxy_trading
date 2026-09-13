@@ -11,7 +11,6 @@ import requests
 
 
 ELEVENLABS_API = "https://api.elevenlabs.io/v1"
-DEFAULT_ROXY_AGENT_ID = "agent_6101kwchebzdf91rfk9757wq0mk4"
 
 
 @dataclass(frozen=True)
@@ -26,7 +25,7 @@ class HomeVoiceConfig:
     def from_env(cls) -> "HomeVoiceConfig":
         return cls(
             api_key=str(os.getenv("ROXY_HOME_ELEVENLABS_API_KEY", "")).strip(),
-            agent_id=str(os.getenv("ROXY_HOME_ELEVENLABS_AGENT_ID", DEFAULT_ROXY_AGENT_ID)).strip(),
+            agent_id=str(os.getenv("ROXY_HOME_ELEVENLABS_AGENT_ID", "")).strip(),
             voice_id=str(os.getenv("ROXY_HOME_ELEVENLABS_VOICE_ID", "")).strip(),
             model_id=str(os.getenv("ROXY_HOME_ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")).strip(),
             cache_dir=Path(os.getenv("ROXY_HOME_ELEVENLABS_CACHE_DIR", "data/roxy_home_voice")),
@@ -34,10 +33,10 @@ class HomeVoiceConfig:
 
     @property
     def configured(self) -> bool:
-        return bool(self.api_key and self.agent_id)
+        return bool(self.api_key and (self.agent_id or self.voice_id))
 
     def public_status(self) -> dict[str, Any]:
-        return {"enabled": self.configured, "provider": "ElevenLabs" if self.configured else "", "voice": "Roxy oficial" if self.configured else ""}
+        return {"enabled": self.configured, "status": "CONFIGURED" if self.configured else "UNCONFIGURED", "provider_health_verified": False, "provider": "ElevenLabs" if self.configured else "", "voice": "Roxy oficial" if self.configured else ""}
 
 
 class ElevenLabsHomeVoice:
@@ -70,9 +69,11 @@ class ElevenLabsHomeVoice:
         return self._profile
 
     def synthesize(self, text: str, *, user_id: str) -> Path:
-        clean = " ".join(str(text or "").strip().split())[:1_200]
+        clean = " ".join(str(text or "").strip().split())
         if not clean:
             raise ValueError("No hay texto para leer.")
+        if len(clean) > 1_200:
+            raise ValueError("El paso supera el límite de voz oficial; usa la voz del dispositivo para escucharlo completo.")
         profile = self.voice_profile()
         identity = f"{user_id}:{profile['voice_id']}:{profile['model_id']}:{clean}"
         digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()

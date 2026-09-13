@@ -185,20 +185,27 @@ def test_cancelled_voice_permission_never_opens_a_late_session():
     source = (ROOT / "assets/roxy_list.js").read_text()
     functions = source[source.index("  async function startRoxyVoice()"):source.index("  function renderProductLookup(")]
     harness = r"""
-let resolvePermission, stopped=0, configCalls=0;
+let resolvePermission, permissionRequested, stopped=0, configCalls=0, sdkCalls=0, sessionCalls=0;
+const permissionStarted=new Promise(resolve=>{permissionRequested=resolve});
 let roxyVoiceConversation=null, roxyVoiceStarting=false, roxyVoiceAttempt=0, roxyVoicePermissionStream=null, roxyLastAgentMessage='',roxyLastAgentMessageAt=0;
 const controls={}; const $=id=>controls[id]||(controls[id]={});
 const openRoxyVoice=()=>{}, roxyVoiceStatus=()=>{}, roxyVoiceError=()=>'';
-const navigator={mediaDevices:{getUserMedia:()=>new Promise(resolve=>{resolvePermission=resolve})}};
-const api=async()=>{configCalls++;throw Error('Should not be reached')};
+const stopRoxyDeviceSpeech=()=>{}, stopCookingSpeech=()=>{}, collectionIdentity=()=>'member:qa';
+const navigator={mediaDevices:{getUserMedia:()=>new Promise(resolve=>{resolvePermission=resolve;permissionRequested()})}};
+const api=async()=>{configCalls++;return {status:'CONFIGURED',agent_id:'home-only-test-agent'}};
+const loadElevenLabs=async()=>{sdkCalls++;return {Conversation:{startSession:async()=>{sessionCalls++;return {endSession:async()=>{}}}}}};
+const roxyHomeOverrides=()=>({}), currentShoppingSummary=()=>[], roxyHomeClientTools=()=>({}), roxyVoiceTranscript=()=>{};
 const stopRoxyPermissionStream=()=>{if(roxyVoicePermissionStream)roxyVoicePermissionStream.getTracks().forEach(track=>track.stop());roxyVoicePermissionStream=null};
 const user='qa';
 """
     harness += functions + r"""
-(async()=>{const pending=startRoxyVoice();await endRoxyVoice();resolvePermission({getTracks:()=>[{stop:()=>stopped++}]});await pending;console.log(JSON.stringify({stopped,configCalls,starting:roxyVoiceStarting}));})();
+(async()=>{const pending=startRoxyVoice();await permissionStarted;await endRoxyVoice();resolvePermission({getTracks:()=>[{stop:()=>stopped++}]});await pending;console.log(JSON.stringify({stopped,configCalls,sdkCalls,sessionCalls,starting:roxyVoiceStarting,connected:!!roxyVoiceConversation}));})();
 """
     result = subprocess.run(["node", "-e", harness], capture_output=True, text=True, check=True)
-    assert json.loads(result.stdout) == {"stopped": 1, "configCalls": 0, "starting": False}
+    assert json.loads(result.stdout) == {
+        "stopped": 1, "configCalls": 1, "sdkCalls": 0, "sessionCalls": 0,
+        "starting": False, "connected": False,
+    }
 
 
 def test_voice_cleanup_does_not_override_a_new_session():
@@ -208,7 +215,7 @@ def test_voice_cleanup_does_not_override_a_new_session():
 let resolveEnd,roxyVoiceAttempt=0,roxyVoiceStarting=false,status='old';
 let roxyVoiceConversation={endSession:()=>new Promise(resolve=>{resolveEnd=resolve})};
 const controls={};const $=id=>controls[id]||(controls[id]={});
-const stopRoxyPermissionStream=()=>{},roxyVoiceStatus=text=>{status=text};
+const stopRoxyDeviceSpeech=()=>{},stopRoxyPermissionStream=()=>{},roxyVoiceStatus=text=>{status=text};
 """
     harness += function + r"""
 (async()=>{const pending=endRoxyVoice();roxyVoiceAttempt++;roxyVoiceStarting=true;status='new';resolveEnd();await pending;console.log(JSON.stringify({status,starting:roxyVoiceStarting}));})();

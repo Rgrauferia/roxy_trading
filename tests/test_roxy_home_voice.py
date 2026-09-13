@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from roxy_os.home_voice import ElevenLabsHomeVoice, HomeVoiceConfig
 
 
@@ -49,7 +51,7 @@ def test_home_voice_uses_official_agent_profile_and_caches_audio(tmp_path):
 
 def test_home_voice_public_status_never_exposes_the_key(tmp_path):
     public = voice_config(tmp_path).public_status()
-    assert public == {"enabled": True, "provider": "ElevenLabs", "voice": "Roxy oficial"}
+    assert public == {"enabled": True, "status": "CONFIGURED", "provider_health_verified": False, "provider": "ElevenLabs", "voice": "Roxy oficial"}
     assert "home-only-secret" not in str(public)
 
 
@@ -59,3 +61,49 @@ def test_home_voice_requires_a_separate_home_key(monkeypatch):
     config = HomeVoiceConfig.from_env()
     assert config.api_key == ""
     assert config.configured is False
+
+
+def test_home_voice_never_inherits_a_shared_agent(monkeypatch):
+    monkeypatch.delenv("ROXY_HOME_ELEVENLABS_AGENT_ID", raising=False)
+    monkeypatch.delenv("ROXY_HOME_ELEVENLABS_VOICE_ID", raising=False)
+    monkeypatch.setenv("ELEVENLABS_AGENT_ID", "shared-product-agent")
+    monkeypatch.setenv("ROXY_HOME_ELEVENLABS_API_KEY", "synthetic-home-key")
+    config = HomeVoiceConfig.from_env()
+    assert config.agent_id == ""
+    assert config.configured is False
+    assert config.public_status()["provider_health_verified"] is False
+
+
+def test_home_tts_can_use_an_explicit_home_voice_without_a_conversation_agent(tmp_path):
+    config = HomeVoiceConfig(api_key="home-only-secret", agent_id="", voice_id="home-only-voice", model_id="eleven_multilingual_v2", cache_dir=tmp_path)
+    session = FakeSession()
+    audio = ElevenLabsHomeVoice(config, session=session).synthesize("Paso 1 completo.", user_id="synthetic-user")
+    assert audio.is_file()
+    assert session.get_calls == []
+    assert session.post_calls[0][0].endswith("/home-only-voice?output_format=mp3_44100_128")
+
+
+def test_home_voice_rejects_long_steps_before_calling_provider_instead_of_truncating(tmp_path):
+    session = FakeSession()
+    voice = ElevenLabsHomeVoice(voice_config(tmp_path), session=session)
+    with pytest.raises(ValueError, match="texto|completo"):
+        voice.synthesize("Paso completo " * 100, user_id="synthetic-user")
+    assert session.get_calls == []
+    assert session.post_calls == []
+
+
+def test_home_conversation_rejects_missing_home_agent_without_using_shared_agent(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from tools import roxy_home_service
+
+    monkeypatch.setenv("ROXY_HOME_API_KEY", "synthetic-home-api-key")
+    monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "synthetic-user")
+    monkeypatch.setenv("ROXY_SHOPPING_LIST_PATH", str(tmp_path / "shopping.json"))
+    monkeypatch.delenv("ROXY_HOME_ELEVENLABS_AGENT_ID", raising=False)
+    monkeypatch.setenv("ELEVENLABS_AGENT_ID", "shared-product-agent")
+    roxy_home_service._RATE_STATE.clear()
+    client = TestClient(roxy_home_service.app)
+    response = client.get("/v1/assistant/session/synthetic-user", headers={"Authorization": "Bearer synthetic-home-api-key"})
+    assert response.status_code == 503
+    assert "exclusivo de Roxy Home" in response.json()["detail"]
+    assert "shared-product-agent" not in response.text

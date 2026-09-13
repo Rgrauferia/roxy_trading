@@ -25,8 +25,8 @@ const detail = row => ({...structuredClone(row),
   original_source_url: `https://www.myplate.gov/recipes/${row.slug}`, can_cook: false, can_add_to_shopping: false,
 });
 
-function harness() {
-  const timers = new Map(), documentListeners = {}, storageWrites = [];
+function harness({guide = false} = {}) {
+  const timers = new Map(), documentListeners = {}, storageWrites = [], guideMounts = [];
   let activeElement, now = 0, timerId = 0;
   class Element {
     constructor(tag) { this.tagName = tag.toUpperCase(); this.children = []; this.listeners = {}; this._text = ''; this.value = ''; this.hidden = false; this.parent = null; this.dataset = {}; this.className = ''; }
@@ -40,6 +40,7 @@ function harness() {
     replaceChildren(...elements) { this.children.forEach(el => { el.parent = null; }); this.children = []; this._text = ''; this.append(...elements); }
     remove() { if (this.parent) { this.parent.children.splice(this.parent.children.indexOf(this), 1); this.parent = null; } }
     contains(el) { return this === el || this.children.some(child => child.contains(el)); }
+    closest(selector) { return selector === '[hidden]' ? (this.hidden ? this : this.parent?.closest(selector) || null) : null; }
     setAttribute(name, value) { this[name] = String(value); }
     getAttribute(name) { return this[name] ?? null; }
     removeAttribute(name) { delete this[name]; }
@@ -62,6 +63,11 @@ function harness() {
     setTimeout(fn, delay = 0) { const id = ++timerId; timers.set(id, {fn, due:now + delay}); return id; }, clearTimeout(id) { timers.delete(id); },
     fetch() { return forbidden('browser fetch'); }, localStorage:{setItem() { forbidden('localStorage'); }, getItem() { forbidden('localStorage read'); }},
     sessionStorage:{setItem() { forbidden('sessionStorage'); }, getItem() { forbidden('sessionStorage read'); }}, indexedDB:{open() { forbidden('indexedDB'); }}};
+  if (guide) sandbox.window.RoxyRecipeGuide = {mount(host, options) {
+    const call = {host, options, disposals:0, activations:[]};
+    call.controller = {dispose() { call.disposals++; }, setActive(value) { call.activations.push(value); }};
+    guideMounts.push(call); return call.controller;
+  }};
   vm.runInNewContext(code, sandbox);
   const container = () => { const el = new Element('div'); document.body.append(el); return el; };
   const tick = async duration => { const until = now + duration;
@@ -69,7 +75,7 @@ function harness() {
       const [id, value] = item; timers.delete(id); now = value.due; value.fn(); await settle(); }
     now = until; await settle(); };
   const visibility = async hidden => { document.hidden = hidden; for (const fn of [...(documentListeners.visibilitychange || [])]) fn(); await settle(); };
-  return {...sandbox.window.RoxyMyPlateRecipes, container, tick, visibility, storageWrites,
+  return {...sandbox.window.RoxyMyPlateRecipes, container, tick, visibility, storageWrites, guideMounts,
     get activeElement() { return activeElement; }, get timers() { return timers; }};
 }
 
@@ -387,4 +393,117 @@ test('changing identity with auto-load aborts the old response and requests only
   assert.equal(mock.requests[1].url.pathname, '/v1/home-food/household%2Fb/myplate-recipes');
   pending.resolve({recipes:[], provider:'MyPlate.food', live:true, total:0, offset:0, limit:24, next_offset:null}); await settle();
   assert.equal(byClass(panel, 'myplate-recipe-card').length, 24); assert.deepEqual(h.storageWrites, []);
+});
+
+test('top pager is before the cards and shares current page, bounds and source-only requests with bottom pager', async () => {
+  const h = harness(), panel = h.container(), mock = server(); await start(h, panel, mock);
+  const browser = byClass(panel, 'myplate-browser')[0], pagers = byClass(panel, 'myplate-pagination'), top = byClass(panel, 'myplate-pagination-top')[0];
+  assert.equal(pagers.length, 2); assert.ok(browser.children.indexOf(top) < browser.children.indexOf(byClass(panel, 'myplate-grid')[0]));
+  assert.equal(top.hidden, false); assert.equal(button(top, 'Anterior').disabled, true); assert.equal(button(top, 'Siguiente').disabled, false);
+  assert.ok(pagers.every(pager => all(pager, 'span')[0].textContent === 'Página 1 de 3'));
+  await button(top, 'Siguiente').click(); assert.equal(mock.requests.at(-1).url.searchParams.get('offset'), '24');
+  assert.ok(pagers.every(pager => all(pager, 'span')[0].textContent === 'Página 2 de 3'));
+  await button(panel, 'Página siguiente').click(); assert.ok(pagers.every(pager => all(pager, 'span')[0].textContent === 'Página 3 de 3'));
+  assert.equal(button(top, 'Siguiente').disabled, true); assert.equal(button(panel, 'Página siguiente').disabled, true);
+  await button(top, 'Anterior').click(); assert.equal(mock.requests.at(-1).url.searchParams.get('offset'), '24');
+  assert.equal(button(panel, 'Página siguiente').disabled, false); assert.ok(mock.requests.every(call => call.url.pathname.endsWith('/myplate-recipes')));
+});
+
+test('top and bottom pagers are disabled while a shared page request is in flight', async () => {
+  const pending = deferred(), h = harness(), panel = h.container(), mock = server({intercept:(call, n) => n === 2 ? pending.promise : undefined});
+  await start(h, panel, mock); const top = byClass(panel, 'myplate-pagination-top')[0]; await button(top, 'Siguiente').click();
+  for (const control of [button(top, 'Anterior'), button(top, 'Siguiente'), button(panel, 'Página anterior'), button(panel, 'Página siguiente')]) assert.equal(control.disabled, true);
+  await button(top, 'Siguiente').click(); await button(panel, 'Página siguiente').click(); assert.equal(mock.requests.length, 2);
+  pending.resolve({recipes:rows.slice(24,48), total:51, offset:24, limit:24, next_offset:48, provider:'MyPlate.food', live:true}); await settle();
+  assert.equal(button(top, 'Anterior').disabled, false); assert.equal(button(top, 'Siguiente').disabled, false);
+});
+
+for (const size of [0,1,24]) test(`both pagers stay hidden for a single page or no rows (${size})`, async () => {
+  const h = harness(), panel = h.container(), mock = server({items:rows.slice(0,size)}); await start(h, panel, mock);
+  assert.ok(byClass(panel, 'myplate-pagination').every(pager => pager.hidden));
+});
+
+test('top pager retains search and category scope and resets together on clear', async () => {
+  const h = harness(), panel = h.container(), mock = server(); await start(h, panel, mock);
+  await button(byClass(panel, 'myplate-categories')[0], 'Postres').click();
+  const input = all(panel, 'input')[0]; input.value = 'Synthetic'; await all(panel, 'form')[0].emit('submit');
+  await button(byClass(panel, 'myplate-pagination-top')[0], 'Siguiente').click();
+  const query = mock.requests.at(-1).url.searchParams; assert.equal(query.get('category'), 'Dessert'); assert.equal(query.get('q'), 'Synthetic'); assert.equal(query.get('offset'), '24');
+  await button(panel, 'Ver todas').click(); assert.ok(byClass(panel, 'myplate-pagination').every(pager => all(pager, 'span')[0].textContent === 'Página 1 de 3'));
+});
+
+test('top pager cannot issue a stale request after the collection is inactive', async () => {
+  const h = harness(), panel = h.container(), mock = server(); await start(h, panel, mock); const next = button(byClass(panel, 'myplate-pagination-top')[0], 'Siguiente');
+  h.setActive(panel, false); await next.click(); assert.equal(mock.requests.length, 1);
+});
+
+test('guide mounts only on explicit request with intact English source steps, notes and ingredients', async () => {
+  const sourceSteps = ['Synthetic step A: keep 1.5 and 1/2 exactly.\n', 'Synthetic step B: preserve this full paragraph.\n', 'Final synthetic test line.'];
+  const h = harness({guide:true}), panel = h.container(), mock = server({items:rows.slice(0,1), detailMutation:{source_steps:sourceSteps, source_steps_language:'en'}});
+  await start(h, panel, mock); assert.equal(h.guideMounts.length, 0); await button(panel, 'Ver receta').click(); assert.equal(h.guideMounts.length, 0);
+  const original = byClass(panel, 'myplate-directions')[0], opener = button(panel, 'Paso a paso con Roxy'); assert.ok(opener); assert.equal(original.parentNode.hidden, false);
+  await opener.click(); const call = h.guideMounts[0]; assert.equal(h.guideMounts.length, 1); assert.equal(call.options.title, rows[0].title);
+  assert.deepEqual(Array.from(call.options.steps), sourceSteps); assert.equal(call.options.steps.join(''), detail(rows[0]).directions); assert.equal(call.options.language, 'en');
+  assert.deepEqual(Array.from(call.options.ingredients), ['1/2 cup synthetic A (Test note, not an instruction)', '1.5 tablespoons synthetic B']);
+  assert.match(call.options.sourceLabel, /MyPlate.food.*inglés/); assert.equal(call.options.isCurrent(), true); assert.equal(call.host.isConnected, true);
+  assert.equal(original.parentNode.hidden, true); assert.equal(opener.hidden, true); assert.equal(mock.requests.length, 2); assert.deepEqual(h.storageWrites, []);
+});
+
+const invalidSourceSteps = [
+  {label:'missing field', fields:{}},
+  {label:'empty array', fields:{source_steps:[], source_steps_language:'en'}},
+  {label:'not an array', fields:{source_steps:'Synthetic step', source_steps_language:'en'}},
+  {label:'blank step', fields:{source_steps:[''], source_steps_language:'en'}},
+  {label:'non-string step', fields:{source_steps:[null], source_steps_language:'en'}},
+  {label:'unconfirmed language', fields:{source_steps:[detail(rows[0]).directions], source_steps_language:'es'}},
+  {label:'truncated source', fields:{source_steps:['Synthetic step A: keep 1.5 and 1/2 exactly.'], source_steps_language:'en'}},
+  {label:'different whitespace', fields:{source_steps:detail(rows[0]).directions.split('\n'), source_steps_language:'en'}},
+  {label:'fabricated extra step', fields:{source_steps:[detail(rows[0]).directions, 'Invented extra instruction.'], source_steps_language:'en'}},
+];
+for (const {label, fields} of invalidSourceSteps) test(`guide falls back to the full source paragraph when steps are invalid: ${label}`, async () => {
+  const h = harness({guide:true}), panel = h.container(), mock = server({items:rows.slice(0,1), detailMutation:fields}); await start(h, panel, mock); await button(panel, 'Ver receta').click();
+  await button(panel, 'Paso a paso con Roxy').click(); assert.deepEqual(Array.from(h.guideMounts[0].options.steps), [detail(rows[0]).directions]);
+  assert.equal(h.guideMounts[0].options.language, 'en'); assert.equal(byClass(panel, 'myplate-directions')[0].textContent, detail(rows[0]).directions);
+});
+
+test('guide unavailable leaves the complete source readable without a broken start action', async () => {
+  const h = harness(), panel = h.container(), mock = server({items:rows.slice(0,1)}); await start(h, panel, mock); await button(panel, 'Ver receta').click();
+  assert.equal(button(panel, 'Paso a paso con Roxy'), undefined); assert.equal(byClass(panel, 'myplate-directions')[0].textContent, detail(rows[0]).directions); assert.equal(byClass(panel, 'myplate-directions')[0].parentNode.hidden, false);
+});
+
+test('guide close restores original instructions and focus without refetching or changing catalog page', async () => {
+  const h = harness({guide:true}), panel = h.container(), mock = server(); await start(h, panel, mock); await button(panel, 'Página siguiente').click(); await button(panel, 'Ver receta').click();
+  const opener = button(panel, 'Paso a paso con Roxy'); await opener.click(); const call = h.guideMounts[0]; call.controller.dispose(); call.options.onClose();
+  assert.equal(opener.hidden, false); assert.equal(byClass(panel, 'myplate-directions')[0].parentNode.hidden, false); assert.equal(h.activeElement, opener); assert.equal(mock.requests.length, 3);
+  await button(panel, 'Volver a las recetas').click(); assert.equal(mock.requests.length, 3); assert.ok(byClass(panel, 'myplate-pagination').every(pager => all(pager, 'span')[0].textContent === 'Página 2 de 3'));
+});
+
+for (const exit of ['inactive', 'hidden', 'identity', 'document', 'group', 'back']) test(`active source guide is disposed and its scope becomes stale on ${exit}`, async () => {
+  const h = harness({guide:true}), panel = h.container(), mock = server({items:rows.slice(0,1)}); await start(h, panel, mock); await button(panel, 'Ver receta').click(); await button(panel, 'Paso a paso con Roxy').click(); const call = h.guideMounts[0];
+  if (exit === 'inactive') h.setActive(panel, false);
+  if (exit === 'hidden') h.render(panel, {user:'household/a', identity:'member-a', api:mock.api, hidden:true});
+  if (exit === 'identity') h.render(panel, {user:'household/b', identity:'member-b', api:mock.api});
+  if (exit === 'document') await h.visibility(true);
+  if (exit === 'group') { h.render(panel, {user:'household/a', identity:'member-a', api:mock.api, browseGroup:'food'}); await settle(); }
+  if (exit === 'back') await button(panel, 'Volver a las recetas').click();
+  assert.equal(call.disposals, 1); assert.equal(call.options.isCurrent(), false); assert.equal(call.host.isConnected, false); assert.deepEqual(h.storageWrites, []);
+});
+
+test('source guide current callback respects outer identity revocation before a rerender', async () => {
+  let current = true; const h = harness({guide:true}), panel = h.container(), mock = server({items:rows.slice(0,1)}); await start(h, panel, mock, {isCurrent:() => current});
+  await button(panel, 'Ver receta').click(); await button(panel, 'Paso a paso con Roxy').click(); current = false; assert.equal(h.guideMounts[0].options.isCurrent(), false);
+});
+
+test('source guide current callback rejects a hidden ancestor even before parent rerender', async () => {
+  const h = harness({guide:true}), outer = h.container(), panel = h.container(), mock = server({items:rows.slice(0,1)}); outer.append(panel); await start(h, panel, mock);
+  await button(panel, 'Ver receta').click(); await button(panel, 'Paso a paso con Roxy').click(); outer.hidden = true;
+  assert.equal(h.guideMounts[0].options.isCurrent(), false);
+});
+
+test('a stale guide close callback cannot clear or focus over the newly mounted guide', async () => {
+  const h = harness({guide:true}), panel = h.container(), mock = server({items:rows.slice(0,2)}); await start(h, panel, mock);
+  await button(panel, 'Ver receta').click(); await button(panel, 'Paso a paso con Roxy').click(); const first = h.guideMounts[0];
+  await button(panel, 'Volver a las recetas').click(); await button(panel, 'Ver receta').click(); const nextOpener = button(panel, 'Paso a paso con Roxy'); await nextOpener.click(); const second = h.guideMounts[1], focused = h.activeElement;
+  first.options.onClose(); assert.equal(h.activeElement, focused); assert.equal(nextOpener.hidden, true);
+  await button(panel, 'Volver a las recetas').click(); assert.equal(second.disposals, 1);
 });

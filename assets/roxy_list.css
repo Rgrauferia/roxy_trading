@@ -1319,3 +1319,6 @@ body.design-module-mode .design-panel{display:grid;gap:22px;max-width:760px;padd
   .recipe-collection-hint{font-size:13px}
   #recipesPanel:not(.pet-mode)>#recipeLead{font-size:14px;line-height:1.5}
 }
+/* Keep the human library focused on choosing and preparing a recipe. */
+#recipesPanel:not(.pet-mode)>#recipeLead,
+#recipesPanel:not(.pet-mode) #recipeCollectionHint{display:none}

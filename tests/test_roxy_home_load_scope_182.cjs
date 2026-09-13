@@ -44,6 +44,9 @@ function harness(options = {}) {
     activateRecipeSources() { assert.equal($('app').hidden, false, 'sources activate only after scoped content is visible'); },
     // Actual map lifecycle is covered separately by map_integration_185.
     syncFamilyMapReadiness() {}, resumeFamilyBaseMap() {},
+    // Voice playback is tested with the real implementation in voice_ui; this
+    // isolated load harness only needs the identity-invalidation collaborators.
+    stopCookingSpeech() {}, stopRoxyDeviceSpeech() {}, resetRoxyVoiceContext() {},
     redeemNexoInvitationFromUrl() {}, resumeFamilyLocationIfEnabled() {}, autoSyncGoogleCalendar() {}, loadPriceRecommendations() {},
     flushQueue: async () => {},
     dbGet: async key => { reads.push(key); if (options.read) return options.read(key, () => copy(db.get(key)), ctx); return copy(db.get(key)); },

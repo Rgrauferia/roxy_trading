@@ -34,6 +34,19 @@ MAX_PAGE_SIZE = 24
 MAX_OFFSET = 100_000
 _SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 _IMAGE_PATH = re.compile(r"/peppermint-cdn/myplate\.food-recipe-images/[a-z0-9][a-z0-9_-]*\.(?:jpg|jpeg|png|webp)\Z")
+_NUMBERED_SOURCE = re.compile(r"(?<!\S)(?:[1-9][0-9]{0,3}[.)]|\([1-9][0-9]{0,3}\))(?=[ \t]+\S)")
+_SENTENCE_END = re.compile(r"[.!?]+\s+(?=\S)")
+_SOURCE_ABBREVIATIONS = frozenset({
+    "approx", "c", "cf", "dr", "e.g", "etc", "f", "fig", "fl", "gal", "hr",
+    "hrs", "i.e", "in", "inc", "jr", "lb", "lbs", "min", "mins", "mr", "mrs",
+    "ms", "no", "nos", "oz", "pkg", "pkgs", "pt", "qt", "sec", "secs", "sr",
+    "st", "t", "tb", "tbs", "tbsp", "tbspn", "temp", "tsp", "tspn", "vs",
+})
+_SHORT_SENTENCE_WORDS = frozenset({
+    "add", "air", "bun", "cup", "cut", "dip", "dry", "eat", "egg", "fat", "ham",
+    "hot", "ice", "jam", "lid", "low", "mix", "nut", "oil", "pan", "pea", "pie",
+    "pot", "raw", "red", "rub", "tin", "top", "wet",
+})
 
 
 class MyPlateRecipeError(RuntimeError):
@@ -144,6 +157,129 @@ def _summary(raw: Any) -> dict[str, Any]:
     }
 
 
+def _literal_parts(text: str, starts: list[int]) -> list[str]:
+    """Slice only; whitespace and the source's numbering belong to the source."""
+    positions = [0, *starts, len(text)]
+    return [text[left:right] for left, right in zip(positions, positions[1:])]
+
+
+def _numbered_source_parts(text: str) -> list[str] | None:
+    markers = list(_NUMBERED_SOURCE.finditer(text))
+    if len(markers) < 2 or text[:markers[0].start()].strip():
+        return None
+    numbers = [int(re.sub(r"\D", "", marker.group())) for marker in markers]
+    styles = {(marker.group().startswith("("), marker.group()[-1]) for marker in markers}
+    if numbers != list(range(1, len(markers) + 1)) or len(styles) != 1:
+        return None
+    # An empty numbered item is not a dependable reading boundary.
+    ends = [marker.start() for marker in markers[1:]] + [len(text)]
+    if any(not text[marker.end():end].strip() for marker, end in zip(markers, ends)):
+        return None
+    return _literal_parts(text, [marker.start() for marker in markers[1:]])
+
+
+def _source_paragraphs(text: str) -> list[str]:
+    starts = []
+    offset = 0
+    blank_seen = False
+    content_seen = False
+    for line in text.splitlines(keepends=True):
+        if line.strip():
+            if blank_seen and content_seen:
+                starts.append(offset)
+            content_seen = True
+            blank_seen = False
+        else:
+            blank_seen = True
+        offset += len(line)
+    return _literal_parts(text, starts)
+
+
+def _source_sentences(paragraph: str) -> list[str]:
+    """Conservative English reading boundaries, never culinary instructions.
+
+    Numbering, headings, lists, quotations and uncertain punctuation leave
+    the paragraph together. Balanced asides stay intact. Known cooking
+    abbreviations, initials and decimals never create a boundary. This does not
+    claim linguistic or cooking-step analysis; the complete source is retained.
+    """
+    if (_NUMBERED_SOURCE.search(paragraph)
+            or re.search(r"(?:^|[\r\n])[ \t]*[-*•]", paragraph)
+            or any(mark in paragraph for mark in ('"', "“", "”", "…"))
+            or re.search(r"(?<!\w)['‘’]|['‘’](?!\w)", paragraph)):
+        return [paragraph]
+    # Avoid separating text within asides or malformed source grouping.
+    stack = []
+    inside = []
+    pairs = {")": "(", "]": "[", "}": "{"}
+    for char in paragraph:
+        inside.append(bool(stack))
+        if char in "([{":
+            stack.append(char)
+        elif char in ")]}":
+            if not stack or stack.pop() != pairs[char]:
+                return [paragraph]
+    if stack:
+        return [paragraph]
+    starts = []
+    for end in re.finditer(r"[.!?]+[)\]}]*\s+(?=\S)", paragraph):
+        ending = end.group().rstrip()
+        if inside[end.start()] and not (ending[-1:] in {")", "]", "}"} and not inside[end.end()]):
+            continue
+        punctuation = ending.rstrip(")]}")
+        if punctuation not in {".", "!", "?"}:
+            return [paragraph]
+        if punctuation == ".":
+            # A bounded suffix keeps repeated-sentence sources linear in size.
+            token = re.search(r"([A-Za-z][A-Za-z.]*)$", paragraph[max(0, end.start() - 64):end.start()])
+            word = token.group(1) if token else ""
+            if word and (word.lower() in _SOURCE_ABBREVIATIONS or len(word) == 1 or "." in word):
+                continue
+            # A spaced decimal, numeric label, or unknown short abbreviation is
+            # ambiguous. Keep the paragraph instead of guessing its structure.
+            if (end.start() and paragraph[end.start() - 1].isdigit()) or (
+                    word and len(word) <= 3 and word.lower() not in _SHORT_SENTENCE_WORDS):
+                return [paragraph]
+        # An aside following a sentence remains attached to that sentence;
+        # a boundary after its balanced close is safe for a reading segment.
+        if paragraph[end.end()] in "([{":
+            continue
+        if not paragraph[end.end()].isupper():
+            return [paragraph]
+        starts.append(end.end())
+    # A colon may introduce a heading/list; an unmatched trailing fragment can
+    # be a caption. Neither is enough evidence for sentence-level navigation.
+    if starts and (":" in paragraph or paragraph.rstrip().rstrip(")]}")[-1:] not in {".", "!", "?"}):
+        return [paragraph]
+    return _literal_parts(paragraph, starts)
+
+
+def _source_steps(directions: str) -> tuple[list[str], str]:
+    """Return lossless reading segments, not reviewed or generated cook steps.
+
+    Concatenating every returned string reconstructs ``directions`` exactly,
+    including CRLF, indentation, repeated sentences and source numbering. The
+    method describes presentation only; callers must keep all recipe gates.
+    """
+    numbered = _numbered_source_parts(directions)
+    if numbered is not None:
+        parts, method = numbered, "numbered"
+    else:
+        paragraphs = _source_paragraphs(directions)
+        parts = []
+        sentence_split = False
+        for paragraph in paragraphs:
+            sentences = _source_sentences(paragraph)
+            sentence_split = sentence_split or len(sentences) > 1
+            parts.extend(sentences)
+        method = ("mixed" if sentence_split and len(paragraphs) > 1 else
+                  "sentences" if sentence_split else
+                  "paragraphs" if len(paragraphs) > 1 else "whole_text")
+    if not parts or any(not part.strip() for part in parts) or "".join(parts) != directions:
+        return [directions], "whole_text"
+    return parts, method
+
+
 def _detail(raw: Any, requested_slug: str) -> dict[str, Any]:
     result = _summary(raw)
     if result["slug"] != requested_slug:
@@ -162,10 +298,14 @@ def _detail(raw: Any, requested_slug: str) -> dict[str, Any]:
         normalized.append({"text": _text(item.get("text"), 4096, required=True),
                            "note": _text(note, 4096) if note is not None else None})
     original_source = raw.get("source_url")
+    directions = _text(raw.get("directions"), 80_000, required=True)
+    source_steps, source_steps_method = _source_steps(directions)
     result.update({
         "ingredients": normalized,
-        # A paragraph is not a numbered sequence; callers must not fabricate one.
-        "directions": _text(raw.get("directions"), 80_000, required=True),
+        "directions": directions,
+        "source_steps": source_steps,
+        "source_steps_language": "en",
+        "source_steps_method": source_steps_method,
         "yield": _text(raw.get("yield"), 1000, required=True),
         "serving_size": _text(raw.get("serving_size"), 1000),
         "notes": _text(raw.get("notes"), 16_000),

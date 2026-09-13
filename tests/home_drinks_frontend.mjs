@@ -5,6 +5,7 @@ import test from 'node:test';
 
 // Synthetic contracts only. These fixtures are not beverage recipes or editorial evidence.
 const code = fs.readFileSync(new URL('../assets/roxy_home_drinks.js', import.meta.url), 'utf8');
+const guideCode = fs.readFileSync(new URL('../assets/roxy_recipe_guide.js', import.meta.url), 'utf8');
 const revision = 'f446f0e9356b9b43155d207b4f7c5214d9da91ab';
 const categories = ['coffee_tea', 'juice', 'smoothie', 'mocktail', 'cocktail'];
 const bases = ['gin', 'vodka', 'rum', 'agave', 'whisky', 'wine', 'other'];
@@ -35,8 +36,8 @@ const all = (el, tag) => descendants(el).filter(child => child.tagName === tag.t
 const byClass = (el, name) => descendants(el).filter(child => String(child.className || '').split(/\s+/).includes(name));
 const button = (el, text) => all(el, 'button').find(child => child.textContent === text);
 const category = (el, key) => byClass(el, 'drinks-categories')[0].children[categories.indexOf(key) + 1];
-function harness({voice = true} = {}) {
-  let activeElement, now = 0, timerId = 0; const timers = new Map(), listeners = {}, speechCalls = [], storageWrites = [];
+function harness({voice = true, guide = false} = {}) {
+  let activeElement, now = 0, timerId = 0; const timers = new Map(), listeners = {}, speechCalls = [], storageWrites = [], guideMounts = [];
   class Element {
     constructor(tag) { this.tagName = tag.toUpperCase(); this.children = []; this._text = ''; this.listeners = {}; this.hidden = false; this.value = ''; this.parent = null; }
     get textContent() { return this._text + this.children.map(child => child.textContent).join(''); }
@@ -60,18 +61,27 @@ function harness({voice = true} = {}) {
   const document = {hidden:false, createElement:tag => new Element(tag), body:new Element('body'),
     addEventListener(name, fn) { (listeners[name] ||= []).push(fn); }, removeEventListener(name, fn) { listeners[name] = (listeners[name] || []).filter(value => value !== fn); }};
   document.body.root = true;
-  const speechSynthesis = {speaking:false, pending:false, speak(utterance) { this.speaking = true; speechCalls.push({type:'speak', utterance}); }, cancel() { this.speaking = false; speechCalls.push({type:'cancel'}); }};
+  const speechSynthesis = {speaking:false, pending:false, getVoices:() => [{lang:'es', localService:true}, {lang:'en', localService:true}],
+    speak(utterance) { this.speaking = true; speechCalls.push({type:'speak', utterance}); }, cancel() { this.speaking = false; speechCalls.push({type:'cancel'}); }};
   const window = voice ? {speechSynthesis, SpeechSynthesisUtterance:class { constructor(text) { this.text = text; } }} : {};
   const forbidden = value => { storageWrites.push(value); throw new Error(`Unexpected ${value}`); };
   const sandbox = {window, document, AbortController, URL,
     setTimeout(fn, delay = 0) { const id = ++timerId; timers.set(id, {fn, due:now + delay}); return id; }, clearTimeout(id) { timers.delete(id); },
     fetch() { forbidden('fetch'); }, localStorage:{setItem() { forbidden('localStorage'); }, getItem() { forbidden('localStorage read'); }},
     sessionStorage:{setItem() { forbidden('sessionStorage'); }, getItem() { forbidden('sessionStorage read'); }}, indexedDB:{open() { forbidden('indexedDB'); }}};
+  if (guide) {
+    vm.runInNewContext(guideCode, sandbox);
+    const mount = window.RoxyRecipeGuide.mount;
+    window.RoxyRecipeGuide = {mount:(el, options) => {
+      const controller = mount(el, options), record = {options, disposed:false}; guideMounts.push(record);
+      return {...controller, dispose() { record.disposed = true; controller.dispose(); }};
+    }};
+  }
   vm.runInNewContext(code, sandbox);
   const container = () => { const el = new Element('div'); document.body.append(el); return el; };
   const tick = async ms => { const until = now + ms; for (;;) { const entry = [...timers].filter(([, value]) => value.due <= until).sort((a,b) => a[1].due - b[1].due)[0]; if (!entry) break; const [id, value] = entry; timers.delete(id); now = value.due; value.fn(); await settle(); } now = until; await settle(); };
   const visibility = async value => { document.hidden = value; for (const fn of [...(listeners.visibilitychange || [])]) fn(); await settle(); };
-  return {...window.RoxyDrinks, container, tick, visibility, speechCalls, speechSynthesis, storageWrites, get activeElement() { return activeElement; }};
+  return {...window.RoxyDrinks, container, tick, visibility, speechCalls, speechSynthesis, storageWrites, guideMounts, get activeElement() { return activeElement; }};
 }
 function server(data = payload(), intercept) {
   const calls = [], fullRows = fixtureBodies.get(data) || rows;
@@ -88,6 +98,68 @@ async function start(h, panel, mock, options = {}) {
   h.render(panel, {user:'household/a', identity:'member-a', api:mock.api, ...options}); await button(panel, 'Explorar bebidas').click();
 }
 const dialog = panel => all(panel, 'dialog')[0];
+
+test('Roxy guide receives literal bilingual drinks, preserves the reading position and requires explicit listening', async () => {
+  const h = harness({guide:true}), panel = h.container(), mock = server(payload(rows.slice(0, 1)));
+  await start(h, panel, mock); await button(panel, 'Preparar bebida').click();
+  assert.equal(h.guideMounts.length, 0); assert.equal(h.speechCalls.length, 0);
+  assert.equal(button(panel, 'Leer paso a paso'), undefined);
+  await button(panel, 'Paso a paso con Roxy').click();
+  const first = h.guideMounts[0];
+  assert.equal(first.options.title, rows[0].title_es); assert.equal(first.options.language, 'es');
+  assert.deepEqual(first.options.steps, rows[0].steps_es); assert.deepEqual(first.options.ingredients, rows[0].ingredients_es);
+  assert.equal(first.options.isCurrent(), true); assert.equal(first.options.initialStep, 0);
+  assert.equal(byClass(panel, 'recipe-guide-step')[0].textContent, rows[0].steps_es[0]);
+  assert.equal(byClass(panel, 'drinks-recipe-body')[0].hidden, true);
+  await button(panel, 'Listo, siguiente').click(); assert.equal(h.speechCalls.length, 0);
+  await button(panel, 'Ver original en inglés').click();
+  assert.equal(first.disposed, true); assert.equal(h.guideMounts.length, 2);
+  const original = h.guideMounts[1];
+  assert.equal(original.options.initialStep, 1); assert.equal(original.options.language, 'en'); assert.equal(original.options.title, rows[0].title);
+  assert.deepEqual(original.options.steps, rows[0].steps); assert.deepEqual(original.options.ingredients, rows[0].ingredients);
+  assert.equal(byClass(panel, 'recipe-guide-step')[0].textContent, rows[0].steps[1]); assert.equal(h.speechCalls.length, 0);
+  await button(panel, 'Escuchar este paso').click(); assert.equal(h.speechCalls.at(-1).utterance.text, rows[0].steps[1]); assert.equal(h.speechCalls.at(-1).utterance.lang, 'en');
+  await button(panel, 'Ver traducción al español').click(); assert.equal(original.disposed, true); assert.equal(h.speechCalls.at(-1).type, 'cancel');
+  assert.equal(h.speechCalls.filter(call => call.type === 'speak').length, 1, 'changing language does not automatically enable another voice');
+  assert.equal(h.guideMounts[2].options.initialStep, 1); assert.equal(byClass(panel, 'recipe-guide-step')[0].textContent, rows[0].steps_es[1]);
+  await button(panel, 'Volver a la receta').click(); assert.equal(byClass(panel, 'recipe-guide').length, 0);
+  assert.equal(byClass(panel, 'drinks-recipe-body')[0].hidden, false); assert.equal(button(panel, 'Paso a paso con Roxy').hidden, false);
+  assert.equal(mock.calls.length, 2); assert.deepEqual(h.storageWrites, []);
+});
+
+for (const mode of ['dialog', 'native_close', 'inactive', 'hidden', 'identity', 'document', 'scope', 'recipe', 'ancestor']) test(`Roxy drink guide disposes owned speech on ${mode}`, async () => {
+  const h = harness({guide:true}), panel = h.container(), mock = server(payload(rows.slice(0, 2)));
+  const options = {user:'household/a', identity:'member-a', api:mock.api, isCurrent:() => true};
+  await start(h, panel, mock, options); const openers = all(panel, 'button').filter(el => el.textContent === 'Preparar bebida');
+  await openers[0].click(); await button(panel, 'Paso a paso con Roxy').click(); await button(panel, 'Escuchar este paso').click();
+  const mount = h.guideMounts[0], oldNext = button(panel, 'Listo, siguiente');
+  if (mode === 'dialog') await button(panel, 'Cerrar bebida').click();
+  if (mode === 'native_close') { dialog(panel).close(); await dialog(panel).emit('close'); }
+  if (mode === 'inactive') h.setActive(panel, false);
+  if (mode === 'hidden') h.render(panel, {...options, hidden:true});
+  if (mode === 'identity') h.render(panel, {...options, identity:'member-b'});
+  if (mode === 'document') await h.visibility(true);
+  if (mode === 'scope') h.render(panel, {...options, isCurrent:() => false});
+  if (mode === 'recipe') await openers[1].click();
+  if (mode === 'ancestor') { const outer = h.container(); outer.append(panel); outer.hidden = true; h.setActive(panel, true); }
+  assert.equal(mount.disposed, true); assert.equal(mount.options.isCurrent(), false);
+  assert.equal(h.speechCalls.at(-1).type, 'cancel'); assert.equal(byClass(panel, 'recipe-guide').length, 0);
+  await oldNext.click(); await h.tick(3000); assert.equal(h.speechCalls.filter(call => call.type === 'speak').length, 1);
+});
+
+test('Roxy drink guide keeps alcohol and allergy warnings visible while source commentary stays in credits', async () => {
+  const row = {...rows[4], notes_es:['Nota secundaria de la fuente.', 'Comprueba alergias antes de preparar.']};
+  const h = harness({guide:true, voice:false}), panel = h.container(), mock = server(payload([row]));
+  await start(h, panel, mock); await category(panel, 'cocktail').click();
+  const check = all(dialog(panel), 'input')[0]; check.checked = true; await check.emit('change'); await button(panel, 'Ver cócteles con alcohol').click();
+  await button(panel, 'Preparar bebida').click(); await button(panel, 'Paso a paso con Roxy').click();
+  assert.equal(byClass(panel, 'drinks-alcohol-note')[0].parent.tagName, 'DIV');
+  const notes = byClass(dialog(panel), 'drinks-editorial-notes');
+  assert.equal(notes.find(el => el.textContent.includes('alergias')).parent.tagName, 'DIV');
+  assert.equal(notes.find(el => el.textContent.includes('secundaria')).parent.tagName, 'DETAILS');
+  assert.equal(button(panel, 'Escuchar este paso').disabled, true); assert.equal(h.speechCalls.length, 0);
+  assert.equal(byClass(panel, 'recipe-guide-step')[0].textContent, row.steps_es[0]);
+});
 
 test('bounded local gallery loads explicitly once and defaults to nonalcoholic photos and Spanish titles', async () => {
   const h = harness(), panel = h.container(), mock = server(); h.render(panel, {user:'household/a', api:mock.api}); await h.tick(60000); assert.equal(mock.calls.length, 0);

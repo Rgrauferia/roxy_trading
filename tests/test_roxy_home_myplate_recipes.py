@@ -76,7 +76,7 @@ def test_search_normalized_under_demand_and_no_profile_parameters():
     assert response.closed
 
 
-def test_source_text_quantities_and_notes_not_rewritten_or_split():
+def test_source_text_quantities_and_notes_not_rewritten_by_reading_segments():
     original = detail()
     p, calls, response = provider(original)
     result = p.detail("fixture-dish")["recipe"]
@@ -84,10 +84,155 @@ def test_source_text_quantities_and_notes_not_rewritten_or_split():
         assert result[field] == original[field]
     assert result["language"] == "en" and result["category"] == ""
     assert "steps" not in result and "nutrition" not in result
+    assert result["source_steps"] == ["First original paragraph.\n\n",
+                                     "Second original paragraph: preserve 1/2 exactly."]
+    assert "".join(result["source_steps"]) == original["directions"]
+    assert result["source_steps_language"] == "en"
+    assert result["source_steps_method"] == "paragraphs"
+    assert result["editorial_status"] == "external_original_not_individually_reviewed"
     assert result["can_cook"] is False and result["can_add_to_shopping"] is False
     assert result["source_url"] == original["recipe_url"]
     assert result["original_source_url"] == original["source_url"]
     assert len(calls) == 1 and response.closed
+
+
+@pytest.mark.parametrize("text,expected,method", [
+    ("Mix thoroughly. Serve warm.", ["Mix thoroughly. ", "Serve warm."], "sentences"),
+    ("Stir. Stir. Serve.", ["Stir. ", "Stir. ", "Serve."], "sentences"),
+    ("  Stir!\tServe?  ", ["  Stir!\t", "Serve?  "], "sentences"),
+    ("Mix 1.5 cups with 0.25 cup. Stir again.",
+     ["Mix 1.5 cups with 0.25 cup. ", "Stir again."], "sentences"),
+    ("Add .5 cup and 1/2 tsp. salt. Stir again.",
+     ["Add .5 cup and 1/2 tsp. salt. ", "Stir again."], "sentences"),
+    ("Use 3 fl. oz. water. Stir again.",
+     ["Use 3 fl. oz. water. ", "Stir again."], "sentences"),
+    ("Add fruit, e.g. Apples, and mix. Serve warm.",
+     ["Add fruit, e.g. Apples, and mix. ", "Serve warm."], "sentences"),
+    ("Use U.S. measures. Stir again.", ["Use U.S. measures. ", "Stir again."], "sentences"),
+    ("Follow Dr. Cook and A. Baker. Stir again.",
+     ["Follow Dr. Cook and A. Baker. ", "Stir again."], "sentences"),
+    ("Don't overmix. Serve warm.", ["Don't overmix. ", "Serve warm."], "sentences"),
+    ("Don’t overmix. Serve warm.", ["Don’t overmix. ", "Serve warm."], "sentences"),
+    ("Mix (until smooth). Serve warm.", ["Mix (until smooth). ", "Serve warm."], "sentences"),
+    ("Mix (do not stop. Keep stirring). Serve warm.",
+     ["Mix (do not stop. Keep stirring). ", "Serve warm."], "sentences"),
+    ("Stir until moist. (Small lumps are okay! Do not overmix.) Pour the batter. Turn when ready.",
+     ["Stir until moist. (Small lumps are okay! Do not overmix.) ", "Pour the batter. ", "Turn when ready."], "sentences"),
+    ("Mix carefully. (Stir [until ready. Do not rush.]) Pour slowly. Serve warm.",
+     ["Mix carefully. (Stir [until ready. Do not rush.]) ", "Pour slowly. ", "Serve warm."], "sentences"),
+    ("Mix.\n\nPour.", ["Mix.\n\n", "Pour."], "paragraphs"),
+    ("Mix.\r\n \t\r\n  Pour.", ["Mix.\r\n \t\r\n", "  Pour."], "paragraphs"),
+    ("\n\t\nMix.\r\rPour.\r\r", ["\n\t\nMix.\r\r", "Pour.\r\r"], "paragraphs"),
+    ("Mix.\u2028\u2028Pour.", ["Mix.\u2028\u2028", "Pour."], "paragraphs"),
+    ("Mix. Serve.\n\nChill.", ["Mix. ", "Serve.\n\n", "Chill."], "mixed"),
+    ("1. Mix 1.5 cups. Stir again. 2. Serve warm.",
+     ["1. Mix 1.5 cups. Stir again. ", "2. Serve warm."], "numbered"),
+    ("\n  1) Mix.\r\n    Keep stirring.\r\n  2) Serve.\r\n",
+     ["\n  1) Mix.\r\n    Keep stirring.\r\n  ", "2) Serve.\r\n"], "numbered"),
+    ("(1) Mix.\n\nKeep stirring.\n\n(2) Serve.",
+     ["(1) Mix.\n\nKeep stirring.\n\n", "(2) Serve."], "numbered"),
+    ("Mix until combined", ["Mix until combined"], "whole_text"),
+])
+def test_source_reader_boundaries_are_literal_complete_and_deterministic(text, expected, method):
+    raw = {**detail(), "directions": text}
+    result = recipes._detail(raw, "fixture-dish")
+    assert result["directions"] == text
+    assert result["source_steps"] == expected
+    assert result["source_steps_method"] == method
+    assert "".join(result["source_steps"]) == text
+    assert recipes._detail(raw, "fixture-dish") == result
+    assert result["source_steps_language"] == result["language"] == "en"
+    assert result["can_cook"] is False and result["can_add_to_shopping"] is False
+    assert result["editorial_status"] == "external_original_not_individually_reviewed"
+    assert "steps" not in result
+
+
+@pytest.mark.parametrize("text", [
+    "Mix ... wait. Serve warm.",
+    "Mix… wait. Serve warm.",
+    "Mix!? Serve warm.",
+    "Mix. serve warm.",
+    "Mix. Unfinished trailing fragment",
+    "For the sauce: Mix. Serve warm.",
+    'Say "Mix. Serve." before starting. Stir again.',
+    "Say ‘Mix. Serve.’ before starting. Stir again.",
+    "Say 'Mix. Serve.' before starting. Stir again.",
+    "Mix (until smooth. Serve warm.",
+    "Mix until smooth). Serve warm.",
+    "Mix [until smooth). Serve warm.",
+    "Mix {until smooth. Serve warm.",
+    "Mix in a 2. 5 cup container. Serve warm.",
+    "Use abc. Water follows. Serve warm.",
+    "1. Mix. 3. Serve warm.",
+    "1. Mix. 1. Serve warm.",
+    "2. Mix. 3. Serve warm.",
+    "1. Mix. 2) Serve warm.",
+    "1. Mix. (2) Serve warm.",
+    "1. Mix and refer to step 2. Stir. 2. Serve warm.",
+    "1.\n2. Serve warm.",
+    "Introduction. 1. Mix. 2. Serve warm.",
+    "• Mix.\n• Serve warm.",
+    "- Mix.\n- Serve warm.",
+    "* Mix.\n* Serve warm.",
+])
+def test_uncertain_source_structure_keeps_the_entire_paragraph(text):
+    parts, method = recipes._source_steps(text)
+    assert parts == [text]
+    assert method == "whole_text"
+
+
+@pytest.mark.parametrize("abbreviation", sorted(recipes._SOURCE_ABBREVIATIONS))
+def test_all_documented_abbreviations_are_protected_in_context(abbreviation):
+    text = f"Use {abbreviation}. Water follows source wording. Stir again."
+    parts, method = recipes._source_steps(text)
+    assert parts[0] == f"Use {abbreviation}. Water follows source wording. "
+    assert parts[1:] == ["Stir again."]
+    assert "".join(parts) == text and method == "sentences"
+
+
+def test_uncertain_paragraph_does_not_disable_reliable_neighboring_paragraph():
+    source = 'Mix "very well. Do not stop."\n\nPour slowly. Serve warm.'
+    parts, method = recipes._source_steps(source)
+    assert parts == ['Mix "very well. Do not stop."\n\n', 'Pour slowly. ', 'Serve warm.']
+    assert method == "mixed" and "".join(parts) == source
+
+
+def test_source_reader_never_uses_provider_supplied_generated_steps_or_gate_flags():
+    raw = {**detail(), "steps": ["Invented step"], "source_steps": ["Invented reading"],
+           "can_cook": True, "can_add_to_shopping": True, "source_steps_language": "es",
+           "editorial_status": "reviewed", "source_steps_method": "translated"}
+    result = recipes._detail(raw, "fixture-dish")
+    assert "".join(result["source_steps"]) == raw["directions"]
+    assert result["source_steps_language"] == "en"
+    assert result["editorial_status"] == "external_original_not_individually_reviewed"
+    assert result["can_cook"] is False and result["can_add_to_shopping"] is False
+    assert "steps" not in result
+
+
+def test_full_source_limit_and_repeated_sentences_have_no_cutoff_or_deduplication():
+    text = "Stir. " * 13_332 + "Pour.   "
+    assert len(text) == 80_000
+    result = recipes._detail({**detail(), "directions": text}, "fixture-dish")
+    assert len(result["source_steps"]) == 13_333
+    assert "".join(result["source_steps"]) == text
+    assert result["source_steps"].count("Stir. ") == 13_332
+
+
+def test_numbered_reader_preserves_ten_and_higher_numbers_and_repeated_content():
+    steps = [f"{number}. Stir.\r\n" for number in range(1, 121)]
+    parts, method = recipes._source_steps("".join(steps))
+    assert parts == steps and method == "numbered"
+
+
+def test_search_does_not_include_or_compute_detail_reading_segments(monkeypatch):
+    def fail(_):
+        raise AssertionError("Summary must not segment or fetch recipe instructions")
+    monkeypatch.setattr(recipes, "_source_steps", fail)
+    p, calls, _ = provider(search_payload())
+    result = p.search()
+    assert "source_steps" not in result["recipes"][0]
+    assert "directions" not in result["recipes"][0]
+    assert len(calls) == 1
 
 
 @pytest.mark.parametrize("category", ["Main dish", "Dessert", "Beverage", "Salad", "Soup",

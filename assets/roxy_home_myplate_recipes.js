@@ -99,29 +99,34 @@
     const prev = button('Página anterior', () => { if (state.page > 1) void load(state.page - 1); });
     const next = button('Página siguiente', () => { if (state.canNext) void load(state.page + 1); });
     pagination.append(prev, pageLabel, next);
+    const topPagination = node('nav', null, 'myplate-pagination myplate-pagination-top'); topPagination.setAttribute('aria-label', 'Cambiar página de recetas'); topPagination.hidden = true;
+    const topLabel = node('span');
+    const topPrev = button('Anterior', () => { if (state.page > 1) void load(state.page - 1); });
+    const topNext = button('Siguiente', () => { if (state.canNext) void load(state.page + 1); });
+    topPagination.append(topPrev, topLabel, topNext);
     const baseCategory = () => state.group === 'food' ? 'Main dish' : state.group === 'dessert' ? 'Dessert' : '';
     const clear = button('Ver todas', () => { search.value = ''; state.query = ''; state.category = baseCategory(); void load(1); }); clear.hidden = true;
-    browser.append(form, categories, filterHint, grid, clear, pagination);
+    browser.append(form, categories, filterHint, topPagination, grid, clear, pagination);
     const detail = node('section', null, 'myplate-detail'); detail.hidden = true;
     const back = button('Volver a las recetas', () => closeDetail());
     const detailBody = node('div', null, 'myplate-detail-body'); detail.append(back, detailBody);
     const credit = node('details', null, 'myplate-credits'); credit.append(node('summary', 'Fuente, idioma y uso de estas recetas'));
     const creditText = node('p', attribution); creditText.lang = 'en';
-    credit.append(creditText, node('p', 'MyPlate.food es un archivo independiente, no el sitio oficial del USDA. El catálogo se consulta en directo; no se descarga ni se guarda completo en Roxy.'),
+    credit.append(creditText, quota, node('p', 'MyPlate.food es un archivo independiente, no el sitio oficial del USDA. El catálogo se consulta en directo; no se descarga ni se guarda completo en Roxy.'),
       node('p', 'Conservamos el texto original, sin completar pasos con IA ni adaptar cantidades o alergias. La colección no equivale a recetas ensayadas individualmente por Roxy. Algunas imágenes de la fuente se han ampliado con IA.'),
       node('p', 'Hasta 100 fichas completas al día en esta conexión compartida de Roxy. La fuente permite hasta 20 consultas por minuto. Al alcanzar el cupo puedes consultar la receta directamente en MyPlate.food; la disponibilidad puede variar.'));
     sourceLink(credit, 'Conocer MyPlate.food', 'https://myplate.food/about');
-    root.append(heading, language, quota, start, status, retry, browser, detail, credit); container.append(root);
+    root.append(heading, language, start, status, retry, browser, detail, credit); container.append(root);
 
-    const current = () => renders.get(container) === state && state.active && !container.hidden && container.isConnected && !document.hidden && state.isCurrent();
-    const controls = () => [explore, submit, search, prev, next, clear, ...Array.from(categories.children)];
+    const current = () => renders.get(container) === state && state.active && !container.hidden && !container.closest?.('[hidden]') && container.isConnected && !document.hidden && state.isCurrent();
+    const controls = () => [explore, submit, search, prev, next, topPrev, topNext, clear, ...Array.from(categories.children)];
     const setBusy = value => {
       state.busy = value; root.setAttribute('aria-busy', String(value));
       controls().forEach(control => { control.disabled = value; });
-      if (!value) { prev.disabled = state.page <= 1; next.disabled = !state.canNext; }
+      if (!value) { prev.disabled = topPrev.disabled = state.page <= 1; next.disabled = topNext.disabled = !state.canNext; }
     };
     const stop = () => { state.generation++; state.controller?.abort(); state.controller = null; setBusy(false); };
-    const purgeDetail = () => { state.selected = null; detailBody.replaceChildren(); detail.hidden = true; };
+    const purgeDetail = () => { state.guide?.dispose(); state.guide = null; state.selected = null; detailBody.replaceChildren(); detail.hidden = true; };
     const closeDetail = () => {
       stop(); purgeDetail(); retry.hidden = true; status.textContent = ''; browser.hidden = !state.loaded;
       start.hidden = state.loaded; if (state.loaded) search.focus({preventScroll:true});
@@ -186,7 +191,7 @@
       if (!current() || state.busy) return;
       stop(); purgeDetail(); state.page = page; state.loaded = false; state.initialLoadRequested = false; state.loadAttempted = true;
       retry.hidden = true; start.hidden = true; categoryButtons();
-      browser.hidden = false; grid.replaceChildren(); clear.hidden = true; pagination.hidden = true;
+      browser.hidden = false; grid.replaceChildren(); clear.hidden = true; pagination.hidden = topPagination.hidden = true;
       const generation = state.generation, controller = new AbortController(); state.controller = controller; setBusy(true);
       status.textContent = 'Consultando las recetas de la fuente…';
       const offset = (page - 1) * 24;
@@ -202,12 +207,13 @@
         grid.replaceChildren(...data.recipes.map(card));
         if (Array.isArray(data.category_options) && data.category_options.length <= 30 && data.category_options.every(value =>
           typeof value === 'string' && value.trim())) { state.categoryOptions = data.category_options; categoryButtons(); }
-        total.textContent = `${data.total.toLocaleString('es')} recetas${state.query || state.category ? ' en esta selección' : ' en el catálogo'} · consulta en directo`;
-        status.textContent = data.recipes.length ? `${offset + 1}–${offset + data.recipes.length} de ${data.total} · ingredientes y preparación al abrir cada ficha.` :
+        total.textContent = `${data.total.toLocaleString('es')} recetas${state.query || state.category ? ' en esta selección' : ' en el catálogo'}`;
+        status.textContent = data.recipes.length ? `${offset + 1}–${offset + data.recipes.length} de ${data.total}` :
           'No encontramos recetas con estos filtros. Prueba otra palabra en inglés o vuelve a ver todas.';
         clear.hidden = !state.query && state.category === baseCategory();
         pageLabel.textContent = `Página ${page} de ${Math.max(1, state.totalPages)}`;
-        pagination.hidden = !data.recipes.length || state.totalPages <= 1;
+        topLabel.textContent = pageLabel.textContent;
+        pagination.hidden = topPagination.hidden = !data.recipes.length || state.totalPages <= 1;
         if (focus) status.focus({preventScroll:false});
       } catch (error) {
         if (!current() || generation !== state.generation || (controller.signal.aborted && error?.name !== 'TimeoutError')) return;
@@ -224,7 +230,7 @@
         const data = await request(`/v1/home-food/${encodeURIComponent(user)}/myplate-recipes/${encodeURIComponent(summary.slug)}?requested=true`, controller);
         if (!current() || generation !== state.generation || controller.signal.aborted) return;
         if (!validDetail(data.recipe, summary.slug)) throw new Error('invalid_recipe');
-        showRecipe(data.recipe, summary); status.textContent = 'Ficha original cargada. No se han generado ni sustituido instrucciones.';
+        showRecipe(data.recipe, summary); status.textContent = '';
       } catch (error) {
         if (!current() || generation !== state.generation || (controller.signal.aborted && error?.name !== 'TimeoutError')) return;
         status.textContent = errorText(error, true); retry.hidden = false;
@@ -234,28 +240,45 @@
     function showRecipe(recipe, summary) {
       detailBody.replaceChildren();
       const title = node('h3', recipe.title, 'myplate-detail-title'); title.lang = 'en'; title.tabIndex = -1;
-      detailBody.append(title, node('p', 'Texto original en inglés · sin adaptar ingredientes ni cantidades', 'myplate-note'), photo(recipe, true));
-      if (recipe.description) { const description = node('p', recipe.description); description.lang = 'en'; detailBody.append(description); }
+      detailBody.append(title, node('p', 'Original en inglés · voz en inglés', 'myplate-note'), photo(recipe, true));
+      const recipeBody = node('div'); const guideHost = node('div');
+      const sourceSteps = Array.isArray(recipe.source_steps) && recipe.source_steps_language === 'en' &&
+        recipe.source_steps.every(step => typeof step === 'string' && step.trim()) && recipe.source_steps.join('') === recipe.directions ? recipe.source_steps : [recipe.directions];
+      const startGuide = button('Paso a paso con Roxy', () => {
+        if (!current() || detail.hidden || !window.RoxyRecipeGuide?.mount) return;
+        state.guide?.dispose(); recipeBody.hidden = true; startGuide.hidden = true;
+        const guide = window.RoxyRecipeGuide.mount(guideHost, {title:recipe.title, steps:sourceSteps,
+          ingredients:recipe.ingredients.map(item => item.note ? `${item.text} (${item.note})` : item.text),
+          language:'en', sourceLabel:'MyPlate.food · original en inglés',
+          isCurrent:() => current() && !detail.hidden && state.selected?.slug === recipe.slug,
+          onClose:() => { if (state.guide !== guide || !current() || detail.hidden || !startGuide.isConnected) return; state.guide = null; recipeBody.hidden = false; startGuide.hidden = false; startGuide.focus({preventScroll:true}); }});
+        state.guide = guide;
+      }, 'myplate-button myplate-primary');
+      if (window.RoxyRecipeGuide?.mount) detailBody.append(startGuide, guideHost);
+      detailBody.append(recipeBody);
       const amounts = node('div', null, 'myplate-amounts');
       if (recipe.yield) amounts.append(node('p', `Rendimiento de la fuente: ${recipe.yield}`));
       if (recipe.serving_size) amounts.append(node('p', `Porción de la fuente: ${recipe.serving_size}`));
-      if (amounts.children.length) detailBody.append(amounts);
-      detailBody.append(node('h4', 'Ingredients · ingredientes originales'));
+      if (amounts.children.length) recipeBody.append(amounts);
+      recipeBody.append(node('h4', 'Ingredientes'));
       const ingredients = node('ul', null, 'myplate-ingredients'); ingredients.lang = 'en';
       recipe.ingredients.forEach(item => {
         const li = node('li'); li.append(node('span', item.text));
         if (item.note) li.append(node('small', item.note)); ingredients.append(li);
       });
-      detailBody.append(ingredients, node('h4', 'Directions · preparación original'));
-      const directions = node('div', recipe.directions, 'myplate-directions'); directions.lang = 'en'; detailBody.append(directions);
-      if (recipe.notes) { const notes = node('p', recipe.notes, 'myplate-source-notes'); notes.lang = 'en'; detailBody.append(node('h4', 'Notes · notas de la fuente'), notes); }
-      if (recipe.contributor) detailBody.append(node('p', `Autor o colaborador de la fuente: ${recipe.contributor}`, 'myplate-note'));
+      recipeBody.append(ingredients, node('h4', 'Preparación'));
+      const directions = node('div', recipe.directions, 'myplate-directions'); directions.lang = 'en'; recipeBody.append(directions);
+      if (recipe.notes) { const notes = node('p', recipe.notes, 'myplate-source-notes'); notes.lang = 'en'; recipeBody.append(node('h4', 'Notas de la receta'), notes); }
+      const recipeCredits = node('details', null, 'myplate-credits'); recipeCredits.append(node('summary', 'Fuente y detalles'));
+      if (recipe.description) { const description = node('p', recipe.description); description.lang = 'en'; recipeCredits.append(description); }
+      if (recipe.contributor) recipeCredits.append(node('p', `Autor o colaborador: ${recipe.contributor}`, 'myplate-note'));
       const links = node('div', null, 'myplate-source-links');
       sourceLink(links, 'Ver receta en la fuente', recipe.source_url);
       sourceLink(links, 'Leer en español en la fuente', recipe.translation_urls?.es || summary.translation_urls?.es);
-      detailBody.append(links);
-      const originalCredit = node('p', attribution, 'myplate-note'); originalCredit.lang = 'en'; detailBody.append(originalCredit,
-        node('p', 'Revisa los ingredientes por alergias y consulta la preparación completa antes de empezar. Esta lectura no modifica tu plan de comidas ni tu lista de compras.', 'myplate-note'));
+      recipeCredits.append(links);
+      const originalCredit = node('p', attribution, 'myplate-note'); originalCredit.lang = 'en'; recipeCredits.append(originalCredit,
+        node('p', 'La guía conserva las instrucciones originales. No adapta cantidades ni modifica tu plan de comidas o lista de compras.', 'myplate-note'));
+      detailBody.append(node('p', 'Antes de empezar, revisa ingredientes, alergias y preparación completa.', 'myplate-note'), recipeCredits);
       title.focus({preventScroll:false});
     }
     form.addEventListener('submit', event => {
@@ -268,7 +291,7 @@
         stop(); purgeDetail(); grid.replaceChildren();
         state.group = nextGroup; state.category = baseCategory(); state.query = ''; search.value = '';
         state.page = 1; state.totalPages = 0; state.canNext = false; state.loaded = false; state.loadAttempted = false;
-        state.initialLoadRequested = true; status.textContent = ''; retry.hidden = true; pagination.hidden = true;
+        state.initialLoadRequested = true; status.textContent = ''; retry.hidden = true; pagination.hidden = topPagination.hidden = true;
         clear.hidden = true; browser.hidden = true; start.hidden = false; total.textContent = 'Catálogo en directo · MyPlate.food';
       }
       if (nextAutoLoad && !state.autoLoad && !state.loaded && !state.loadAttempted) state.initialLoadRequested = true;

@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '193';
+  const APP_VERSION = '194';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -521,7 +521,7 @@
     let requestedOwner=user,identity=collectionIdentity(),identityConfirmed=false;
     const isCurrent=()=>load.ticket===ticket&&user===requestedOwner&&collectionIdentity()===identity;
     const hasRenderedScope=()=>load.renderedScope?.owner===requestedOwner&&load.renderedScope?.identity===identity;
-    if(!hasRenderedScope())$('app').hidden=true;
+    if(!hasRenderedScope()){stopCookingSpeech();resetRoxyVoiceContext();$('app').hidden=true;}
     const emptyDesign=()=>({projects:[],generation_configured:false});
     const emptyPlants=()=>({plants:[],due_today:[],vacation:{},species:[],identification_configured:false});
     const emptyFamily=()=>({status:'UNAVAILABLE',members:[],places:[],alerts:[],capabilities:{}});
@@ -2633,7 +2633,7 @@
   function clipMatchesStep(clip,stepNumber,steps,index,totalClips){const mapped=(clip&&Array.isArray(clip.step_indices)?clip.step_indices:[]).map(value=>Number(value)+1).filter(Number.isFinite);return mapped.length?mapped.includes(stepNumber):clipStepNumber(clip,steps,index,totalClips)===stepNumber}
   function currentStepVideo(){return $('cookingVideo').querySelector('video[data-current-step="true"]')}
   function waitForMediaDuration(media){if(Number.isFinite(media.duration)&&media.duration>0)return Promise.resolve();return new Promise(resolve=>{let settled=false;const finish=()=>{if(settled)return;settled=true;clearTimeout(timer);resolve()};const timer=setTimeout(finish,2500);media.addEventListener('loadedmetadata',finish,{once:true});media.addEventListener('durationchange',finish,{once:true});if(typeof media.load==='function')media.load()})}
-  async function startSynchronizedStepVideo(audio){const media=currentStepVideo();if(!media){await audio.play();return}media.muted=true;media.currentTime=0;media.dataset.syncActive='true';await Promise.all([waitForMediaDuration(media),waitForMediaDuration(audio)]);const videoSeconds=Number(media.duration||0);const audioSeconds=Number(audio.duration||0);if(videoSeconds>0&&audioSeconds>0){const cycles=Math.max(1,Math.ceil(audioSeconds/videoSeconds));media.loop=cycles>1;media.playbackRate=Math.min(4,Math.max(.25,videoSeconds*cycles/audioSeconds))}else{media.loop=true;media.playbackRate=1}const audioStarted=audio.play();media.play().catch(()=>{});await audioStarted}
+  async function startSynchronizedStepVideo(audio,isCurrent=()=>true){const media=currentStepVideo();if(!isCurrent())return;if(!media){await audio.play();return}media.muted=true;media.currentTime=0;media.dataset.syncActive='true';await Promise.all([waitForMediaDuration(media),waitForMediaDuration(audio)]);if(!isCurrent())return;const videoSeconds=Number(media.duration||0);const audioSeconds=Number(audio.duration||0);if(videoSeconds>0&&audioSeconds>0){const cycles=Math.max(1,Math.ceil(audioSeconds/videoSeconds));media.loop=cycles>1;media.playbackRate=Math.min(4,Math.max(.25,videoSeconds*cycles/audioSeconds))}else{media.loop=true;media.playbackRate=1}const audioStarted=audio.play();media.play().catch(()=>{});await audioStarted}
   function stopSynchronizedStepVideo(finish=false){const media=currentStepVideo();if(!media)return;delete media.dataset.syncActive;media.loop=false;media.pause();media.playbackRate=1;if(finish&&Number.isFinite(media.duration)&&media.duration>0){try{media.currentTime=Math.max(0,media.duration-.04)}catch(_error){}}}
   function renderCookingVideo(status,video){
     const root=$('cookingVideo');const visual=$('cookingImage').parentElement;if(visual)visual.hidden=false;root.replaceChildren();root.setAttribute('aria-live','polite');clearTimeout(cookingVideoPoll);cookingVideoPoll=null;
@@ -2659,6 +2659,7 @@
     catch(_error){renderCookingVideo('',null);}
   }
   function showCooking(data){
+    if(currentCooking?.session?.id!==data.session?.id||currentCooking?.step_number!==data.step_number||currentCooking?.session?.status!==data.session?.status||currentCooking?.current_step!==data.current_step)stopCookingSpeech();
     currentCooking=data;
     const total=(data.recipe.steps||[]).length;
     $('cookingTitle').textContent=recipeDisplayTitle(data.recipe);
@@ -2719,19 +2720,87 @@
       if(['next','previous'].includes(action)&&data.session.status!=='COMPLETED')speakCurrentStep();
     }catch(error){announce(error.message);}
   }
-  async function speakCurrentStep(){
-    if(!currentCooking)return;
-    const button=$('speakStepButton');const original=button.textContent;button.disabled=true;button.textContent='Roxy hablando…';
+  let roxyDeviceSpeech=null,roxyCookingSpeechJob=null,roxySpeechLifecycleReady=false;
+  function ensureRoxySpeechLifecycle(){
+    if(roxySpeechLifecycleReady)return;roxySpeechLifecycleReady=true;
+    $('cookingDialog')?.addEventListener('close',()=>stopCookingSpeech());
+    $('cookingDialog')?.addEventListener('cancel',()=>stopCookingSpeech());
+    document.addEventListener('visibilitychange',()=>{if(document.hidden){stopCookingSpeech();stopRoxyDeviceSpeech()}});
+    window.addEventListener('pagehide',()=>{stopCookingSpeech();stopRoxyDeviceSpeech()});
+  }
+  function stopRoxyDeviceSpeech(scope){
+    const speech=roxyDeviceSpeech;if(!speech||(scope&&speech.scope!==scope))return;
+    roxyDeviceSpeech=null;clearTimeout(speech.startTimer);clearTimeout(speech.endTimer);clearInterval(speech.guard);
+    speech.utterance.onstart=speech.utterance.onend=speech.utterance.onerror=null;
+    window.speechSynthesis?.cancel();speech.onStop?.();
+  }
+  function speakRoxyDeviceText(text,{scope,isCurrent,onStatus,onEnd}={}){
+    ensureRoxySpeechLifecycle();stopRoxyDeviceSpeech();
+    const synth=window.speechSynthesis,Utterance=window.SpeechSynthesisUtterance;
+    const current=()=>!document.hidden&&Boolean(isCurrent?.());
+    if(!current())return false;
+    if(!synth||!Utterance){onStatus?.('unavailable','Este navegador no ofrece voz del dispositivo. El texto sigue disponible.');return false}
+    if(synth.speaking||synth.pending){onStatus?.('busy','El dispositivo ya está reproduciendo otra lectura. Espera a que termine.');return false}
+    const utterance=new Utterance(String(text||''));utterance.lang='es-US';
+    const voices=typeof synth.getVoices==='function'?synth.getVoices():[];
+    const voice=voices.find(row=>row.localService&&/^es(?:-|$)/i.test(row.lang));if(voice)utterance.voice=voice;
+    const speech={scope,utterance,started:false,startTimer:null,endTimer:null,guard:null,onStop:()=>onStatus?.('stopped','Voz detenida.')};roxyDeviceSpeech=speech;
+    const active=()=>roxyDeviceSpeech===speech&&current();
+    const finish=(state,message)=>{if(roxyDeviceSpeech!==speech)return;const valid=current();speech.onStop=null;stopRoxyDeviceSpeech(scope);if(valid){onStatus?.(state,message);if(state==='ended')onEnd?.()}};
+    utterance.onstart=()=>{if(!active()){stopRoxyDeviceSpeech(scope);return}speech.started=true;clearTimeout(speech.startTimer);onStatus?.('speaking','Voz del dispositivo · Roxy hablando…')};
+    utterance.onend=()=>finish(speech.started?'ended':'error',speech.started?'Lectura terminada.':'La voz del dispositivo no inició. Pulsa Escuchar para reintentar.');
+    utterance.onerror=()=>finish('error','No se pudo reproducir la voz del dispositivo. Pulsa Escuchar para reintentar; el texto sigue disponible.');
+    speech.startTimer=setTimeout(()=>finish('error','La voz del dispositivo no inició. Pulsa Escuchar de nuevo y revisa el volumen del dispositivo.'),6000);
+    speech.endTimer=setTimeout(()=>finish('error','La lectura se interrumpió. Puedes volver a escuchar el texto completo.'),Math.max(60000,Math.min(600000,utterance.text.length*180)));
+    speech.guard=setInterval(()=>{if(!active())stopRoxyDeviceSpeech(scope)},250);
+    onStatus?.('preparing','Preparando la voz del dispositivo…');
+    try{synth.speak(utterance)}catch(_error){finish('error','La voz del dispositivo no está disponible. El texto sigue disponible.');return false}
+    return true;
+  }
+  function cookingSpeechStatus(text){
+    let status=$('cookingSpeechStatus');if(!status){status=document.createElement('p');status.id='cookingSpeechStatus';status.className='roxy-voice-status';status.setAttribute('role','status');$('speakStepButton')?.parentElement?.append(status)}
+    status.textContent=text;
+  }
+  function releaseCookingSpeechAudio(job){
+    clearTimeout(job.audioTimer);
+    if(job.audio){job.audio.pause();if(roxyStepAudio===job.audio)roxyStepAudio=null;job.audio=null;stopSynchronizedStepVideo()}
+    if(job.url){URL.revokeObjectURL(job.url);job.url=null}
+  }
+  function stopCookingSpeech(){
+    const job=roxyCookingSpeechJob;roxyCookingSpeechJob=null;
+    if(job){job.controller.abort();clearTimeout(job.fetchTimer);clearInterval(job.guard);releaseCookingSpeechAudio(job)}
+    stopRoxyDeviceSpeech('cooking');
+    const button=$('speakStepButton');if(button){button.disabled=false;button.textContent='Escuchar paso'}
+  }
+  async function speakCurrentStep(event){
+    if(event?.type==='click'&&roxyCookingSpeechJob){stopCookingSpeech();cookingSpeechStatus('Voz detenida.');return}
+    stopCookingSpeech();if(!currentCooking||!$('cookingDialog')?.open||document.hidden)return;
+    ensureRoxySpeechLifecycle();
+    const owner=user,identity=collectionIdentity(),sessionId=currentCooking.session.id,stepNumber=currentCooking.step_number,step=currentCooking.current_step,sessionStatus=currentCooking.session.status;
+    const speech=sessionStatus==='COMPLETED'?'Receta terminada. Buen provecho.':`Paso ${stepNumber}. ${step}`;
+    const job={controller:new AbortController(),fetchTimer:null,audioTimer:null,guard:null,audio:null,url:null,fallback:false};roxyCookingSpeechJob=job;
+    const current=()=>roxyCookingSpeechJob===job&&user===owner&&collectionIdentity()===identity&&!document.hidden&&Boolean($('cookingDialog')?.open)&&currentCooking?.session?.id===sessionId&&currentCooking.step_number===stepNumber&&currentCooking.current_step===step&&currentCooking.session.status===sessionStatus;
+    job.guard=setInterval(()=>{if(!current()&&roxyCookingSpeechJob===job)stopCookingSpeech()},250);
+    const button=$('speakStepButton');button.disabled=false;button.textContent='Detener voz';
+    const completed=()=>{if(!current())return;stopCookingSpeech();cookingSpeechStatus('Lectura terminada.');void startAutomaticStepTimer()};
+    const fallback=()=>{
+      if(!current()||job.fallback)return;job.fallback=true;job.controller.abort();clearTimeout(job.fetchTimer);releaseCookingSpeechAudio(job);
+      const started=speakRoxyDeviceText(speech,{scope:'cooking',isCurrent:current,onStatus:(state,message)=>{if(!current())return;cookingSpeechStatus(message);if(['error','unavailable','busy'].includes(state))stopCookingSpeech()},onEnd:completed});
+      if(!started&&current())stopCookingSpeech();
+    };
+    if(homeFood.voice_service?.enabled===false){fallback();return}
+    cookingSpeechStatus('Conectando la voz oficial…');job.fetchTimer=setTimeout(fallback,12000);
     try{
-      if(roxyStepAudio){roxyStepAudio.pause();stopSynchronizedStepVideo();roxyStepAudio=null}
-      const response=await fetch(`/v1/home-food/${encodeURIComponent(user)}/cooking-sessions/${encodeURIComponent(currentCooking.session.id)}/speech`,{method:'POST',credentials:'include',cache:'no-store',headers:{Accept:'audio/mpeg'}});
-      if(!response.ok){let detail='';try{detail=String((await response.json()).detail||'')}catch(_error){}throw new Error(detail||`HTTP ${response.status}`)}
-      const url=URL.createObjectURL(await response.blob());const audio=new Audio(url);roxyStepAudio=audio;audio.addEventListener('ended',()=>{stopSynchronizedStepVideo(true);URL.revokeObjectURL(url);if(roxyStepAudio===audio)roxyStepAudio=null;startAutomaticStepTimer()},{once:true});audio.addEventListener('error',()=>{stopSynchronizedStepVideo();URL.revokeObjectURL(url)},{once:true});await startSynchronizedStepVideo(audio);
-    }catch(error){
-      const speech=currentCooking.session.status==='COMPLETED'?'Receta terminada. Buen provecho.':`Paso ${currentCooking.step_number}. ${currentCooking.current_step}`;
-      if(roxyVoiceConversation&&typeof roxyVoiceConversation.sendUserMessage==='function'){roxyVoiceConversation.sendUserMessage(`[LECTURA DE RECETA. NO LLAMES HERRAMIENTAS.] Lee exactamente con la voz oficial de Roxy: ${speech}`);announce('Roxy leerá el paso en la conversación')}
-      else announce(error.message||'No pude conectar la voz oficial de Roxy');
-    }finally{button.disabled=false;button.textContent=original}
+      const response=await fetch(`/v1/home-food/${encodeURIComponent(owner)}/cooking-sessions/${encodeURIComponent(sessionId)}/speech`,{method:'POST',credentials:'include',cache:'no-store',signal:job.controller.signal,headers:{Accept:'audio/mpeg'}});
+      if(!current()||job.fallback)return;
+      if(!response.ok)throw new Error('La voz oficial no está disponible');
+      const blob=await response.blob();if(!current()||job.fallback)return;clearTimeout(job.fetchTimer);
+      job.url=URL.createObjectURL(blob);const audio=new Audio(job.url);job.audio=audio;roxyStepAudio=audio;
+      audio.addEventListener('playing',()=>{if(current()&&!job.fallback){job.started=true;clearTimeout(job.audioTimer);cookingSpeechStatus('Voz oficial · Roxy hablando…')}});
+      audio.addEventListener('ended',()=>{if(current()&&!job.fallback){if(!job.started){fallback();return}stopSynchronizedStepVideo(true);completed()}});
+      audio.addEventListener('error',fallback,{once:true});job.audioTimer=setTimeout(fallback,12000);
+      await startSynchronizedStepVideo(audio,()=>current()&&!job.fallback&&job.audio===audio);
+    }catch(_error){fallback()}
   }
 
   function populateHomeForms(){
@@ -2918,15 +2987,40 @@
     try{const result=await sendRoxyHomeCommand({command});input.value='';announce(result.message||'Listo');if(result.data&&result.data.weekly_plan){await load({quiet:true});selectPanel('today')}if(result.data&&result.data.recipe){await load({quiet:true});selectPanel('recipes');openRecipe(result.data.recipe)}if(result.data&&result.data.cooking){await load({quiet:true});showCooking(result.data.cooking)}if(result.data&&result.data.calendar_draft){showCalendarConfirmation(result.data.calendar_draft,result.data.calendar_conflicts||[])}if(result.data&&result.data.calendar_event){await load({quiet:true});selectPanel('calendar')}if(result.data&&result.data.weather&&result.data.weather.status==='READY'){homeWeather=result.data.weather;renderWeather();renderCalendar()}if(result.data&&result.data.price_recommendations){priceRecommendations=result.data.price_recommendations;selectPanel('shopping');renderPriceRecommendations()}}catch(error){announce(error.message)}finally{button.disabled=false;button.textContent='Enviar'}
   }
 
-  let roxyVoiceConversation=null;let roxyVoiceStarting=false;let roxyElevenLabsModule=null;let roxyVoicePermissionStream=null;let roxyLastAgentMessage='';let roxyLastAgentMessageAt=0;let roxyVoiceAttempt=0;
+  let roxyVoiceConversation=null;let roxyVoiceStarting=false;let roxyElevenLabsModule=null;let roxyVoicePermissionStream=null;let roxyLastAgentMessage='';let roxyLastAgentMessageAt=0;let roxyVoiceAttempt=0;let roxyReadableResponse=null;
   const roxyVoiceUrls=['https://esm.sh/@elevenlabs/client@1.8.1?bundle','https://cdn.jsdelivr.net/npm/@elevenlabs/client@1.8.1/+esm','https://esm.run/@elevenlabs/client@1.8.1'];
   function roxyVoiceStatus(text,error=false){$('roxyVoiceStatus').textContent=text;$('roxyVoiceStatus').classList.toggle('error',error)}
-  function roxyVoiceTranscript(text,source='Roxy'){$('roxyVoiceTranscript').textContent=`${source}: ${text}`}
+  function ensureRoxyTextSpeech(){
+    let button=$('roxyTextListen');if(button)return button;
+    button=document.createElement('button');button.id='roxyTextListen';button.type='button';button.className='secondary';button.textContent='Escuchar respuesta · voz del dispositivo';button.hidden=true;
+    button.addEventListener('click',()=>{
+      if(roxyDeviceSpeech?.scope==='response'){stopRoxyDeviceSpeech('response');return}
+      const response=roxyReadableResponse;
+      const current=()=>Boolean(response&&roxyReadableResponse===response&&user===response.owner&&collectionIdentity()===response.identity&&!$('roxyVoicePanel').hidden);
+      if(!current())return;
+      if(roxyVoiceConversation||roxyVoiceStarting){roxyVoiceStatus('Termina la conversación de voz para escuchar esta respuesta con el dispositivo.');return}
+      stopCookingSpeech();
+      speakRoxyDeviceText(response.text,{scope:'response',isCurrent:current,onStatus:(state,message)=>{if(!current())return;button.textContent=['preparing','speaking'].includes(state)?'Detener lectura':'Escuchar respuesta · voz del dispositivo';roxyVoiceStatus(message,['error','unavailable'].includes(state))}});
+    });
+    $('roxyVoicePanel').append(button);return button;
+  }
+  function roxyVoiceTranscript(text,source='Roxy'){
+    stopRoxyDeviceSpeech('response');$('roxyVoiceTranscript').textContent=`${source}: ${text}`;
+    roxyReadableResponse=source==='Roxy'&&String(text||'').trim()?{text:String(text),owner:user,identity:collectionIdentity()}:null;
+    const button=ensureRoxyTextSpeech();button.hidden=!roxyReadableResponse;button.textContent='Escuchar respuesta · voz del dispositivo';
+  }
+  function resetRoxyVoiceContext(){
+    stopCookingSpeech();stopRoxyDeviceSpeech();void endRoxyVoice();roxyReadableResponse=null;roxyLastAgentMessage='';roxyLastAgentMessageAt=0;
+    $('roxyVoiceTranscript').textContent='Puedes pedirme una receta, cambiar tu lista o decir “guíame paso a paso”.';
+    const button=$('roxyTextListen');if(button)button.hidden=true;
+    $('roxyTextMessage').value='';roxyVoiceStatus('Pulsa Iniciar para conectar la voz o escribe tu mensaje.');
+  }
   function stopRoxyPermissionStream(){if(!roxyVoicePermissionStream)return;roxyVoicePermissionStream.getTracks().forEach(track=>track.stop());roxyVoicePermissionStream=null}
   function roxyVoiceError(error,phase){
     const name=String(error&&error.name||'Error');
     const detail=String(error&&error.message||error||'').toLowerCase();
     if(detail.includes('payment_issue')||detail.includes('unresolved payment'))return'La voz está suspendida por un pago pendiente en ElevenLabs. La persona administradora debe revisar su facturación. Mientras tanto, puedes escribirle a Roxy.';
+    if(phase==='configuración')return'No está disponible la configuración del agente exclusivo de Roxy Home. Puedes escribir y usar Escuchar respuesta con la voz del dispositivo.';
     if(name==='NotAllowedError'||name==='SecurityError')return'El navegador no tiene permiso para usar el micrófono. Actívalo en los ajustes del sitio o escribe tu mensaje.';
     if(name==='NotFoundError')return'No encontré un micrófono disponible. Puedes escribirle a Roxy.';
     if(name==='NotReadableError'||name==='AbortError')return'El micrófono está ocupado. Cierra la otra aplicación o escribe tu mensaje.';
@@ -2934,33 +3028,37 @@
   }
   async function sendRoxyText(event){
     event.preventDefault();const input=$('roxyTextMessage'),button=$('roxyTextSend');const command=input.value.trim();if(!command||button.disabled)return;
+    const owner=user,identity=collectionIdentity();const current=()=>user===owner&&collectionIdentity()===identity;
     button.disabled=true;roxyVoiceTranscript(command,'Tú');roxyVoiceStatus('Roxy está pensando…');
-    try{const result=await sendRoxyHomeCommand({command});input.value='';roxyVoiceTranscript(result.speech||result.message||'No recibí una respuesta. Intenta de nuevo.');roxyVoiceStatus('Respuesta por escrito')}
-    catch(error){roxyVoiceStatus('No pude enviar el mensaje. Conservé tu texto para que puedas reintentar.',true)}
+    try{const result=await sendRoxyHomeCommand({command});if(!current())return;input.value='';roxyVoiceTranscript(result.speech||result.message||'No recibí una respuesta. Intenta de nuevo.');roxyVoiceStatus('Respuesta por escrito · puedes escucharla con la voz del dispositivo')}
+    catch(error){if(current())roxyVoiceStatus('No pude enviar el mensaje. Conservé tu texto para que puedas reintentar.',true)}
     finally{button.disabled=false}
   }
-  function openRoxyVoice(){$('roxyVoicePanel').hidden=false;$('roxyVoiceLauncher').setAttribute('aria-expanded','true');$('roxyVoiceLauncher').classList.add('active');$('roxyVoiceStart').focus()}
-  function closeRoxyVoice(){void endRoxyVoice();$('roxyVoicePanel').hidden=true;$('roxyVoiceLauncher').setAttribute('aria-expanded','false');$('roxyVoiceLauncher').classList.remove('active');$('roxyVoiceLauncher').focus()}
+  function openRoxyVoice(){$('roxyVoicePanel').hidden=false;$('roxyVoiceLauncher').setAttribute('aria-expanded','true');$('roxyVoiceLauncher').classList.add('active');if(!roxyVoiceConversation&&!roxyVoiceStarting&&!roxyReadableResponse)roxyVoiceStatus('Pulsa Iniciar para conectar la voz o escribe tu mensaje.');$('roxyVoiceStart').focus()}
+  function closeRoxyVoice(){stopRoxyDeviceSpeech('response');void endRoxyVoice();$('roxyVoicePanel').hidden=true;$('roxyVoiceLauncher').setAttribute('aria-expanded','false');$('roxyVoiceLauncher').classList.remove('active');$('roxyVoiceLauncher').focus()}
   async function loadElevenLabs(){if(roxyElevenLabsModule)return roxyElevenLabsModule;let lastError=null;for(const url of roxyVoiceUrls){try{roxyElevenLabsModule=await import(url);return roxyElevenLabsModule}catch(error){lastError=error}}throw lastError||new Error('ElevenLabs SDK no disponible')}
   function currentShoppingSummary(){const rows=activeItems();return{pending_count:rows.length,total_quantity:rows.reduce((total,item)=>total+Number(item.quantity||0),0),items:rows.slice(0,50).map(item=>({name:item.name,quantity:item.quantity,unit:item.unit,category:item.category}))}}
-  async function sendRoxyHomeCommand(parameters={}){const command=String(parameters.command||parameters.text||parameters.request||'').trim();if(!command)return{ok:false,error:'missing_command'};const result=await api(`/v1/assistant/command/${encodeURIComponent(user)}`,{method:'POST',body:JSON.stringify({text:command})});await load({quiet:true});if(result.message)roxyVoiceTranscript(result.message);if(result.data&&result.data.cooking)showCooking(result.data.cooking);if(result.data&&result.data.calendar_draft)showCalendarConfirmation(result.data.calendar_draft,result.data.calendar_conflicts||[]);if(result.data&&result.data.calendar_event)selectPanel('calendar');if(result.data&&result.data.weather&&result.data.weather.status==='READY'){homeWeather=result.data.weather;renderWeather();renderCalendar()}if(result.data&&result.data.price_recommendations){priceRecommendations=result.data.price_recommendations;selectPanel('shopping');renderPriceRecommendations()}if(result.data&&result.data.preparation){currentPreparation=result.data.preparation;renderCommercePreparation(currentPreparation,result.data.providers||commerce.providers||[]);if(!$('commerceDialog').open)$('commerceDialog').showModal()}return result}
-  function recoverRoxyVoiceSpeech(speech,startedAt){setTimeout(()=>{if(!roxyVoiceConversation||!speech)return;const answer=String(roxyLastAgentMessage||'').toLowerCase();const falseFailure=/no (?:puedo|tengo acceso)|no (?:est[aá]|estaba) funcionando|b[uú]squeda.{0,30}recet|problema.{0,30}recet/.test(answer);if(roxyLastAgentMessageAt<=startedAt||falseFailure){const instruction=`[RESULTADO CONFIRMADO DE ROXY HOME. NO LLAMES HERRAMIENTAS.] Lee en voz alta exactamente este resultado completo y después pregunta si deseo agregar los ingredientes o cocinar paso a paso: ${speech}`;if(typeof roxyVoiceConversation.sendUserMessage==='function')roxyVoiceConversation.sendUserMessage(instruction)}},3200)}
+  async function sendRoxyHomeCommand(parameters={}){const command=String(parameters.command||parameters.text||parameters.request||'').trim();if(!command)return{ok:false,error:'missing_command'};const owner=user,identity=collectionIdentity();const result=await api(`/v1/assistant/command/${encodeURIComponent(owner)}`,{method:'POST',body:JSON.stringify({text:command})});checkCollectionContext(owner,identity);await load({quiet:true});checkCollectionContext(owner,identity);if(result.message)roxyVoiceTranscript(result.message);if(result.data&&result.data.cooking)showCooking(result.data.cooking);if(result.data&&result.data.calendar_draft)showCalendarConfirmation(result.data.calendar_draft,result.data.calendar_conflicts||[]);if(result.data&&result.data.calendar_event)selectPanel('calendar');if(result.data&&result.data.weather&&result.data.weather.status==='READY'){homeWeather=result.data.weather;renderWeather();renderCalendar()}if(result.data&&result.data.price_recommendations){priceRecommendations=result.data.price_recommendations;selectPanel('shopping');renderPriceRecommendations()}if(result.data&&result.data.preparation){currentPreparation=result.data.preparation;renderCommercePreparation(currentPreparation,result.data.providers||commerce.providers||[]);if(!$('commerceDialog').open)$('commerceDialog').showModal()}return result}
+  function recoverRoxyVoiceSpeech(speech,startedAt){const owner=user,identity=collectionIdentity(),attempt=roxyVoiceAttempt;setTimeout(()=>{if(user!==owner||collectionIdentity()!==identity||roxyVoiceAttempt!==attempt||!roxyVoiceConversation||!speech)return;const answer=String(roxyLastAgentMessage||'').toLowerCase();const falseFailure=/no (?:puedo|tengo acceso)|no (?:est[aá]|estaba) funcionando|b[uú]squeda.{0,30}recet|problema.{0,30}recet/.test(answer);if(roxyLastAgentMessageAt<=startedAt||falseFailure){const instruction=`[RESULTADO CONFIRMADO DE ROXY HOME. NO LLAMES HERRAMIENTAS.] Lee en voz alta exactamente este resultado completo y después pregunta si deseo agregar los ingredientes o cocinar paso a paso: ${speech}`;if(typeof roxyVoiceConversation.sendUserMessage==='function')roxyVoiceConversation.sendUserMessage(instruction)}},3200)}
   async function sendCommandToRoxyOSForVoice(parameters={}){const startedAt=Date.now();const result=await sendRoxyHomeCommand(parameters);const speech=String(result.speech||result.message||'').trim();recoverRoxyVoiceSpeech(speech,startedAt);return{ok:Boolean(result.ok),intent:result.intent||'general',must_speak:true,speech,message:speech,data:result.data||{},instruction:'Espera a que termine esta herramienta. Lee en voz alta ahora el campo speech completo. No lo resumas, no lo contradigas y no digas que no tienes acceso.'}}
   function roxyHomeClientTools(){return{getCurrentScreenContext:async()=>({ok:true,app:'Roxy Home',page:'Hoy, plan de comidas, compra, recetas, despensa, calendario y clima',provider:'ElevenLabs',member:{display_name:activePersonName(),role:account.role,household_name:account.household_name},profile:homeFood.profile||{},pantry:(homeFood.pantry||[]).slice(0,80),daily_brief:homeDaily,weather:homeWeather&&homeWeather.status==='READY'?{location:homeWeather.location,current:homeWeather.current,daily:(homeWeather.daily||[]).slice(0,8)}:{status:homeWeather&&homeWeather.status},shopping_list:currentShoppingSummary(),calendar:{upcoming:(homeCalendar.events||[]).slice(0,20)},latest_recipe:currentRecipe&&{id:currentRecipe.id,title:currentRecipe.title,servings:currentRecipe.servings},instruction:'Eres la misma Roxy, operando únicamente con memoria y permisos de Home. Usa los datos reales de esta pantalla, sintetiza y recomienda con criterio sin inventar.'}),getShoppingList:async()=>({ok:true,shopping_list:currentShoppingSummary()}),summarizeCurrentScreen:async()=>({ok:true,summary:`Roxy Home muestra ${activeItems().length} productos pendientes, ${(homeFood.recipes||[]).length} recetas guardadas y ${(homeCalendar.events||[]).length} eventos próximos.`,shopping_list:currentShoppingSummary()}),sendCommandToRoxyOS:sendCommandToRoxyOSForVoice}}
   function roxyHomeOverrides(){const shopping=JSON.stringify(currentShoppingSummary());const person=activePersonName();const greeting=person?`Hola, ${person}. ¿Qué hacemos hoy?`:'Hola. ¿Qué hacemos hoy?';return{agent:{language:'es',firstMessage:greeting,prompt:{prompt:`Eres Roxy, con la misma identidad y voz del ecosistema Roxy, operando únicamente dentro de Roxy Home. La aplicación actual es Roxy Home, en las secciones Compra, Recetas, Plan semanal, Despensa y Calendario. Estás hablando con ${person||'una persona del hogar'}; dirígete a esa persona por su nombre de forma natural, sin repetir su nombre en cada frase. Conversa en español natural, cálido y adulto. Comprende la intención antes de contestar: responde primero, explica brevemente por qué y ofrece una recomendación concreta cuando aporte valor. No copies listas de datos sin interpretarlas. Compara opciones, comenta ventajas y límites, y puedes discrepar con amabilidad. Distingue hechos de inferencias, reconoce lo que no sabes y no reveles razonamiento interno paso a paso. Usa vocabulario variado pero sencillo, evita muletillas y no hagas más de una pregunta de seguimiento. No vuelvas a presentarte ni digas “soy Roxy” o “estoy aquí para ayudarte”; el usuario ya sabe quién eres. Mantén la conversación abierta después del saludo y nunca uses end_call salvo que el usuario diga claramente terminar o adiós. La lista visible actual es ${shopping}. Para crear, consultar, mover o cancelar eventos, consultar el clima local o de otro destino, y para pedir una receta, cambiar la lista, organizar el menú o cocinar paso a paso, siempre usa sendCommandToRoxyOS. No respondas antes de que la herramienta termine. Nunca afirmes que guardaste un evento antes de que la herramienta lo confirme. Para un evento nuevo, lee la propuesta y pregunta si debe confirmarse; cuando el usuario diga sí, vuelve a llamar la herramienta con “confirmo”. Los eventos recurrentes necesitan fecha de inicio y final. Diferencia: dentista o llamada con fecha y hora va al calendario; comprar leche va a compras; pagar una factura antes de una fecha es una tarea y no debe convertirse en evento sin aclararlo. Cuando la herramienta termine, lee en voz alta exactamente el campo speech completo, incluyendo si se sincronizó con el teléfono o si falta conectar Google Calendar. Si recibes RESULTADO CONFIRMADO DE ROXY HOME, no vuelvas a llamar herramientas. Expresiones como quita, saca o ya no necesito son órdenes de eliminación. No inventes eventos, artículos, recetas, precios, disponibilidad ni alergias. No compres, no pagues, no controles dispositivos y no uses memoria ni herramientas de Trading, Finanzas o Study.`}}}}
   async function startRoxyVoice(){
     if(roxyVoiceConversation||roxyVoiceStarting)return;
-    openRoxyVoice();const attempt=++roxyVoiceAttempt;roxyVoiceStarting=true;
+    stopRoxyDeviceSpeech();stopCookingSpeech();openRoxyVoice();const attempt=++roxyVoiceAttempt;roxyVoiceStarting=true;
     roxyLastAgentMessage='';roxyLastAgentMessageAt=0;$('roxyVoiceStart').disabled=true;
-    roxyVoiceStatus('Conectando la voz…');let phase='micrófono';let permissionStream=null;
-    const current=()=>attempt===roxyVoiceAttempt;
+    roxyVoiceStatus('Comprobando la configuración de voz…');let phase='configuración';let permissionStream=null;
+    const owner=user,identity=collectionIdentity();
+    const current=()=>attempt===roxyVoiceAttempt&&user===owner&&collectionIdentity()===identity&&!$('roxyVoicePanel').hidden;
     const release=()=>{if(permissionStream){permissionStream.getTracks().forEach(track=>track.stop());if(roxyVoicePermissionStream===permissionStream)roxyVoicePermissionStream=null;permissionStream=null}};
     try{
+      const config=await api('/v1/assistant/session/'+encodeURIComponent(owner));
+      if(!current())return;
+      if(config.status!=='CONFIGURED'||!config.agent_id)throw new Error('Falta el agente exclusivo de Home');
+      phase='micrófono';roxyVoiceStatus('Esperando permiso del micrófono…');
       if(!navigator.mediaDevices?.getUserMedia)throw new DOMException('Micrófono no disponible','NotFoundError');
       permissionStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
       if(!current()){release();return}roxyVoicePermissionStream=permissionStream;
-      phase='configuración';const config=await api('/v1/assistant/session/'+encodeURIComponent(user));
-      if(!current()){release();return}
       phase='agente';const eleven=await loadElevenLabs();if(!current()){release();return}
       const Conversation=eleven.Conversation||(eleven.default&&eleven.default.Conversation);
       if(!Conversation?.startSession)throw new Error('SDK no disponible');
@@ -2972,12 +3070,12 @@
         onModeChange:mode=>{if(!current())return;const state=String(mode?.mode||mode||'').toLowerCase();if(state.includes('speaking'))roxyVoiceStatus('Roxy está respondiendo');else if(state.includes('listening'))roxyVoiceStatus('Roxy te está escuchando')},
         onMessage:message=>{if(!current())return;const source=String(message?.source||message?.role||message?.type||'').toLowerCase();const text=message?.message||message?.text||message?.transcript||message?.content||message?.agent_response_event?.agent_response||message?.user_transcription_event?.user_transcript;if(typeof text==='string'&&text.trim()){const fromUser=source.includes('user');if(!fromUser){roxyLastAgentMessage=text.trim();roxyLastAgentMessageAt=Date.now()}roxyVoiceTranscript(text.trim(),fromUser?'Tú':'Roxy')}}
       };
-      if(config.conversation_token)options.conversationToken=config.conversation_token;else options.agentId=config.agent_id;
+      options.agentId=config.agent_id;
       const session=await Conversation.startSession(options);release();
       if(!current()){await session.endSession();return}roxyVoiceConversation=session;
     }catch(error){release();if(!current())return;console.warn('Roxy Home voice connection failed',error?.name||'Error');roxyVoiceConversation=null;roxyVoiceStarting=false;roxyVoiceStatus(roxyVoiceError(error,phase),true);$('roxyVoiceStart').disabled=false;$('roxyVoiceEnd').disabled=true}
   }
-  async function endRoxyVoice(){const attempt=++roxyVoiceAttempt;const conversation=roxyVoiceConversation;roxyVoiceConversation=null;stopRoxyPermissionStream();roxyVoiceStarting=false;roxyVoiceStatus('Conversación terminada');$('roxyVoiceStart').disabled=false;$('roxyVoiceEnd').disabled=true;if(conversation&&typeof conversation.endSession==='function'){try{await conversation.endSession()}catch(error){if(attempt===roxyVoiceAttempt)console.warn('Roxy Home voice cleanup failed',error?.name||'Error')}}}
+  async function endRoxyVoice(){stopRoxyDeviceSpeech('response');const attempt=++roxyVoiceAttempt;const conversation=roxyVoiceConversation;roxyVoiceConversation=null;stopRoxyPermissionStream();roxyVoiceStarting=false;roxyVoiceStatus('Conversación terminada');$('roxyVoiceStart').disabled=false;$('roxyVoiceEnd').disabled=true;if(conversation&&typeof conversation.endSession==='function'){try{await conversation.endSession()}catch(error){if(attempt===roxyVoiceAttempt)console.warn('Roxy Home voice cleanup failed',error?.name||'Error')}}}
 
   function renderProductLookup(result){
     const root=$('productLookupResult');root.replaceChildren();

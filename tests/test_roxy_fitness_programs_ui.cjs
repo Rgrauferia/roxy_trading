@@ -6,6 +6,13 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const api = require('../assets/roxy_fitness_programs.js');
 const source = fs.readFileSync(require.resolve('../assets/roxy_fitness_programs.js'), 'utf8');
+// The dated agenda scenarios run on their chosen Friday, independent of the
+// host's wall clock. Explicit dates still use native parsing/DST calculations.
+const fixtureTime = Date.parse('2026-09-11T12:00:00Z');
+class FixtureDate extends Date {
+  constructor(...args) { super(...(args.length ? args : [fixtureTime])); }
+  static now() { return fixtureTime; }
+}
 const clone = value => JSON.parse(JSON.stringify(value));
 const flags = {status:'education_only', active_training:false, can_activate_plans:false, clinical_approval:false, can_persist:false};
 const full = ['strength','balance','flexibility'].map((name, index) => ({id:`gentle-${name}`, title_en:`Source ${name}`, title_es:`Guía ${name}`, exercise_count:2,
@@ -46,7 +53,7 @@ function harness(intercept) {
   const document={hidden:false,createElement:tag=>new Element(tag),addEventListener:(name,fn)=>listeners[name]=fn};
   const NativeURL=URL; class TestURL extends NativeURL {static createObjectURL(blob){blobs.push(blob);return `blob:test-${blobs.length}`;}static revokeObjectURL(){}}
   const forbidden = name => {writes.push(name);throw new Error(name);};
-  const context={document,URL:TestURL,Blob,Intl,Date,AbortController,Map,Set,crypto:{randomUUID:()=> '11111111-1111-4111-8111-111111111111'},
+  const context={document,URL:TestURL,Blob,Intl,Date:FixtureDate,AbortController,Map,Set,crypto:{randomUUID:()=> '11111111-1111-4111-8111-111111111111'},
     setTimeout(fn,delay){const id=++timerId;timers.set(id,{fn,due:now+delay});return id;},clearTimeout:id=>timers.delete(id),
     localStorage:{getItem:()=>forbidden('local read'),setItem:()=>forbidden('local write')},sessionStorage:{getItem:()=>forbidden('session read'),setItem:()=>forbidden('session write')},indexedDB:{open:()=>forbidden('indexedDB')},
     addEventListener:(name,fn)=>windowEvents[name]=fn,
@@ -63,7 +70,7 @@ function harness(intercept) {
 }
 async function mounted(h,view='week'){h.mount(h.root,{identity:'member-a',timezone:'America/New_York',view});await settle();}
 async function choose(h,index=0){await attr(h.root,'aria-label',`Ver programa: ${full[index].title_es}`).click();}
-async function arrange(h,{start=api.todayInZone('America/New_York'),days=['fri']}={}){
+async function arrange(h,{start=api.todayInZone('America/New_York',new FixtureDate()),days=['fri']}={}){
   const date=attr(h.root,'aria-label','Fecha inicial');date.value=start;await date.emit('change');
   for(const key of days){const input=all(h.root,'input').find(node=>node.name==='agenda_day'&&node.value===key);input.checked=true;await input.emit('change');}
   await all(h.root,'form')[0].emit('submit');
@@ -98,7 +105,7 @@ test('checked source data contract matches frontend and contains no fabricated m
 test('gallery loads metadata only, details are explicit, days start unselected and no workout actions exist',async()=>{
   const h=harness();await mounted(h);assert.equal(h.calls.length,1);assert.equal(classes(h.root,'fxp-program-card').length,3);assert.equal(all(h.root,'form').length,0);
   await choose(h);assert.equal(h.calls.length,2);assert.equal(all(h.root,'input').filter(i=>i.name==='agenda_day'&&i.checked).length,0);assert.equal(classes(h.root,'fxp-date').length,0);
-  assert.equal(attr(h.root,'aria-label','Fecha inicial').value,api.todayInZone('America/New_York'));assert.match(h.root.textContent,/Duración total no indicada/);assert.doesNotMatch(h.root.textContent,/Comenzar entrenamiento|Marcar como completado|calorías quemadas/);assert.equal(all(h.root,'img').length,0);assert.deepEqual(h.writes,[]);
+  assert.equal(attr(h.root,'aria-label','Fecha inicial').value,api.todayInZone('America/New_York',new FixtureDate()));assert.match(h.root.textContent,/Duración total no indicada/);assert.doesNotMatch(h.root.textContent,/Comenzar entrenamiento|Marcar como completado|calorías quemadas/);assert.equal(all(h.root,'img').length,0);assert.deepEqual(h.writes,[]);
 });
 test('the source guide is readable before choosing dates and language preserves current movement',async()=>{
   const h=harness();await mounted(h);await choose(h);await button(h.root,'Ver movimientos de la guía').click();assert.match(h.root.textContent,/Intenta 3 series de 5 a 10/);
@@ -127,7 +134,7 @@ test('changing form invalidates dated agenda and open guide, with no automatic r
   assert.equal(classes(h.root,'fxp-date').length,0);assert.equal(classes(h.root,'fxp-reader').length,0);assert.match(h.root.textContent,/Organiza de nuevo/);assert.equal(h.calls.length,2);
 });
 test('same identity transfers agenda across Hoy/Mi semana and Hoy selects today even when free',async()=>{
-  const h=harness();await mounted(h);await choose(h);const today=api.todayInZone('America/New_York');const chosen=api.agendaDates(today,['mon']).find(day=>day.date!==today).key;await arrange(h,{start:today,days:[chosen]});
+  const h=harness();await mounted(h);await choose(h);const today=api.todayInZone('America/New_York',new FixtureDate());const chosen=api.agendaDates(today,['mon']).find(day=>day.date!==today).key;await arrange(h,{start:today,days:[chosen]});
   const newRoot=h.container();h.mount(newRoot,{identity:'member-a',timezone:'America/New_York',view:'today'});assert.equal(classes(newRoot,'fxp-date').length,7);assert.match(classes(newRoot,'fxp-day-title')[0].textContent,new RegExp(today));assert.match(newRoot.textContent,/No reservaste una actividad/);assert.equal(h.calls.length,2);
 });
 test('same-view parent rerender preserves selected date and open reader position',async()=>{
