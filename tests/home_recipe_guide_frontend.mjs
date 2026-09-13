@@ -34,7 +34,7 @@ const response = parent => byClass(parent, 'recipe-guide-response').textContent;
 const progress = parent => byClass(parent, 'recipe-guide-progress').textContent;
 const esVoice = {lang:'es-ES', name:'Spanish device', localService:true};
 const enVoice = {lang:'en-US', name:'English device', localService:true};
-function harness({tts = true, microphone = true, availableVoices = [esVoice, enVoice], speakThrows = false, recognitionThrows = false} = {}) {
+function harness({tts = true, microphone = true, availableVoices = [esVoice, enVoice], speakThrows = false, recognitionThrows = false, deferredCancel = false} = {}) {
   let now = 0, timerSequence = 0, list = availableVoices;
   const timers = new Map(), calls = [], microphones = [], observers = [], forbidden = [];
   const document = new Target(); document.hidden = false; document.body = new Element('body'); document.body.isRoot = true;
@@ -43,7 +43,7 @@ function harness({tts = true, microphone = true, availableVoices = [esVoice, enV
   const speech = new Target(); speech.speaking = false; speech.pending = false;
   speech.getVoices = () => list;
   speech.speak = utterance => { calls.push({type:'speak', utterance}); if (speakThrows) throw new Error('device failed'); speech.pending = true; };
-  speech.cancel = () => { calls.push({type:'cancel'}); speech.speaking = false; speech.pending = false; };
+  speech.cancel = () => { calls.push({type:'cancel'}); if (!deferredCancel) { speech.speaking = false; speech.pending = false; } };
   if (tts) { window.speechSynthesis = speech; window.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } }; }
   if (microphone) window.SpeechRecognition = class {
     constructor() { microphones.push(this); }
@@ -124,10 +124,10 @@ test('what do I do now returns only the existing current instruction', () => {
 });
 test('cooking questions outside commands do not invent answers or advance', () => {
   const h = harness(); h.mount(); h.command('¿Puedo sustituir el arroz por carne y cocinar 2 minutos?');
-  assert.match(response(h.container), /Todavía no responde preguntas abiertas ni propone sustituciones/); assert.equal(progress(h.container), 'Paso 1 de 3'); assert.deepEqual(h.forbidden, []);
+  assert.match(response(h.container), /No puedo responder preguntas abiertas/); assert.equal(progress(h.container), 'Paso 1 de 3'); assert.deepEqual(h.forbidden, []);
 });
 test('ambiguous compound command is not partially executed', () => {
-  const h = harness(); h.mount(); h.command('siguiente y ponlo a 300 grados'); assert.equal(progress(h.container), 'Paso 1 de 3'); assert.match(response(h.container), /no responde preguntas abiertas ni propone sustituciones/);
+  const h = harness(); h.mount(); h.command('siguiente y ponlo a 300 grados'); assert.equal(progress(h.container), 'Paso 1 de 3'); assert.match(response(h.container), /No puedo responder preguntas abiertas/);
 });
 test('typed command variants handle accents, punctuation and whitespace', () => {
   const h = harness(); h.mount(); h.command('  ¡LISTO!  '); assert.equal(progress(h.container), 'Paso 2 de 3'); h.command('ATRÁS'); assert.equal(progress(h.container), 'Paso 1 de 3'); h.command('repite'); assert.equal(response(h.container), 'Lava el arroz.'); h.command('pausa'); assert.ok(button(h.container, 'Reanudar'));
@@ -191,9 +191,9 @@ test('late speech callbacks cannot change a newer reading state', () => {
   const h = harness(); h.mount(); button(h.container, 'Escuchar este paso').click(); const old = h.latestUtterance(); const staleEnd = old.onend, staleStart = old.onstart, staleError = old.onerror;
   button(h.container, 'Listo, siguiente').click(); h.startAudio(); staleEnd(); staleStart(); staleError({error:'device'}); assert.equal(status(h.container), 'Leyendo este paso…'); assert.equal(progress(h.container), 'Paso 2 de 3');
 });
-test('microphone begins only after Hablar and remains one-shot', () => {
+test('microphone begins only after Hablar, replies aloud and remains one-shot', () => {
   const h = harness(); h.mount(); button(h.container, 'Hablar').click(); const mic = h.microphones[0]; assert.equal(mic.continuous, false); assert.equal(mic.interimResults, false); assert.equal(mic.lang, 'es-ES');
-  mic.onstart(); h.micResult('listo'); assert.equal(mic.aborted, true); assert.equal(progress(h.container), 'Paso 2 de 3'); h.tick(60000); assert.equal(h.microphones.length, 1); assert.equal(h.calls.length, 0);
+  mic.onstart(); h.micResult('listo'); assert.equal(mic.aborted, true); assert.equal(progress(h.container), 'Paso 2 de 3'); assert.equal(h.latestUtterance().text, 'Cocina durante 15 minutos.'); h.tick(60000); assert.equal(h.microphones.length, 1); assert.equal(h.calls.filter(call => call.type === 'speak').length, 1);
 });
 test('recognition ignores interim transcript and handles final resultIndex', () => {
   const h = harness(); h.mount(); button(h.container, 'Hablar').click(); h.micResult('listo', {final:false}); assert.equal(progress(h.container), 'Paso 1 de 3'); h.micResult('listo', {index:2}); assert.equal(progress(h.container), 'Paso 2 de 3');
@@ -253,4 +253,198 @@ test('pagehide cancels media without automatic reconnect', () => {
 });
 test('parent onStepChange can unmount synchronously with no stale audio or focus work', () => {
   const h = harness(); let guide; guide = h.mount({onStepChange:() => guide.dispose()}); button(h.container, 'Escuchar este paso').click(); button(h.container, 'Listo, siguiente').click(); assert.equal(h.container.children.length, 0); assert.equal(h.calls.filter(call => call.type === 'speak').length, 1);
+});
+
+for (const command of ['listo', 'repite', '¿Qué hago ahora?', 'Roxy, repite por favor']) {
+  test(`a first microphone command opts into its spoken reply: ${command}`, () => {
+    const h = harness(); h.mount(); button(h.container, 'Hablar').click(); h.micResult(command);
+    assert.equal(h.calls.filter(call => call.type === 'speak').length, 1);
+    assert.equal(h.latestUtterance().text, command === 'listo' ? 'Cocina durante 15 minutos.' : 'Lava el arroz.');
+    assert.equal(h.latestUtterance().voice, esVoice); assert.equal(h.microphones.length, 1);
+  });
+}
+test('voice opt-in occurs after a final transcript, not merely microphone permission', () => {
+  const h = harness(); h.mount(); button(h.container, 'Hablar').click(); h.microphones[0].onstart();
+  h.micResult('repite', {final:false}); assert.equal(h.calls.length, 0);
+  h.micResult('  '); h.command('repite'); assert.equal(h.calls.length, 0);
+});
+test('spoken pause stops media without replying over the requested silence', () => {
+  const h = harness(); h.mount(); button(h.container, 'Hablar').click(); h.micResult('pausa');
+  assert.equal(h.calls.length, 0); assert.ok(button(h.container, 'Reanudar'));
+});
+test('English source step remains English after a Spanish microphone command', () => {
+  const h = harness(); h.mount({language:'en', steps:['Bake for 10 minutes at 350 °F.']});
+  button(h.container, 'Hablar').click(); h.micResult('repite');
+  assert.equal(h.latestUtterance().text, 'Bake for 10 minutes at 350 °F.'); assert.equal(h.latestUtterance().lang, 'en'); assert.equal(h.latestUtterance().voice, enVoice);
+});
+test('a spoken unsupported question receives a spoken limit, never a recipe invention', () => {
+  const h = harness(); h.mount({language:'en', steps:['Wash rice.']});
+  button(h.container, 'Hablar').click(); h.micResult('¿Puedo sustituir arroz por carne?');
+  assert.match(response(h.container), /No puedo responder preguntas abiertas/);
+  assert.equal(h.latestUtterance().text, response(h.container)); assert.equal(h.latestUtterance().lang, 'es'); assert.equal(h.latestUtterance().voice, esVoice);
+  assert.equal(progress(h.container), 'Paso 1 de 1'); assert.deepEqual(h.forbidden, []);
+});
+test('a spoken boundary command answers without advancing past the final step', () => {
+  const h = harness(); h.mount({initialStep:2}); button(h.container, 'Hablar').click(); h.micResult('listo');
+  assert.match(h.latestUtterance().text, /último paso/); assert.equal(progress(h.container), 'Paso 3 de 3');
+});
+test('onend without actual onstart reports no audio instead of claiming completion', () => {
+  const h = harness(); h.mount(); button(h.container, 'Escuchar este paso').click(); h.endAudio();
+  assert.match(status(h.container), /voz no comenzó/); assert.doesNotMatch(status(h.container), /Lectura terminada/);
+});
+for (const action of ['Listo, siguiente', 'Repetir', 'Escuchar este paso']) {
+  test(`own deferred cancel retries the current requested reading once: ${action}`, () => {
+    const h = harness({deferredCancel:true}); h.mount(); button(h.container, 'Escuchar este paso').click(); h.startAudio();
+    const staleEnd = h.latestUtterance().onend;
+    button(h.container, action).click(); h.tick(150); assert.equal(h.calls.filter(call => call.type === 'speak').length, 1);
+    h.speech.speaking = false; h.speech.pending = false; h.tick(50);
+    assert.equal(h.calls.filter(call => call.type === 'speak').length, 2);
+    assert.equal(h.latestUtterance().text, action === 'Listo, siguiente' ? 'Cocina durante 15 minutos.' : 'Lava el arroz.');
+    h.startAudio(); staleEnd(); assert.equal(status(h.container), 'Leyendo este paso…');
+    h.tick(1000); assert.equal(h.calls.filter(call => call.type === 'speak').length, 2);
+    assert.equal(h.calls.filter(call => call.type === 'cancel').length, 1);
+  });
+}
+test('multiple changes during a deferred cancel read only the newest step', () => {
+  const h = harness({deferredCancel:true}); h.mount(); button(h.container, 'Escuchar este paso').click(); h.startAudio();
+  button(h.container, 'Listo, siguiente').click(); h.tick(50); button(h.container, 'Listo, siguiente').click();
+  h.speech.speaking = false; h.speech.pending = false; h.tick(50);
+  assert.equal(h.latestUtterance().text, 'Deja reposar.'); assert.equal(h.calls.filter(call => call.type === 'speak').length, 2);
+});
+test('deferred cancellation wait is bounded and does not restart after timeout', () => {
+  const h = harness({deferredCancel:true}); h.mount(); button(h.container, 'Escuchar este paso').click(); h.startAudio();
+  button(h.container, 'Listo, siguiente').click(); h.tick(1000); assert.match(status(h.container), /anterior no se detuvo/);
+  h.speech.speaking = false; h.speech.pending = false; h.setVoices([esVoice]); h.tick(60000);
+  assert.equal(h.calls.filter(call => call.type === 'speak').length, 1); assert.equal(h.calls.filter(call => call.type === 'cancel').length, 1); assert.equal(h.timers.size, 0);
+});
+for (const endScope of ['close', 'dispose', 'member', 'hide', 'remount']) {
+  test(`deferred cancel cannot resume after scope loss: ${endScope}`, () => {
+    const h = harness({deferredCancel:true}); let current = true; const guide = h.mount({isCurrent:() => current});
+    button(h.container, 'Escuchar este paso').click(); h.startAudio(); button(h.container, 'Listo, siguiente').click();
+    if (endScope === 'close') button(h.container, 'Volver a la receta').click();
+    if (endScope === 'dispose') guide.dispose();
+    if (endScope === 'member') current = false;
+    if (endScope === 'hide') h.visibility(true);
+    if (endScope === 'remount') h.mount({steps:['Different recipe.'], language:'en'});
+    h.speech.speaking = false; h.speech.pending = false; h.tick(60000); h.setVoices([esVoice, enVoice]);
+    assert.equal(h.calls.filter(call => call.type === 'speak').length, 1); assert.equal(h.timers.size, 0);
+  });
+}
+test('deferred own cancellation does not repeatedly cancel speech that remains busy', () => {
+  const h = harness({deferredCancel:true}); const guide = h.mount(); button(h.container, 'Escuchar este paso').click(); h.startAudio();
+  button(h.container, 'Listo, siguiente').click(); h.tick(2000); guide.dispose();
+  assert.equal(h.calls.filter(call => call.type === 'cancel').length, 1); assert.equal(h.calls.filter(call => call.type === 'speak').length, 1);
+});
+
+const sourceFixtures = {
+  es:{
+    ingredients:['100 g de azúcar para el relleno.', '50 g de azúcar para la salsa.', '200 ml de leche.', '180 g de harina.', '20 g de cacahuetes.'],
+    steps:['Usa un molde de 20 cm. Precalienta el horno a 200 °C; baja a 180 °C al introducir el molde.', 'Hornea 20 minutos; gira el molde y hornea otros 10 minutos.', 'Deja reposar 15 minutos.'],
+  },
+  en:{
+    ingredients:['100 g sugar for the filling.', '50 g sugar for the sauce.', '200 ml milk.', '180 g flour.', '20 g peanuts.'],
+    steps:['Use a 20 cm tin. Preheat the oven to 200 °C; reduce to 180 °C when inserting the tin.', 'Bake for 20 minutes; turn the tin and bake for another 10 minutes.', 'Leave to rest for 15 minutes.'],
+  },
+};
+for (const language of ['es', 'en']) {
+  for (const query of language === 'es' ? ['¿Cuánta leche lleva?', '¿Cuánto azúcar?', '¿Cuánto azúcar en total?', '¿Qué ingredientes?'] : ['How much milk?', 'How much sugar in total?', 'What ingredients?']) {
+    test(`ingredient quantities are complete original excerpts, never inferred totals: ${language} ${query}`, () => {
+      const h = harness(); const fixture = sourceFixtures[language]; h.mount({...fixture, language}); h.command(query);
+      const text = response(h.container); assert.match(text, language === 'es' ? /Lista original completa/ : /Complete original ingredient list/);
+      for (const line of fixture.ingredients) assert.ok(text.includes(line));
+      assert.equal(text.endsWith(fixture.ingredients.join('\n')), true); assert.doesNotMatch(text, /150 g/);
+      assert.equal(byClass(h.container, 'recipe-guide-response').lang, language);
+      assert.equal(progress(h.container), 'Paso 1 de 3'); assert.equal(h.calls.length, 0); assert.deepEqual(h.forbidden, []);
+    });
+  }
+  test(`temperature query preserves both competing values and conditions: ${language}`, () => {
+    const h = harness(); const fixture = sourceFixtures[language]; h.mount({...fixture, language}); h.command(language === 'es' ? '¿A qué temperatura va el horno?' : 'What oven temperature?');
+    const text = response(h.container); assert.match(text, language === 'es' ? /Fragmentos originales/ : /Original excerpts/);
+    assert.ok(text.endsWith(fixture.steps[0])); assert.ok(text.includes('200 °C')); assert.ok(text.includes('180 °C'));
+    assert.equal(text.includes(fixture.steps[1]), false); assert.equal(text.includes(fixture.ingredients[3]), false);
+    assert.equal(h.calls.length, 0); assert.equal(progress(h.container), 'Paso 1 de 3');
+  });
+  test(`general time query returns all competing step times without adding a total: ${language}`, () => {
+    const h = harness(); const fixture = sourceFixtures[language]; h.mount({...fixture, language}); h.command(language === 'es' ? '¿Cuánto tiempo tarda toda la receta?' : 'How long does the whole recipe take?');
+    const text = response(h.container); assert.ok(text.includes(fixture.steps[1])); assert.ok(text.includes(fixture.steps[2])); assert.equal(text.includes(fixture.steps[0]), false);
+    assert.doesNotMatch(text, /45 (?:minutes|minutos)|30 (?:minutes|minutos)/); assert.match(text, language === 'es' ? /no calculo totales/ : /do not calculate totals/);
+  });
+  test(`explicit current step restricts source retrieval without rewriting its two durations: ${language}`, () => {
+    const h = harness(); const fixture = sourceFixtures[language]; h.mount({...fixture, language, initialStep:1}); h.command(language === 'es' ? '¿Cuánto tiempo en este paso?' : 'How long in this step?');
+    const text = response(h.container); assert.ok(text.endsWith(fixture.steps[1])); assert.equal(text.includes(fixture.steps[2]), false); assert.equal(progress(h.container), 'Paso 2 de 3');
+  });
+  test(`source question through microphone speaks intact excerpts in source language: ${language}`, () => {
+    const h = harness(); const fixture = sourceFixtures[language]; h.mount({...fixture, language}); button(h.container, 'Hablar').click(); h.micResult('¿A qué temperatura va el horno?');
+    assert.equal(h.latestUtterance().text, response(h.container)); assert.ok(h.latestUtterance().text.endsWith(fixture.steps[0]));
+    assert.equal(h.latestUtterance().lang, language); assert.equal(h.latestUtterance().voice, language === 'es' ? esVoice : enVoice);
+  });
+  test(`missing source quantities and missing time or temperature units remain explicit: ${language}`, () => {
+    const h = harness(); h.mount({language, ingredients:[], steps:[language === 'es' ? 'Mezcla y hornea. Usa un molde de 20 cm.' : 'Mix and bake. Use a 20 cm tin.']});
+    for (const query of ['ingredientes', '¿Cuánto tiempo?', '¿A qué temperatura?']) {
+      h.command(query); assert.match(response(h.container), language === 'es' ? /no incluye|No encuentro/ : /does not include|No .* with units/);
+      assert.doesNotMatch(response(h.container), /20 cm|180|350/); assert.equal(progress(h.container), 'Paso 1 de 1');
+    }
+  });
+}
+test('English Fahrenheit and abbreviation durations are preserved, not converted', () => {
+  const h = harness(); h.mount({language:'en', steps:['Bake at 350°F for 20 min. Rest 10 mins.']}); h.command('What temperature?');
+  assert.ok(response(h.container).endsWith('Bake at 350°F for 20 min. Rest 10 mins.')); assert.doesNotMatch(response(h.container), /°C/);
+  h.command('How long?'); assert.ok(response(h.container).endsWith('Bake at 350°F for 20 min. Rest 10 mins.'));
+});
+test('Spanish action duration is not mistaken for an ingredient quantity query', () => {
+  const h = harness(); h.mount(sourceFixtures.es);
+  for (const query of ['¿Cuánto debe reposar?', '¿Cuánto hornear?']) {
+    h.command(query); assert.match(response(h.container), /Fragmentos originales/); assert.doesNotMatch(response(h.container), /Lista original completa/);
+    assert.ok(response(h.container).includes(sourceFixtures.es.steps[1])); assert.ok(response(h.container).includes(sourceFixtures.es.steps[2]));
+    assert.match(response(h.container), /ni asigno valores a una acción concreta/);
+  }
+});
+for (const query of ['¿Cuántos grados?', 'How many degrees?', 'How many minutes?', 'How many hours?', 'How many seconds?']) {
+  test(`common unit questions retrieve source excerpts, never ingredients: ${query}`, () => {
+    const h = harness(); h.mount(sourceFixtures.es); h.command(query);
+    assert.match(response(h.container), /Fragmentos originales/); assert.doesNotMatch(response(h.container), /Lista original completa|No puedo responder preguntas abiertas/);
+    assert.ok(response(h.container).includes(sourceFixtures.es.steps[/grados|degrees/.test(query) ? 0 : 1]));
+  });
+}
+test('typed source answer offers an explicit listening button for the answer, not the current step', () => {
+  const h = harness(); h.mount({...sourceFixtures.en, language:'en'}); assert.equal(button(h.container, 'Escuchar respuesta').hidden, true);
+  assert.equal(button(h.container, 'Escuchar respuesta').disabled, true);
+  h.command('How much milk?'); const originalAnswer = response(h.container); assert.equal(h.calls.length, 0);
+  assert.equal(button(h.container, 'Escuchar respuesta').hidden, false); assert.equal(button(h.container, 'Escuchar respuesta').disabled, false); button(h.container, 'Escuchar respuesta').click();
+  assert.equal(h.latestUtterance().text, originalAnswer); assert.equal(h.latestUtterance().voice, enVoice);
+  h.latestUtterance().onerror({error:'not-allowed'}); button(h.container, 'Escuchar respuesta').click();
+  assert.equal(h.latestUtterance().text, originalAnswer); assert.equal(h.calls.filter(call => call.type === 'speak').length, 2);
+  button(h.container, 'Listo, siguiente').click(); assert.equal(button(h.container, 'Escuchar respuesta').hidden, true);
+  assert.equal(button(h.container, 'Escuchar respuesta').disabled, true);
+});
+test('answer listening remains disabled without device speech', () => {
+  const h = harness({tts:false}); h.mount(); h.command('¿Cuánto tiempo?'); assert.equal(button(h.container, 'Escuchar respuesta').disabled, true);
+});
+test('source whitespace and HTML-like text survive retrieval without DOM interpretation', () => {
+  const original = '  Hornea <b>20 minutos</b>.\n Luego espera 10 minutos.  ';
+  const h = harness(); h.mount({steps:[original]}); h.command('¿Cuánto tiempo?');
+  assert.ok(response(h.container).endsWith(original)); assert.equal(byTag(h.container, 'b').length, 0);
+});
+for (const question of [
+  'Soy alérgico a los cacahuetes, ¿puedo comerla si los retiro?',
+  '¿Cuánto tiempo para que sea segura?', '¿A qué temperatura sé que está cocido?',
+  '¿Cuánto tiempo si cambio la leche por agua?', '¿Cuánto tiempo sin cacahuetes?',
+  'How much milk is safe with an allergy?', 'How long until it is done?',
+  'It is still runny after 10 minutes. Is it safe to eat?', 'What temperature for raw meat?',
+  'Next, and can I replace the peanuts with almonds?',
+  'Siguiente y dime cuánto azúcar puedo quitar sin afectar la receta',
+  '¿Cuánto tiempo y a qué temperatura?', 'How much sugar and how many minutes?',
+  '¿Cuánta harina equivale a una taza?',
+]) {
+  test(`safety, adjustment and compound requests abstain with no partial execution: ${question}`, () => {
+    const h = harness(); h.mount(sourceFixtures.es); h.command(question);
+    assert.match(response(h.container), /No puedo responder preguntas abiertas/);
+    assert.doesNotMatch(response(h.container), /Fragmentos originales|Lista original completa/);
+    assert.equal(progress(h.container), 'Paso 1 de 3'); assert.deepEqual(h.calls, []); assert.deepEqual(h.forbidden, []);
+  });
+}
+test('source answer waiting for a voice is discarded on a member switch', () => {
+  const h = harness({availableVoices:[]}); let current = true; h.mount({...sourceFixtures.en, language:'en', isCurrent:() => current});
+  button(h.container, 'Hablar').click(); h.micResult('How long?'); current = false; h.setVoices([esVoice, enVoice]); h.tick(60000);
+  assert.equal(h.calls.length, 0); assert.equal(h.timers.size, 0);
 });

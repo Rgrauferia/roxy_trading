@@ -44,16 +44,44 @@ def _now_iso() -> str:
 
 
 def cooking_step_timer_seconds(value: Any) -> int:
-    text = unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode("ascii").lower()
-    seconds = 0.0
-    patterns = (
-        (r"(\d+(?:[.,]\d+)?)\s*(?:horas?|hrs?|h)\b", 3600),
-        (r"(\d+(?:[.,]\d+)?)\s*(?:minutos?|mins?|min)\b", 60),
-        (r"(\d+(?:[.,]\d+)?)\s*(?:segundos?|segs?|seg|s)\b", 1),
-    )
-    for pattern, factor in patterns:
-        seconds += sum(float(match.replace(",", ".")) * factor for match in re.findall(pattern, text))
-    return max(0, round(seconds))
+    """Suggest one explicit duration, never choose a range or add separate tasks.
+
+    Zero means the reader must choose a duration. Preserve punctuation before
+    parsing: deleting an en dash turns a source range such as 2–3 into 23.
+    A compound duration is accepted only in decreasing units joined directly
+    (for example, "1 hora y 15 minutos"), within the timer's 24-hour limit.
+    """
+    text = "".join(char for char in unicodedata.normalize("NFD", str(value or ""))
+                   if not unicodedata.combining(char)).lower()
+    units = r"(?:horas?|hrs?|h|minutos?|mins?|min|segundos?|segs?|seg|s)\b"
+    matches = list(re.finditer(
+        r"(?<![\w.,/⁄+\-–—−])(\d+(?:[.,]\d+)?)\s*(" + units + r")", text))
+    # Unsupported amounts ("media hora", fractions, etc.) must not disappear
+    # while another recognizable duration is used on their behalf.
+    if not matches or len(matches) != len(re.findall(r"(?<![a-z])" + units, text)):
+        return 0
+    prefix, suffix = text[:matches[0].start()], text[matches[-1].end():]
+    if re.search(
+            r"(?:\d+(?:[.,]\d+)?\s*(?:[-–—−~/⁄]|a|hasta|o|y)\s*|[+\-−<>]=?\s*|"
+            r"\b(?:aproximadamente|aprox\.?|unos|unas|entre|hasta|al menos|mas de|menos de|"
+            r"alrededor de|cerca de|cada)\s*)$", prefix):
+        return 0
+    if re.match(r"\s*(?:por\b|cada\b|mas\b|menos\b|y\s+(?:media|medio|cuarto)\b)", suffix):
+        return 0
+    seconds, previous_factor, previous_end = 0.0, 86401, None
+    for match in matches:
+        unit = match.group(2)
+        factor = 3600 if unit.startswith("h") else 60 if unit.startswith("m") else 1
+        if previous_end is not None and not re.fullmatch(r"\s+(?:y\s+)?", text[previous_end:match.start()]):
+            return 0
+        if factor >= previous_factor:
+            return 0
+        amount = float(match.group(1).replace(",", "."))
+        if not 0 < amount <= 86400 / factor:
+            return 0
+        seconds += amount * factor
+        previous_factor, previous_end = factor, match.end()
+    return round(seconds) if 0 < seconds <= 86400 else 0
 
 
 def _text(value: Any, limit: int = 160) -> str:

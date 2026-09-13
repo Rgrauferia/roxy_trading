@@ -110,3 +110,9 @@ test('draft and import tools follow recipe cards rather than blocking the first 
   assert.ok(html.indexOf('id="recipeImportToggle"')>html.indexOf('id="recipeLibrary"'));
   assert.match(html,/<summary>Añadir recetas y otras fuentes<\/summary>/);
 });
+test('saved cooking shortcut cannot inherit the full-width food photograph layout',()=>{
+  const css=fs.readFileSync(require('node:path').join(__dirname,'../assets/roxy_list.css'),'utf8');
+  assert.match(css, /\.recipe-card\.resume-card\{[^}]*grid-template-columns:48px minmax\(0,1fr\)/);
+  assert.match(css, /\.recipe-card\.resume-card>img\{[^}]*width:48px;height:48px;min-height:0;aspect-ratio:1/);
+  assert.match(css, /\.recipe-card\.resume-card>span\{[^}]*min-width:0;overflow-wrap:anywhere/);
+});

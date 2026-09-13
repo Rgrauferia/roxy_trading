@@ -8,13 +8,13 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="197" />
+  <meta name="roxy-home-version" content="198" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=137" />
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=138" />
   <link rel="stylesheet" href="/assets/roxy_fitness.css?v=6" />
   <link rel="stylesheet" href="/assets/roxy_fitness_programs.css?v=1" />
   <link rel="stylesheet" href="/assets/roxy_garden_guide.css?v=1" />
@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/assets/roxy_home_drinks.css?v=5" />
   <script src="/assets/roxy_maplibre_loader.js?v=1" defer></script>
   <script src="/assets/roxy_home_recipe_provider.js?v=2" defer></script>
-  <script src="/assets/roxy_recipe_guide.js?v=1" defer></script>
+  <script src="/assets/roxy_recipe_guide.js?v=2" defer></script>
   <script src="/assets/roxy_recipe_onboarding.js?v=1" defer></script>
   <script src="/assets/roxy_home_open_recipes.js?v=5" defer></script>
   <script src="/assets/roxy_home_myplate_recipes.js?v=5" defer></script>
@@ -37,7 +37,7 @@
   <script src="/assets/roxy_fitness.js?v=5" defer></script>
   <script src="/assets/roxy_garden_guide.js?v=1" defer></script>
   <script src="/assets/roxy_home_recovery.js?v=1" defer></script>
-  <script src="/assets/roxy_list.js?v=199" defer></script>
+  <script src="/assets/roxy_list.js?v=200" defer></script>
   <script src="/assets/roxy_home_registration.js?v=3" defer></script>
 </head>
 <body>
@@ -745,7 +745,8 @@
       <section id="cookingVideo" class="cooking-video" aria-live="polite" hidden></section>
       <p id="cookingStep" class="cooking-step" aria-live="polite"></p>
       <div class="timer-box">
-        <div><input id="timerMinutes" type="number" min="0.1" max="1440" step="0.1" value="10" aria-label="Minutos del temporizador" /><button id="startTimerButton" class="secondary" type="button">Iniciar temporizador</button></div>
+        <p id="timerSuggestion" class="muted" role="status"></p>
+        <div><input id="timerMinutes" type="number" min="0.01" max="1440" step="any" placeholder="Minutos" aria-label="Minutos del temporizador" aria-describedby="timerSuggestion" /><button id="startTimerButton" class="secondary" type="button">Iniciar temporizador</button></div>
         <div id="cookingTimers" aria-live="polite"></div>
       </div>
       <div class="cooking-actions">

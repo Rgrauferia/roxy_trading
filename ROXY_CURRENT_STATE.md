@@ -1,6 +1,29 @@
 # Roxy Home — estado operativo
 
-## 197 — navegación publicada; ajuste de pasos en verificación
+## 198 — candidato probado: temporizadores explícitos y guía con consultas
+
+Se reprodujo fallo real de parseo: 2–3 se convertía en23 antes de sugerir/iniciar
+temporizadores. Backend conserva puntuación y sólo sugiere un tiempo inequívoco;
+rangos, fracciones, aproximaciones y acciones separadas devuelven0. Cliente no
+reinterpreta el texto ni hereda minutos viejos. Narración ya NO inicia temporizador:
+se requiere pulsar Iniciar. Pasos originales sin modificar.
+Guía externa: micrófono activa respuesta hablada, cancelación propia acotada1s,
+consultas de ingredientes/tiempo/temperatura recuperan sólo fragmentos originales,
+con botón Escuchar respuesta. No chat libre, traducción, ajuste ni seguridad clínica.
+Continuar receta: retrato48px/tarjeta74px comprobados a393px; antes553px de alto.
+Consulta pública sólo lectura:59/59 imágenes locales disponibles; no estaban
+perdidas. Esto verifica archivos existentes, no exactitud visual de las59.
+884 pruebas Node y 2818 Python aprobadas; 11 PostgreSQL omitidas por falta de servicio.
+Expectativas PWA actualizadas y suite amplia final aprobada. QA sintética guardó
+panqueques/inició sesión local; bebidas consulta leche devuelve4ingredientes,
+tiempo ausente explícito, listo→paso2, evento voz «Leyendo la respuesta» observado.
+No micrófono ni altavoz físico comprobados. TabQA41 dejó de responder al recargar;
+42 recupera la misma sesión. No causa demostrada ni fallo ignorado.
+No amplía catálogo, paga proveedor ni habilita registro. MyPlate ES/copia comercial
+requiere acuerdo;1072consultables no son1000recetasES aprobadas. Publicación pendiente.
+Informe reports/home_release_198_20260913.md. Prototipos y datos públicos intactos.
+
+## 197 — PUBLICADO: recetas compactas, carga recuperable y pasos legibles
 
 Se corrigió la jerarquía que ocultaba fotos detrás de controles: gustos compactos,
 destinos/subcategorías horizontales, selector agrupado local, borradores/importación
@@ -11,8 +34,11 @@ sin datos reales modificados. Publicado74567835, Render dep-dajgf18u01pc73944mjg
 Live48.3s/HTML197/health200/cincoassetsidénticos. Público393px: Comidas24/318,
 Postres81/página2funciona, fotosprimera pantalla. Cran-Apple Crisp reveló una
 regresión de segmentación (guía1bloque); corrección adicional de finales on/off/
-out/up y °F/°C implementada: 10 segmentos idénticos al original,246 pruebas/API;
-pendiente comprobar segundo despliegue.
+out/up y °F/°C publicada aa0661167f4b2316d467b6889d3279eefc5ebaf5,
+Render dep-dajgh5tckfvc739qn1gg Live48.1s. Prueba pública: Cran-Apple Crisp
+ahora1/10→2/10 con temperatura original; health200.451 Python dirigidas y797Node.
+QA8768 detenido, directorio sintético eliminado automáticamente. Sin cambios a
+datos de producción. No confirmación de audio físico ni conversación libre.
 No amplía catálogo ni resuelve fotos
 locales faltantes/1000recetasES. Ver reports/home_release_197_20260913.md.
 

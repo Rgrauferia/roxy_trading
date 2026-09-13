@@ -69,7 +69,7 @@ test('failed official step request reads the full same step on the device withou
   assert.equal(h.spoken[0].voice.localService, true);
   assert.doesNotMatch(h.nodes.get('cookingSpeechStatus').textContent, /hablando/);
   h.spoken[0].onstart(); assert.match(h.nodes.get('cookingSpeechStatus').textContent, /dispositivo.*hablando/);
-  h.spoken[0].onend(); assert.equal(h.automaticTimers(), 1);
+  h.spoken[0].onend(); assert.equal(h.automaticTimers(), 0, 'Narration never starts cooking timers');
   assert.equal(h.nodes.get('speakStepButton').textContent, 'Escuchar paso');
   assert.equal(h.microphoneCalls(), 0);
 });
@@ -84,7 +84,7 @@ test('a cooking MP3 can play without claiming to speak before its playing event'
   await h.ctx.speakCurrentStep(); assert.equal(h.audio[0].playCalls, 1); assert.equal(h.spoken.length, 0);
   assert.doesNotMatch(h.nodes.get('cookingSpeechStatus').textContent, /hablando/);
   h.audio[0].emit('playing'); assert.match(h.nodes.get('cookingSpeechStatus').textContent, /oficial.*hablando/);
-  h.audio[0].emit('ended'); assert.equal(h.automaticTimers(), 1); assert.deepEqual(h.revoked, ['blob:synthetic']);
+  h.audio[0].emit('ended'); assert.equal(h.automaticTimers(), 0, 'Narration is not a timer confirmation'); assert.deepEqual(h.revoked, ['blob:synthetic']);
 });
 
 test('autoplay rejection and MP3 errors fall back once and revoke the unused audio URL', async () => {

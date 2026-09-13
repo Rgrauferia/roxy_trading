@@ -41,7 +41,8 @@
       active:true, disposed:false, paused:false, voiceEnabled:false,
       index:Number.isInteger(options.initialStep) ? Math.max(0, Math.min(options.initialStep, steps.length - 1)) : 0,
       speechToken:0, utterance:null, voiceRequest:null, recognition:null, micToken:0,
-      audioTimer:null, voiceTimer:null, micTimer:null, scopeTimer:null,
+      audioTimer:null, voiceTimer:null, cancelTimer:null, micTimer:null, scopeTimer:null,
+      ownCancellationPending:false,
     };
     const cleanups = [];
     const root = node('section', null, 'recipe-guide'); root.setAttribute('aria-labelledby', `${id}-heading`);
@@ -79,15 +80,21 @@
     const form = node('form', null, 'recipe-guide-command-form');
     const label = node('label', 'Dime cómo seguimos'); label.htmlFor = `${id}-command`;
     const input = node('input'); input.id = `${id}-command`; input.type = 'text'; input.maxLength = 300; input.autocomplete = 'off';
-    input.placeholder = 'Siguiente, repite, ¿qué hago ahora?'; input.setAttribute('aria-describedby', `${id}-help`);
+    input.placeholder = 'Repite, ¿cuánto tiempo?, ¿qué ingredientes?'; input.setAttribute('aria-describedby', `${id}-help`);
     const send = node('button', 'Enviar', 'recipe-guide-button'); send.type = 'submit';
     const row = node('div', null, 'recipe-guide-command-row'); row.append(input, send); form.append(label, row);
-    const help = node('p', 'Puedes decir o escribir: siguiente, listo, repite, atrás, pausa, ingredientes o «qué hago ahora».', 'recipe-guide-note'); help.id = `${id}-help`;
+    const help = node('p', 'Puedes decir o escribir: siguiente, listo, repite, atrás, pausa o «qué hago ahora». También puedes consultar ingredientes, tiempos y temperaturas: mostraré fragmentos originales, sin calcular totales ni verificar seguridad o cocción.', 'recipe-guide-note'); help.id = `${id}-help`;
     const talk = button('Hablar', () => startRecognition());
     const micStatus = node('p', '', 'recipe-guide-status'); micStatus.setAttribute('role', 'status'); micStatus.setAttribute('aria-live', 'polite');
     const response = node('p', '', 'recipe-guide-response'); response.setAttribute('role', 'status'); response.setAttribute('aria-live', 'polite');
-    const deviceNote = node('p', 'Voz del dispositivo, opcional. «Hablar» pide permiso de micrófono para un solo comando; el navegador puede procesar el audio mediante su servicio. Puedes usar los botones o escribir.', 'recipe-guide-note recipe-guide-device-note');
-    conversation.append(form, help, talk, micStatus, response);
+    const hearResponse = button('Escuchar respuesta', () => {
+      if (!usable() || !response.textContent) return;
+      state.voiceEnabled = true; state.paused = false; paint();
+      speakText(response.textContent, response.lang || 'es');
+    });
+    hearResponse.hidden = true; hearResponse.disabled = true;
+    const deviceNote = node('p', 'Voz del dispositivo, opcional. «Hablar» pide permiso de micrófono para un solo comando y activa la respuesta hablada; el navegador puede procesar el audio mediante su servicio. Los fragmentos se leen en su idioma original. Puedes usar los botones o escribir.', 'recipe-guide-note recipe-guide-device-note');
+    conversation.append(form, help, talk, micStatus, response, hearResponse);
     root.append(head, subtitle, source, progress, meter, step, guidance, nav, controls, audioStatus, ingredientPanel, conversation, deviceNote);
     container.append(root);
 
@@ -107,11 +114,14 @@
       }, 200);
     }
     function stopSpeech() {
-      state.speechToken++; state.voiceRequest = null; clearTimer('voiceTimer'); clearTimer('audioTimer');
+      state.speechToken++; state.voiceRequest = null; clearTimer('voiceTimer'); clearTimer('audioTimer'); clearTimer('cancelTimer');
       const utterance = state.utterance; state.utterance = null;
       if (utterance) {
         utterance.onstart = null; utterance.onend = null; utterance.onerror = null;
         try { speech.cancel(); } catch (_) { /* Browser unavailable; textual controls remain usable. */ }
+        // Some engines clear speaking/pending after cancel() returns. Remember
+        // only cancellation of our own utterance; never cancel another reader.
+        state.ownCancellationPending = Boolean(speech.speaking || speech.pending);
       }
       hear.setAttribute('aria-pressed', 'false');
     }
@@ -143,9 +153,9 @@
     }
     function move(delta) {
       if (!usable() || !steps.length) return;
-      stopSpeech(); stopRecognition(); micStatus.textContent = ''; audioStatus.textContent = ''; response.textContent = '';
+      stopSpeech(); stopRecognition(); micStatus.textContent = ''; audioStatus.textContent = ''; response.textContent = ''; hearResponse.hidden = true; hearResponse.disabled = true;
       const target = Math.max(0, Math.min(steps.length - 1, state.index + delta));
-      if (target === state.index) { response.textContent = delta > 0 ? 'Estás en el último paso. Puedes repetirlo o volver a la receta.' : 'Estás en el primer paso.'; return; }
+      if (target === state.index) { reply(delta > 0 ? 'Estás en el último paso. Puedes repetirlo o volver a la receta.' : 'Estás en el primer paso.'); return; }
       state.index = target; paint();
       if (typeof onStepChange === 'function') onStepChange(state.index);
       if (!usable()) return;
@@ -167,24 +177,49 @@
       paint(); if (!state.paused && state.voiceEnabled) speakStep();
     }
     function voices() { try { return Array.from(speech.getVoices() || []); } catch (_) { return []; } }
-    function chosenVoice(available) {
-      const matching = available.filter(voice => String(voice.lang || '').toLowerCase().split(/[-_]/)[0] === baseLanguage);
-      return matching.find(voice => String(voice.lang).toLowerCase() === language.toLowerCase()) || matching.find(voice => voice.localService) || matching[0];
+    function chosenVoice(available, spokenLanguage) {
+      const matching = available.filter(voice => String(voice.lang || '').toLowerCase().split(/[-_]/)[0] === spokenLanguage.toLowerCase().split('-')[0]);
+      return matching.find(voice => String(voice.lang).toLowerCase() === spokenLanguage.toLowerCase()) || matching.find(voice => voice.localService) || matching[0];
     }
     function speakStep() {
       if (!usable() || state.paused || !steps.length) return;
+      speakText(steps[state.index], language, 'step');
+    }
+    function speakText(text, spokenLanguage, kind = 'response') {
+      if (!usable() || state.paused || !text) return;
       stopSpeech(); stopRecognition(); micStatus.textContent = '';
       if (!speechAvailable) { audioStatus.textContent = 'Este navegador no ofrece lectura en voz alta. Puedes continuar con los botones o escribir.'; return; }
-      if (speech.speaking || speech.pending) { audioStatus.textContent = 'Hay otra lectura de voz en curso. Detén esa lectura y vuelve a tocar Escuchar.'; return; }
-      const token = state.speechToken;
-      state.voiceRequest = {token, index:state.index};
+      state.voiceRequest = {token:state.speechToken, index:state.index, text, language:spokenLanguage, kind, cancelWaits:0};
       audioStatus.textContent = 'Preparando la voz del dispositivo…';
       watchScope();
+      prepareVoice();
+    }
+    function waitForSpeechSlot() {
+      const request = state.voiceRequest;
+      if (!request) return true;
+      if (!speech.speaking && !speech.pending) { state.ownCancellationPending = false; clearTimer('cancelTimer'); return false; }
+      if (state.ownCancellationPending && request.cancelWaits < 20) {
+        if (state.cancelTimer == null) state.cancelTimer = setTimeout(() => {
+          state.cancelTimer = null;
+          if (!usable() || state.voiceRequest !== request || request.token !== state.speechToken) return;
+          request.cancelWaits++; prepareVoice();
+        }, 50);
+        return true;
+      }
+      state.ownCancellationPending = false; state.voiceRequest = null;
+      clearTimer('cancelTimer'); clearTimer('voiceTimer');
+      audioStatus.textContent = 'Hay otra lectura de voz en curso o la anterior no se detuvo. Vuelve a tocar Escuchar cuando termine.';
+      return true;
+    }
+    function prepareVoice() {
+      const request = state.voiceRequest;
+      if (!request || !usable() || state.paused || request.token !== state.speechToken || request.index !== state.index || waitForSpeechSlot()) return;
       const available = voices();
       if (available.length) { dispatchVoice(available); return; }
+      if (state.voiceTimer != null) return;
       state.voiceTimer = setTimeout(() => {
         state.voiceTimer = null;
-        if (!usable() || !state.voiceRequest || token !== state.speechToken) return;
+        if (!usable() || state.voiceRequest !== request || request.token !== state.speechToken) return;
         const loaded = voices();
         if (loaded.length) dispatchVoice(loaded);
         else { state.voiceRequest = null; audioStatus.textContent = 'El navegador no cargó una voz. Puedes reintentar Escuchar o seguir por texto.'; }
@@ -193,23 +228,26 @@
     function dispatchVoice(available) {
       const request = state.voiceRequest;
       if (!request || !usable() || state.paused || request.token !== state.speechToken || request.index !== state.index) return;
+      if (waitForSpeechSlot()) return;
       clearTimer('voiceTimer'); state.voiceRequest = null;
-      const voice = chosenVoice(available);
-      if (!voice) { audioStatus.textContent = `No hay una voz disponible para el idioma de estos pasos (${language}). Puedes leerlos o usar los controles.`; return; }
-      if (speech.speaking || speech.pending) { audioStatus.textContent = 'Hay otra lectura de voz en curso. Vuelve a tocar Escuchar cuando termine.'; return; }
+      const voice = chosenVoice(available, request.language);
+      if (!voice) { audioStatus.textContent = `No hay una voz disponible para el idioma de esta lectura (${request.language}). Puedes leer el texto o usar los controles.`; return; }
       let utterance;
-      try { utterance = new Speech(steps[state.index]); } catch (_) { audioStatus.textContent = 'No se pudo preparar la voz. Puedes seguir por texto.'; return; }
-      utterance.lang = language; utterance.voice = voice; utterance.rate = 0.95;
+      try { utterance = new Speech(request.text); } catch (_) { audioStatus.textContent = 'No se pudo preparar la voz. Puedes seguir por texto.'; return; }
+      utterance.lang = request.language; utterance.voice = voice; utterance.rate = 0.95;
       const token = state.speechToken; state.utterance = utterance;
+      let started = false;
       const fresh = () => { if (!usable()) return false; return state.speechToken === token && state.utterance === utterance && !state.paused; };
       const fail = message => { if (!fresh()) return; stopSpeech(); audioStatus.textContent = message; };
       utterance.onstart = () => {
-        if (!fresh()) return; clearTimer('audioTimer');
-        audioStatus.textContent = 'Leyendo este paso…'; hear.setAttribute('aria-pressed', 'true');
+        if (!fresh()) return; started = true; clearTimer('audioTimer');
+        audioStatus.textContent = request.kind === 'step' ? 'Leyendo este paso…' : 'Leyendo la respuesta…'; hear.setAttribute('aria-pressed', 'true');
         state.audioTimer = setTimeout(() => fail('La lectura tardó demasiado en terminar. El paso se conserva; puedes reintentar Escuchar.'), Math.max(30000, Math.min(1200000, utterance.text.length * 180)));
       };
       utterance.onend = () => {
-        if (!fresh()) return; clearTimer('audioTimer'); state.utterance = null;
+        if (!fresh()) return;
+        if (!started) { fail('La voz no comenzó. Revisa el audio del dispositivo y reintenta Escuchar, o sigue por texto.'); return; }
+        clearTimer('audioTimer'); state.utterance = null;
         utterance.onstart = null; utterance.onend = null; utterance.onerror = null;
         hear.setAttribute('aria-pressed', 'false'); audioStatus.textContent = 'Lectura terminada. Avanzamos cuando tú lo indiques.';
       };
@@ -217,31 +255,56 @@
       state.audioTimer = setTimeout(() => fail('La voz no comenzó. Revisa el audio del dispositivo y reintenta Escuchar, o sigue por texto.'), 6000);
       try { speech.speak(utterance); } catch (_) { fail('No se pudo iniciar la lectura. Puedes reintentar Escuchar o continuar por texto.'); }
     }
+    function reply(text, replyLanguage = 'es') {
+      response.lang = replyLanguage; response.textContent = text; hearResponse.hidden = !text; hearResponse.disabled = !speechAvailable || !text;
+      if (state.voiceEnabled && !state.paused) speakText(text, replyLanguage);
+    }
+    function sourceAnswer(command) {
+      // Retrieval only: do not interpret safety, substitutions, doneness, totals,
+      // conversions or compound instructions, even if they mention a quantity.
+      if (/\b(?:alerg\w*|allerg\w*|segur\w*|safe\w*|sustitu\w*|reemplaz\w*|replace\w*|substitut\w*|cambiar|cambio|quitar|retirar|sin|without|remove|instead|convert\w*|convertir|equivale\w*|list[oa]s?|done|doneness|cocid[oa]s?|cooked|cru[dt][oa]s?|raw|y|and)\b/.test(command)) return null;
+      const time = /^(?:cuanto tiempo|que tiempo|cual es (?:el )?tiempo|cuantos (?:minutos|segundos|horas)|cuanto (?:debe |hay que )?(?:reposar|hornear|cocinar)|tiempo|how long|how much time|how many (?:minutes|hours|seconds)|what (?:is the )?(?:cooking |baking |resting )?time)\b/.test(command);
+      const temperature = /^(?:a que temperatura|que temperatura|cual es la temperatura|(?:a )?cuantos grados|temperatura|what (?:oven )?temperature|at what temperature|how hot|how many degrees)\b/.test(command);
+      const ingredient = /^(?:ingredientes|ver ingredientes|ingredients|what (?:are the )?ingredients|(?:que|cuales) (?:son los )?ingredientes|lista de ingredientes|cantidades|cuant[oa]s? (?!tiempo\b|minutos\b|segundos\b|horas\b|grados\b|cuesta\b|dinero\b)|how much (?!time\b|does\b)|how many (?!minutes\b|hours\b|seconds\b|degrees\b))/.test(command);
+      const english = baseLanguage === 'en';
+      if (ingredient && !time && !temperature) {
+        ingredientPanel.open = true;
+        if (!ingredients.length) return {text:english ? 'This recipe does not include an ingredient list. I cannot supply missing quantities.' : 'Esta ficha no incluye una lista de ingredientes. No puedo completar cantidades ausentes.', language:english ? 'en' : 'es'};
+        return {text:(english ? 'Complete original ingredient list. These are source quantities; I do not calculate totals or assign them to a different use:\n\n' : 'Lista original completa de ingredientes. Son cantidades de la fuente; no calculo totales ni las asigno a otro uso:\n\n') + ingredients.join('\n'), language};
+      }
+      if (!time && !temperature) return null;
+      const currentOnly = /\b(?:este paso|paso actual|aqui|this step|current step)\b/.test(command);
+      const pattern = time ? /\b(?:minutes?|mins?|minutos?|seconds?|secs?|segundos?|hours?|hrs?|horas?)\b/i : /°|\b(?:fahrenheit|celsius|degrees?|grados?)\b|\b\d{2,3}\s*[fc]\b/i;
+      const excerpts = steps.map((text, index) => ({text, index})).filter(row => (!currentOnly || row.index === state.index) && pattern.test(row.text));
+      const subject = english ? (time ? 'time' : 'temperature') : (time ? 'tiempo' : 'temperatura');
+      if (!excerpts.length) return {text:english ? `No ${subject} with units is specified in ${currentOnly ? 'this step' : 'the recipe steps'}. I cannot supply a missing value or confirm doneness.` : `No encuentro ${subject} con unidades en ${currentOnly ? 'este paso' : 'los pasos de la receta'}. No puedo completar un valor ausente ni verificar la cocción.`, language:english ? 'en' : 'es'};
+      const intro = english ? `Original excerpts from ${currentOnly ? 'the current step' : 'the full recipe'}. They may contain different values; I do not calculate totals, assign them to a specific action or confirm doneness:\n\n` : `Fragmentos originales de ${currentOnly ? 'este paso' : 'la receta completa'}. Pueden contener valores distintos; no calculo totales ni asigno valores a una acción concreta. Tampoco verifico la cocción:\n\n`;
+      return {text:intro + excerpts.map(row => `${english ? 'Step' : 'Paso'} ${row.index + 1}: ${row.text}`).join('\n\n'), language};
+    }
     function executeCommand(value) {
       if (!usable()) return;
       response.lang = 'es';
-      const command = normalized(value);
-      if (!command) { response.textContent = 'Escribe un comando, por ejemplo «siguiente» o «qué hago ahora».'; return; }
+      const command = normalized(value).replace(/^(?:roxy\s+)?(?:por favor\s+|please\s+)?/, '').replace(/\s+(?:por favor|please)$/, '');
+      if (!command) { reply('Escribe un comando, por ejemplo «siguiente» o «qué hago ahora».'); return; }
       if (/^(siguiente|listo|lista|ya|ya esta|ya termine|siguiente paso|next|done)$/.test(command)) { move(1); return; }
       if (/^(atras|anterior|paso anterior|back|previous)$/.test(command)) { move(-1); return; }
       if (/^(repite|repetir|repite el paso|repeat)$/.test(command)) { repeatStep(); return; }
       if (/^(pausa|pausar|para|detente|pause|stop)$/.test(command)) { togglePause(true); return; }
       if (/^(reanudar|continua|continuar|resume)$/.test(command)) { togglePause(false); return; }
-      if (/^(ingredientes|ver ingredientes|ingredients)$/.test(command)) {
-        stopSpeech(); ingredientPanel.open = true; ingredientSummary.focus({preventScroll:true});
-        response.textContent = ingredients.length ? 'Aquí tienes los ingredientes de esta receta, con sus cantidades originales.' : 'Esta ficha no incluye una lista de ingredientes disponible.'; return;
-      }
       if (/^(que hago ahora|que sigue|en que paso estoy|cual es el paso|what do i do now)$/.test(command)) {
         response.lang = language; response.textContent = steps[state.index] || 'No hay pasos disponibles en esta ficha.';
         if (state.voiceEnabled && !state.paused) speakStep(); return;
       }
-      response.textContent = 'En esta guía puedo leer o repetir el paso, avanzar, volver atrás y mostrar ingredientes. Todavía no responde preguntas abiertas ni propone sustituciones.';
+      stopSpeech();
+      const answer = sourceAnswer(command);
+      if (answer) { reply(answer.text, answer.language); return; }
+      reply('Puedo leer el paso y mostrar fragmentos originales de ingredientes, tiempos o temperaturas. No puedo responder preguntas abiertas, calcular ajustes, proponer sustituciones ni verificar alergias, seguridad o punto de cocción.');
     }
     function startRecognition() {
       if (!usable()) return;
       if (state.recognition) { stopRecognition(); micStatus.textContent = 'Micrófono detenido.'; return; }
       if (!Recognition) { micStatus.textContent = 'Este navegador no admite comandos de voz. Puedes escribir el comando o usar los botones.'; return; }
-      stopSpeech(); audioStatus.textContent = ''; response.textContent = ''; stopRecognition();
+      stopSpeech(); audioStatus.textContent = ''; response.textContent = ''; hearResponse.hidden = true; hearResponse.disabled = true; stopRecognition();
       const token = state.micToken;
       let recognition;
       try { recognition = new Recognition(); } catch (_) { micStatus.textContent = 'No se pudo abrir el micrófono. Puedes escribir el comando.'; return; }
@@ -258,6 +321,9 @@
         const transcript = result[0]?.transcript;
         stopRecognition();
         if (typeof transcript !== 'string' || !transcript.trim()) { micStatus.textContent = 'No entendí el comando. Puedes repetirlo con Hablar o escribirlo.'; return; }
+        // A completed microphone request is explicit permission for a spoken
+        // reply. Typed commands remain silent until audio has been selected.
+        state.voiceEnabled = true; state.paused = false; paint();
         micStatus.textContent = `Escuché: «${transcript}».`; executeCommand(transcript);
       };
       recognition.onerror = event => {

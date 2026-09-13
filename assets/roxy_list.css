@@ -1357,6 +1357,12 @@ body.recipe-welcome-active .bottom-nav,body.recipe-welcome-active #roxyVoiceLaun
 #recipesPanel:not(.pet-mode) .recipe-category-heading p{display:none}
 #recipesPanel:not(.pet-mode) #recipeEditorialFilters{margin-top:24px}
 .recipe-extra-options{margin-top:20px}
+/* A saved cooking session is a compact shortcut, not another food photograph. */
+#recipesPanel:not(.pet-mode) .recipe-card.resume-card{display:grid;grid-template-columns:48px minmax(0,1fr);align-items:center;gap:12px;padding:12px;width:100%;min-width:0;border-radius:16px;background:var(--paper)}
+#recipesPanel:not(.pet-mode) .recipe-card.resume-card>img{width:48px;height:48px;min-height:0;aspect-ratio:1;object-fit:cover;border-radius:50%}
+#recipesPanel:not(.pet-mode) .recipe-card.resume-card>span{padding:0;min-width:0;overflow-wrap:anywhere}
+#recipesPanel:not(.pet-mode) .recipe-card.resume-card strong{font:700 15px/1.35 var(--font-body, sans-serif)}
+#recipesPanel:not(.pet-mode) .recipe-card.resume-card small{font-size:12px;line-height:1.4;margin-top:4px}
 @media(max-width:600px){
   #recipesPanel:not(.pet-mode)>.hero-heading h2{font-size:30px}
   #recipesPanel:not(.pet-mode)>.hero-heading p{font-size:10px}

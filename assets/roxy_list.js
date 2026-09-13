@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '197';
+  const APP_VERSION = '198';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -2770,16 +2770,21 @@
     $('previousStepButton').disabled=data.step_number<=1||data.session.status==='COMPLETED';
     $('nextStepButton').textContent=data.step_number>=total?'Terminar':'Siguiente';
     $('nextStepButton').disabled=data.session.status==='COMPLETED';
-    const automaticSeconds=Number(data.suggested_timer_seconds||stepTimerSeconds(data.current_step));if(automaticSeconds)$('timerMinutes').value=String(Math.round(automaticSeconds/6)/10);
+    prepareCookingTimer(data);
     renderCookingTimers();
     clearInterval(cookingTimerTick);
     cookingTimerTick=setInterval(renderCookingTimers,1000);
     if(!$('cookingDialog').open)$('cookingDialog').showModal();
     if(currentCookingVideo)renderCookingVideo(currentCookingVideo.status,currentCookingVideo);
   }
-  function stepTimerSeconds(step){
-    const text=normalizedStepText(step);let seconds=0;const patterns=[{regex:/(\d+(?:[.,]\d+)?)\s*(?:horas?|hrs?|h)\b/g,factor:3600},{regex:/(\d+(?:[.,]\d+)?)\s*(?:minutos?|mins?|min)\b/g,factor:60},{regex:/(\d+(?:[.,]\d+)?)\s*(?:segundos?|segs?|seg|s)\b/g,factor:1}];
-    patterns.forEach(({regex,factor})=>{for(const match of text.matchAll(regex))seconds+=Number(String(match[1]).replace(',','.'))*factor});return Math.round(seconds);
+  function prepareCookingTimer(data){
+    // A zero/missing suggestion means "choose", never parse prose again in JS.
+    const seconds=data.suggested_timer_seconds;
+    const complete=data.session?.status==='COMPLETED';
+    const valid=!complete&&Number.isInteger(seconds)&&seconds>=1&&seconds<=86400;
+    $('timerMinutes').value=valid?String(Number((seconds/60).toFixed(6))):'';
+    $('timerMinutes').disabled=complete;$('startTimerButton').disabled=complete;
+    $('timerSuggestion').textContent=complete?'Receta terminada.':valid?'Tiempo del paso. Revisa la duración y pulsa Iniciar cuando empieces esa acción.':'Elige la duración del temporizador: este paso no indica un único tiempo. Respeta los rangos y las comprobaciones de la receta.';
   }
   function timerRemaining(timer){return Math.max(0,Math.ceil((new Date(timer.ends_at).getTime()-Date.now())/1000))}
   function renderCookingTimers(){
@@ -2795,19 +2800,14 @@
       if(remaining===0&&!announcedTimers.has(timer.id)){announcedTimers.add(timer.id);announce(`${timer.label||'Temporizador'} terminado`);if('vibrate'in navigator)navigator.vibrate([200,100,200]);if('speechSynthesis'in window){const alert=new SpeechSynthesisUtterance(`${timer.label||'Temporizador'} terminado`);alert.lang='es-US';speechSynthesis.speak(alert)}}
     });
   }
-  async function createCookingTimer(seconds,label,{automatic=false}={}){
-    if(!currentCooking||!(seconds>0))return false;const stepNumber=Number(currentCooking.step_number||1);const marker=`Paso ${stepNumber} ·`;
-    if(automatic&&((currentCooking.session.timers)||[]).some(timer=>String(timer.label||'').startsWith(marker)))return false;
+  async function createCookingTimer(seconds,label){
+    if(!currentCooking||!(seconds>0))return false;
     const button=$('startTimerButton');button.disabled=true;
-    try{const data=await api(`/v1/home-food/${encodeURIComponent(user)}/cooking-sessions/${encodeURIComponent(currentCooking.session.id)}/timers`,{method:'POST',body:JSON.stringify({duration_seconds:Math.round(seconds),label})});showCooking(data);announce(automatic?`Roxy inició el temporizador del paso ${stepNumber}`:'Temporizador iniciado');return true}catch(error){announce(error.message);return false}finally{button.disabled=false}
+    try{const data=await api(`/v1/home-food/${encodeURIComponent(user)}/cooking-sessions/${encodeURIComponent(currentCooking.session.id)}/timers`,{method:'POST',body:JSON.stringify({duration_seconds:Math.round(seconds),label})});showCooking(data);announce('Temporizador iniciado');return true}catch(error){announce(error.message);return false}finally{button.disabled=false}
   }
   async function startCookingTimer(){
-    if(!currentCooking)return;const minutes=Number($('timerMinutes').value);if(!(minutes>0)){announce('Indica cuántos minutos');return}
+    if(!currentCooking||currentCooking.session.status==='COMPLETED')return;const minutes=Number($('timerMinutes').value);if(!Number.isFinite(minutes)||minutes*60<1||minutes>1440){announce('Elige una duración entre 1 segundo y 24 horas, expresada en minutos.');return}
     await createCookingTimer(minutes*60,`Temporizador de ${minutes} min`);
-  }
-  async function startAutomaticStepTimer(){
-    if(!currentCooking||currentCooking.session.status==='COMPLETED')return;const seconds=Number(currentCooking.suggested_timer_seconds||stepTimerSeconds(currentCooking.current_step));if(!(seconds>0))return;
-    const minutes=seconds/60;await createCookingTimer(seconds,`Paso ${currentCooking.step_number} · ${Number.isInteger(minutes)?minutes:minutes.toFixed(1)} min`,{automatic:true});
   }
   async function cancelCookingTimer(timerId){
     if(!currentCooking)return;
@@ -2883,7 +2883,7 @@
     const current=()=>roxyCookingSpeechJob===job&&user===owner&&collectionIdentity()===identity&&!document.hidden&&Boolean($('cookingDialog')?.open)&&currentCooking?.session?.id===sessionId&&currentCooking.step_number===stepNumber&&currentCooking.current_step===step&&currentCooking.session.status===sessionStatus;
     job.guard=setInterval(()=>{if(!current()&&roxyCookingSpeechJob===job)stopCookingSpeech()},250);
     const button=$('speakStepButton');button.disabled=false;button.textContent='Detener voz';
-    const completed=()=>{if(!current())return;stopCookingSpeech();cookingSpeechStatus('Lectura terminada.');void startAutomaticStepTimer()};
+    const completed=()=>{if(!current())return;stopCookingSpeech();cookingSpeechStatus('Lectura terminada. Inicia el temporizador cuando empieces la acción; no se activa con la voz.')};
     const fallback=()=>{
       if(!current()||job.fallback)return;job.fallback=true;job.controller.abort();clearTimeout(job.fetchTimer);releaseCookingSpeechAudio(job);
       const started=speakRoxyDeviceText(speech,{scope:'cooking',isCurrent:current,onStatus:(state,message)=>{if(!current())return;cookingSpeechStatus(message);if(['error','unavailable','busy'].includes(state))stopCookingSpeech()},onEnd:completed});
