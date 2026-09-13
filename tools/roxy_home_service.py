@@ -65,6 +65,7 @@ from roxy_os.home_accounts import HomeAccountStore, HomeAccountStorageError, Hom
 from roxy_os.home_recipe_profile import RecipeProfileConflictError, RecipeProfileValidationError
 from roxy_os.home_recipe_discovery import discovery_presets, assess_recipe_fit, screen_recipe_summaries
 from roxy_os.home_demo import registration_config, verify_signup_token, trial_access_mode, DEMO_NOTICE_VERSION
+from roxy_os.home_client_identity import client_ip_identity, HomeClientIdentityError
 from roxy_os.home_calendar import DEFAULT_TIMEZONE, HomeCalendarStore, parse_calendar_command
 from roxy_os.home_calendar_google import GoogleCalendarConfig, GoogleCalendarSync
 from roxy_os.home_commerce import (
@@ -1680,9 +1681,18 @@ def _personalize(message: str, auth: AuthContext) -> str:
     return f"Claro, {name}. {message}" if name else message
 
 
+def _client_rate_identity(request: Request) -> str:
+    try:
+        return client_ip_identity(request)
+    except HomeClientIdentityError:
+        # Never fall back to a shared proxy or arbitrary caller-supplied XFF.
+        # This is an admission/rate identity, never an authentication identity.
+        raise HTTPException(status_code=503, detail="No se pudo verificar la conexión. Inténtalo de nuevo más tarde.") from None
+
+
 def _rate_limit(request: Request, *, bucket: str = "api") -> None:
     # Rendering a recipe grid must not consume the household mutation budget.
-    key = f"{bucket}:{request.client.host if request.client else 'unknown'}"
+    key = f"{bucket}:{_client_rate_identity(request)}"
     now = int(time.time())
     state = _RATE_STATE.get(key)
     if state is None or now - state["start"] >= RATE_LIMIT_WINDOW_SECONDS:
@@ -1697,7 +1707,7 @@ def _login_rate_limit(request: Request, username: str) -> None:
     # Authentication removes unsupported characters; use that same canonical
     # identity here, so username! cannot bypass username's counter.
     normalized = re.sub(r"[^a-z0-9_.@-]+", "", username.strip().lower())
-    ip = request.client.host if request.client else "unknown"
+    ip = _client_rate_identity(request)
     digest = lambda value: hmac.new(_api_key().encode(), value.encode(), hashlib.sha256).hexdigest()
     limits = [("ip:" + digest(ip), 60), ("user:" + digest(ip + "|" + normalized), LOGIN_RATE_LIMIT_MAX)]
     now = int(time.time())
@@ -1725,7 +1735,7 @@ def _recovery_rate_limit(request: Request, username: str) -> None:
     Do not trust arbitrary forwarding headers supplied by a browser.
     """
     now = int(time.time())
-    ip = request.client.host if request.client else "unknown"
+    ip = _client_rate_identity(request)
     normalized = re.sub(r"[^a-z0-9_.@-]+", "", username.strip().lower())
     digest = lambda value: hmac.new(_api_key().encode(), value.encode(), hashlib.sha256).hexdigest()
     limits = [("global", 60, 120), ("ip:" + digest(ip), 900, 30),
@@ -2071,7 +2081,7 @@ def home_register(payload: HomeSignupRequest, request: Request) -> Response:
     if not verify_signup_token(payload.verification_token):
         raise HTTPException(status_code=422, detail="No se pudo verificar el registro. Repite la comprobación de seguridad.")
     # Home-specific keyed pseudonym, not the IP itself or another product's secret.
-    admission = hmac.new(_api_key().encode(), (request.client.host if request.client else "unknown").encode(), hashlib.sha256).hexdigest()
+    admission = hmac.new(_api_key().encode(), _client_rate_identity(request).encode(), hashlib.sha256).hexdigest()
     try:
         member = _account_store().register_trial(username=payload.username, display_name=payload.display_name,
                                                 password=payload.password, admission_hash=admission)

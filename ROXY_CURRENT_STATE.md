@@ -3,7 +3,24 @@
 Actualizado: 2026-09-13. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 
-## 196 — candidato probado: recuperación privada y protección de acceso
+## 13/09 — Cloudflare configurado; alta real aún no habilitada
+
+Cuenta autenticada y widget `Roxy Home — registro` creado: Managed, únicamente
+roxy-home.onrender.com, sin pre-clearance. Claves nuevas exclusivas Home guardadas
+en Render, sin imprimir/persistir en repo ni reutilizar contraseñas. Conservadas
+37 variables previas; añadidas site/secret/hosts y PUBLIC_SIGNUP_ENABLED=0.
+Despliegue de entorno dep-dajfkq0jo6nc73dmcvkg Live36.0s sobre27ae5062/196.
+Shell verifica claves presentes/hostcorrecto/signupfalse. Siteverify real desde
+servidor rechaza token falso coninvalid-input-response; NO es alta válida.
+Health200 y registro200disabled; sesión Robert permanece operativa en Más.
+No pagos, DNS, migración, nueva cuenta Roxy ni datos del hogar modificados.
+Runtime confirma un worker y confianza Uvicorn sólo loopback. Ajuste de identidad
+de cuotas Render/Cloudflare implementado:3155Python/11PGomitidas y47Node aprobadas.
+Modo render_cf guardado en Render medianteSaveonly; pendiente de despliegue y
+comprobación pública de resistencia a cabeceras falsas, sin alterar Uvicorn.
+Ver reports/home_cloudflare_20260913.md. No anunciar apertura ni demo terminada.
+
+## 196 — PUBLICADO: recuperación privada y protección de acceso
 
 Ocho códigos de respaldo de 128 bits, emitidos una vez al registrar una cuenta
 nueva o desde Más → Seguridad con la contraseña actual. Sólo hashes ligados al
@@ -29,7 +46,16 @@ preferencias guardadas y regeneración/estado8 en Seguridad. Cuenta y servidor Q
 locales desechables, sin proveedores ni escrituras en cuentas públicas.
 HTML/APP196, JS198, CSS136, SW195, registrationJS3, recoveryJS/CSS1.
 
-Todavía NO publicado este candidato. Registro público sigue deshabilitado.
+Publicado desde 27ae50623e6b65fb9d9f878ba233c268b2e551de (implementación
+6ea74109), Render dep-dajfgfss728c73bajs00 Live49.7s. Reinicio502transitorio
+recuperado; health200 y siete assets públicos200 byte-idénticos. Prueba POST
+de recuperación con identidad reservada inexistente/código inválido:401genérico,
+no-store y sin cookie; verifica OrigenHTTPS sin restablecer una cuenta real.
+Navegador público: sesión Robert conservada, meta196, Seguridad muestra que aún
+no tiene códigos, formulario sin tocar, sin desbordamiento1280px. Registro sigue
+deshabilitado. QA31750 detenido y temporal sintético eliminado; pestaña31cerrada,
+viewportreset. Público33 conserva Seguridad; original1crashed intocado. No
+redeploy sólo por estas notas; falta verificar IP cliente/proxy antes de apertura.
 Usuario confirma no tener Cloudflare; formulario de alta abierto en pestaña30.
 Solicitó enviar con sus datos, pero los campos estaban vacíos al comprobarlos;
 se le pidió introducirlos allí. No cuenta/Turnstile creado ni pago/contrato hecho.
