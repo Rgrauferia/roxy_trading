@@ -12,11 +12,14 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 import requests
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
@@ -117,7 +120,8 @@ from roxy_os.fitness.router import create_fitness_router
 ASSETS_DIR = Path(__file__).resolve().parents[1] / "assets"
 SESSION_COOKIE = "roxy_shopping_session"
 # A trusted household device should not need recurring pairing. The signed,
-# HttpOnly cookie remains revocable by rotating ROXY_HOME_API_KEY, while normal
+# HttpOnly personal cookie is revocable by password recovery; legacy household
+# cookies remain revocable by rotating ROXY_HOME_API_KEY, while normal
 # Safari/PWA sessions stay connected for one year.
 SESSION_TTL_SECONDS = 365 * 24 * 60 * 60
 RATE_LIMIT_WINDOW_SECONDS = 60
@@ -126,6 +130,9 @@ _RATE_STATE: dict[str, dict[str, int]] = {}
 LOGIN_RATE_LIMIT_WINDOW_SECONDS = 15 * 60
 LOGIN_RATE_LIMIT_MAX = 10
 _LOGIN_RATE_STATE: dict[str, dict[str, int]] = {}
+_LOGIN_RATE_LOCK = threading.Lock()
+_RECOVERY_RATE_STATE: dict[str, dict[str, int]] = {}
+_RECOVERY_RATE_LOCK = threading.Lock()
 
 app = FastAPI(
     title="Roxy Home",
@@ -149,6 +156,17 @@ async def private_api_cache(request: Request, call_next):
 @app.exception_handler(HomeAccountStorageError)
 async def home_account_storage_error(_request: Request, exc: HomeAccountStorageError) -> JSONResponse:
     return JSONResponse(status_code=503, content={"detail": str(exc)}, headers={"Retry-After": "30"})
+
+
+@app.exception_handler(RequestValidationError)
+async def private_account_validation_error(request: Request, exc: RequestValidationError):
+    if request.url.path.startswith("/v1/home-account/"):
+        # Pydantic's default error body contains the original input, including
+        # passwords/codes. Keep field names and types, never submitted secrets.
+        errors = [{"loc": row["loc"], "type": row["type"], "msg": "Revisa este campo."}
+                  for row in exc.errors()]
+        return JSONResponse(status_code=422, content={"detail": errors})
+    return await request_validation_exception_handler(request, exc)
 
 
 @app.exception_handler(HomeTrialLimitError)
@@ -539,6 +557,18 @@ class HomeSignupRequest(BaseModel):
     notice_version: str = Field(min_length=1, max_length=32)
 
 
+class HomeRecoveryRotateRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    current_password: str = Field(min_length=8, max_length=128)
+
+
+class HomeRecoveryResetRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    username: str = Field(min_length=3, max_length=64)
+    recovery_code: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=12, max_length=128)
+
+
 class HomeBootstrapRequest(HomeLoginRequest):
     display_name: str = Field(min_length=1, max_length=64)
     household_name: str = Field(default="Nuestro hogar", min_length=1, max_length=64)
@@ -596,6 +626,7 @@ class AuthContext:
     storage_user_id: str | None = None
     member_id: str | None = None
     trial: dict[str, Any] | None = None
+    session_version: int = 0
 
 
 def _store() -> ShoppingListStore:
@@ -1430,7 +1461,9 @@ def _session_cookie(user_id: str) -> str:
 
 def _member_session_cookie(member: dict[str, Any]) -> str:
     expires = int(time.time()) + SESSION_TTL_SECONDS
-    raw = f"member|{member['id']}|{member['storage_user_id']}|{expires}"
+    # Capture the version returned by authentication, not a fresh version read
+    # after a concurrent reset. Such a login must not revive a revoked session.
+    raw = f"member|{member['id']}|{member['storage_user_id']}|{member.get('session_version', 0)}|{expires}"
     encoded = base64.urlsafe_b64encode(raw.encode()).decode().rstrip("=")
     signature = hmac.new(_api_key().encode(), encoded.encode(), hashlib.sha256).hexdigest()
     return f"{encoded}.{signature}"
@@ -1465,17 +1498,28 @@ def _cookie_auth(value: str) -> AuthContext | None:
             return None
         decoded = base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)).decode()
         if decoded.startswith("member|"):
-            _, member_id, storage_user_id, raw_expires = decoded.split("|", 3)
+            parts = decoded.split("|")
+            if len(parts) == 4:
+                _, member_id, storage_user_id, raw_expires = parts
+                version = 0  # Preserve legacy personal sessions until a reset.
+            elif len(parts) == 5:
+                _, member_id, storage_user_id, raw_version, raw_expires = parts
+                if not re.fullmatch(r"0|[1-9][0-9]{0,15}", raw_version):
+                    return None
+                version = int(raw_version)
+            else:
+                return None
             if int(raw_expires) < int(time.time()):
                 return None
             member = _account_store().member(member_id)
-            if member is None or not hmac.compare_digest(member["storage_user_id"], normalize_shopping_user(storage_user_id)):
+            if (member is None or version != member.get("session_version", 0)
+                    or not hmac.compare_digest(member["storage_user_id"], normalize_shopping_user(storage_user_id))):
                 return None
-            return AuthContext("member", member["storage_user_id"], member["id"], member.get("trial"))
+            return AuthContext("member", member["storage_user_id"], member["id"], member.get("trial"), version)
         user_id, raw_expires = decoded.rsplit("|", 1)
         if int(raw_expires) < int(time.time()):
             return None
-        return AuthContext("legacy", normalize_shopping_user(user_id))
+        return AuthContext("legacy", _allowed_user(user_id))
     except (HTTPException, ValueError, UnicodeDecodeError):
         return None
 
@@ -1486,7 +1530,8 @@ def _authenticate(request: Request) -> AuthContext:
         if cookie_auth.trial:
             mode = trial_access_mode(request.method, request.url.path)
             privacy_delete = request.method == "DELETE" and request.url.path == "/api/fitness/v1/me/data"
-            if cookie_auth.trial["status"] != "ACTIVE" and request.method not in {"GET", "HEAD"} and not privacy_delete:
+            account_security = request.method == "POST" and request.url.path == "/v1/home-account/recovery/codes"
+            if cookie_auth.trial["status"] != "ACTIVE" and request.method not in {"GET", "HEAD"} and not (privacy_delete or account_security):
                 raise HTTPException(status_code=403, detail="Los cinco días de prueba terminaron. Puedes consultar tus datos; no hay cobro automático.")
             if mode == "unavailable":
                 raise HTTPException(status_code=403, detail="Esta función no está incluida en la demo. No se realizó ninguna operación ni cargo.")
@@ -1649,15 +1694,59 @@ def _rate_limit(request: Request, *, bucket: str = "api") -> None:
 
 
 def _login_rate_limit(request: Request, username: str) -> None:
-    key = f"{request.client.host if request.client else 'unknown'}:{username.strip().lower()}"
+    # Authentication removes unsupported characters; use that same canonical
+    # identity here, so username! cannot bypass username's counter.
+    normalized = re.sub(r"[^a-z0-9_.@-]+", "", username.strip().lower())
+    ip = request.client.host if request.client else "unknown"
+    digest = lambda value: hmac.new(_api_key().encode(), value.encode(), hashlib.sha256).hexdigest()
+    limits = [("ip:" + digest(ip), 60), ("user:" + digest(ip + "|" + normalized), LOGIN_RATE_LIMIT_MAX)]
     now = int(time.time())
-    state = _LOGIN_RATE_STATE.get(key)
-    if state is None or now - state["start"] >= LOGIN_RATE_LIMIT_WINDOW_SECONDS:
-        _LOGIN_RATE_STATE[key] = {"start": now, "count": 1}
-        return
-    if state["count"] >= LOGIN_RATE_LIMIT_MAX:
-        raise HTTPException(status_code=429, detail="Demasiados intentos de acceso; espera quince minutos.")
-    state["count"] += 1
+    with _LOGIN_RATE_LOCK:
+        for key in list(_LOGIN_RATE_STATE):
+            if now - _LOGIN_RATE_STATE[key]["start"] >= LOGIN_RATE_LIMIT_WINDOW_SECONDS:
+                del _LOGIN_RATE_STATE[key]
+        if len(_LOGIN_RATE_STATE) > 10_000:
+            raise HTTPException(status_code=429, detail="Demasiados intentos de acceso; espera quince minutos.", headers={"Retry-After": "900"})
+        for key, maximum in limits:
+            state = _LOGIN_RATE_STATE.get(key)
+            if state and state["count"] >= maximum:
+                raise HTTPException(status_code=429, detail="Demasiados intentos de acceso; espera quince minutos.",
+                                    headers={"Retry-After": str(max(1, LOGIN_RATE_LIMIT_WINDOW_SECONDS - (now - state["start"])))})
+        for key, _ in limits:
+            state = _LOGIN_RATE_STATE.setdefault(key, {"start": now, "count": 0})
+            state["count"] += 1
+
+
+def _recovery_rate_limit(request: Request, username: str) -> None:
+    """Bound CPU/attempts without locking the account's normal login path.
+
+    Single-instance defense (the current Render deployment); code entropy is
+    authoritative. A multi-instance rollout must use a shared rate-limit store.
+    Do not trust arbitrary forwarding headers supplied by a browser.
+    """
+    now = int(time.time())
+    ip = request.client.host if request.client else "unknown"
+    normalized = re.sub(r"[^a-z0-9_.@-]+", "", username.strip().lower())
+    digest = lambda value: hmac.new(_api_key().encode(), value.encode(), hashlib.sha256).hexdigest()
+    limits = [("global", 60, 120), ("ip:" + digest(ip), 900, 30),
+              ("user:" + digest(normalized), 900, 10)]
+    with _RECOVERY_RATE_LOCK:
+        for key in list(_RECOVERY_RATE_STATE):
+            if now - _RECOVERY_RATE_STATE[key]["start"] >= 900:
+                del _RECOVERY_RATE_STATE[key]
+        if len(_RECOVERY_RATE_STATE) > 10_000:
+            raise HTTPException(status_code=429, detail="Espera antes de volver a intentar la recuperación.", headers={"Retry-After": "900"})
+        for key, window, maximum in limits:
+            state = _RECOVERY_RATE_STATE.get(key)
+            if state and now - state["start"] < window and state["count"] >= maximum:
+                raise HTTPException(status_code=429, detail="Demasiados intentos de recuperación. Espera antes de volver a intentarlo.",
+                                    headers={"Retry-After": str(max(1, window - (now - state["start"])))})
+        for key, window, _ in limits:
+            state = _RECOVERY_RATE_STATE.get(key)
+            if state is None or now - state["start"] >= window:
+                _RECOVERY_RATE_STATE[key] = {"start": now, "count": 1}
+            else:
+                state["count"] += 1
 
 
 def _security_headers(response: Response) -> Response:
@@ -1887,6 +1976,8 @@ def home_account_me(request: Request, auth: AuthContext = Depends(_authenticate)
 
 @app.post("/v1/home-account/login")
 def home_account_login(payload: HomeLoginRequest, request: Request) -> Response:
+    if request.headers.get("origin") and not _account_same_origin(request):
+        raise HTTPException(status_code=403, detail="Inicia sesión desde Roxy Home.")
     _login_rate_limit(request, payload.username)
     member = _account_store().authenticate(payload.username, payload.password)
     if member is None:
@@ -1901,13 +1992,79 @@ def home_registration_status() -> dict[str, Any]:
     return registration_config()
 
 
+def _account_same_origin(request: Request) -> bool:
+    # Render terminates TLS before the app. Use the deployment's trusted URL,
+    # not an arbitrary X-Forwarded-Proto/Host from a client or '*' proxy trust.
+    configured = (os.getenv("ROXY_HOME_PUBLIC_ORIGIN") or os.getenv("RENDER_EXTERNAL_URL") or "").strip()
+    expected = str(request.base_url).rstrip("/")
+    if configured:
+        try:
+            parsed = urlsplit(configured)
+            if (parsed.scheme != "https" or not parsed.hostname or parsed.username is not None
+                    or parsed.password is not None or parsed.query or parsed.fragment
+                    or parsed.path not in {"", "/"} or parsed.hostname != request.url.hostname
+                    or parsed.port not in {None, 443}):
+                return False
+            expected = f"https://{parsed.hostname}"
+        except ValueError:
+            return False
+    return hmac.compare_digest(request.headers.get("origin", "").encode(), expected.encode())
+
+
+def _require_account_origin(request: Request) -> None:
+    if not _account_same_origin(request):
+        raise HTTPException(status_code=403, detail="Abre la recuperación desde Roxy Home.")
+
+
+def _recovery_member(request: Request, auth: AuthContext) -> dict[str, Any]:
+    member = _member_for_auth(auth)
+    if member is None:
+        raise HTTPException(status_code=403, detail="Entra con tu perfil personal para proteger tu cuenta.")
+    if (request.headers.get("x-roxy-member-id", "") != member["id"]
+            or auth.session_version != member.get("session_version", 0)):
+        raise HTTPException(status_code=409, detail="La sesión cambió. Vuelve a entrar antes de continuar.")
+    return member
+
+
+@app.get("/v1/home-account/recovery")
+def home_recovery_status(request: Request, auth: AuthContext = Depends(_authenticate)) -> dict[str, Any]:
+    _rate_limit(request)
+    member = _recovery_member(request, auth)
+    return {"username": member["username"], **_account_store().recovery_status(member["id"])}
+
+
+@app.post("/v1/home-account/recovery/codes")
+def home_recovery_codes(payload: HomeRecoveryRotateRequest, request: Request,
+                        auth: AuthContext = Depends(_authenticate)) -> dict[str, Any]:
+    _require_account_origin(request)
+    member = _recovery_member(request, auth)
+    _recovery_rate_limit(request, member["username"])
+    try:
+        result = _account_store().rotate_recovery_codes(
+            member["id"], payload.current_password, expected_session_version=auth.session_version)
+    except PermissionError:
+        raise HTTPException(status_code=401, detail="No se pudo confirmar la contraseña o la sesión. Vuelve a intentarlo.") from None
+    return {"username": member["username"], **result}
+
+
+@app.post("/v1/home-account/recovery/reset")
+def home_recovery_reset(payload: HomeRecoveryResetRequest, request: Request) -> Response:
+    _require_account_origin(request)
+    _recovery_rate_limit(request, payload.username)
+    if not _account_store().reset_password_with_recovery(payload.username, payload.recovery_code, payload.new_password):
+        raise HTTPException(status_code=401, detail="No se pudo recuperar la cuenta. Revisa el usuario y un código de respaldo vigente.")
+    response = JSONResponse({"status": "RESET", "message": "Contraseña cambiada. Inicia sesión y genera nuevos códigos de respaldo."})
+    response.delete_cookie(SESSION_COOKIE, path="/", secure=True, httponly=True, samesite="strict")
+    return _security_headers(response)
+
+
 @app.post("/v1/home-account/register", status_code=201)
 def home_register(payload: HomeSignupRequest, request: Request) -> Response:
     if not registration_config()["enabled"]:
         raise HTTPException(status_code=503, detail="El registro público todavía no está abierto.")
     _rate_limit(request, bucket="signup")
     _login_rate_limit(request, "__public_signup__")
-    if request.headers.get("origin", "") != str(request.base_url).rstrip("/"):
+    if not _account_same_origin(request):
         raise HTTPException(status_code=403, detail="Abre el registro desde Roxy Home.")
     if not payload.acknowledged or payload.notice_version != DEMO_NOTICE_VERSION:
         raise HTTPException(status_code=422, detail="Revisa y confirma las condiciones de la demo.")
@@ -2039,7 +2196,7 @@ def update_home_recipe_profile(payload: HomeRecipeProfileRequest, request: Reque
                                auth: AuthContext = Depends(_authenticate)) -> dict[str, Any]:
     _rate_limit(request)
     member = _recipe_profile_member(request, auth)
-    if request.headers.get("origin", "") != str(request.base_url).rstrip("/"):
+    if not _account_same_origin(request):
         raise HTTPException(status_code=403, detail="Guarda tus gustos desde Roxy Home.")
     if payload.member_id != member["id"]:
         raise HTTPException(status_code=409, detail="La sesión cambió. No se modificaron las preferencias.")

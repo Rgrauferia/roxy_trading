@@ -44,6 +44,8 @@ def api(monkeypatch):
     state = SimpleNamespace(identity=service.AuthContext("member", "shared-household", MEMBER),
                             repository=repository, db=db)
     monkeypatch.setenv("ROXY_HOME_API_KEY", "synthetic-home-api-key")
+    # Legacy education access is valid only for an explicitly allowed namespace.
+    monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "shared-household")
     monkeypatch.setattr(router, "repository", lambda: repository)
     monkeypatch.setattr(service, "_rate_limit", lambda request: None)
     monkeypatch.setattr(service, "_account_store", lambda: pytest.fail("Unexpected account-store access"))

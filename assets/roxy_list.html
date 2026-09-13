@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="195" />
+  <meta name="roxy-home-version" content="196" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
@@ -20,6 +20,7 @@
   <link rel="stylesheet" href="/assets/roxy_garden_guide.css?v=1" />
   <link rel="stylesheet" href="/assets/roxy_recipe_guide.css?v=1" />
   <link rel="stylesheet" href="/assets/roxy_recipe_onboarding.css?v=1" />
+  <link rel="stylesheet" href="/assets/roxy_home_recovery.css?v=1" />
   <link rel="stylesheet" href="/assets/roxy_home_myplate_recipes.css?v=2" />
   <link rel="stylesheet" href="/assets/roxy_home_drinks.css?v=4" />
   <script src="/assets/roxy_maplibre_loader.js?v=1" defer></script>
@@ -35,8 +36,9 @@
   <script src="/assets/roxy_fitness_programs.js?v=1" defer></script>
   <script src="/assets/roxy_fitness.js?v=5" defer></script>
   <script src="/assets/roxy_garden_guide.js?v=1" defer></script>
-  <script src="/assets/roxy_list.js?v=197" defer></script>
-  <script src="/assets/roxy_home_registration.js?v=2" defer></script>
+  <script src="/assets/roxy_home_recovery.js?v=1" defer></script>
+  <script src="/assets/roxy_list.js?v=198" defer></script>
+  <script src="/assets/roxy_home_registration.js?v=3" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -567,6 +569,7 @@
         <button id="personalizationButton" class="primary full" type="button">Mi Roxy y apariencia</button>
         <button id="recipePreferencesSettings" class="secondary full" type="button">Mis gustos de cocina</button>
         <button id="accountButton" class="secondary full" type="button">Administrar perfiles</button>
+        <button id="accountRecoveryButton" class="secondary full" type="button" hidden>Seguridad · Códigos de recuperación</button>
       </section>
       <details class="history-card card" open>
         <summary>Historial de compras</summary>
@@ -796,6 +799,7 @@
         <p id="loginError" class="error" role="alert"></p>
         <button class="primary full" type="submit">Entrar a nuestro hogar</button>
       </form>
+      <button id="loginForgotButton" class="quiet-button" type="button">Olvidé mi contraseña</button>
       <button id="openSignup" class="secondary full" type="button" hidden>Crear mi hogar · 5 días gratis</button>
       <section id="signupPanel" hidden>
         <h3>Un hogar solo para ti</h3>
@@ -806,7 +810,7 @@
           <label><span>Elige tu usuario</span><input id="signupUsername" autocomplete="username" minlength="3" maxlength="64" pattern="[a-zA-Z0-9_.@-]+" required /></label>
           <label><span>Contraseña · mínimo 12 caracteres</span><input id="signupPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required /></label>
           <label><span>Repite la contraseña</span><input id="signupPasswordRepeat" type="password" autocomplete="new-password" minlength="12" maxlength="128" required /></label>
-          <p>Guarda tu usuario y contraseña. La recuperación automática por correo todavía no está disponible.</p>
+          <p>Al crear tu cuenta recibirás códigos de respaldo. Guárdalos fuera de Roxy: los necesitarás si olvidas tu contraseña. No se envían por correo.</p>
           <label><input id="signupAcknowledged" type="checkbox" required /> Tengo al menos 18 años, he leído la <a href="/privacy" target="_blank" rel="noopener">privacidad</a> y entiendo los límites de esta demo.</label>
           <div id="signupChallenge"></div>
           <p id="signupError" class="error" role="alert"></p>

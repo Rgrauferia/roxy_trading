@@ -60,6 +60,10 @@ def trial_access_mode(method: str, path: str) -> str:
         return "local"
     if path in {"/v1/home-account/me", "/v1/home-account/preferences", "/v1/home-account/members"}:
         return "local"
+    if (method == "GET" and path == "/v1/home-account/recovery"
+            or method == "POST" and path == "/v1/home-account/recovery/codes"):
+        # Security must remain available after the trial; never consumes AI.
+        return "local"
     if path == "/v1/home-account/recipe-profile" and method in {"GET", "PUT"}:
         # Private culinary choices only; no AI, recipe generation or purchases.
         return "local"

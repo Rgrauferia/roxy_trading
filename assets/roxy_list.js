@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '195';
+  const APP_VERSION = '196';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -617,7 +617,7 @@
     try {
       const nextAccount=await api('/v1/home-account/me');
       if(!isCurrent())return;
-      if(account.id!==nextAccount.id||account.mode!==nextAccount.mode){window.RoxyFitness?.clear();clearRecipePreferences();}
+      if(account.id!==nextAccount.id||account.mode!==nextAccount.mode||account.session_version!==nextAccount.session_version){window.RoxyFitness?.clear();clearRecipePreferences();window.RoxyHomeRecovery?.reset();}
       account=nextAccount;
       if(account.storage_user_id){user=account.storage_user_id;localStorage.setItem('roxyShoppingUser',user)}
       syncFamilyMapReadiness();
@@ -697,6 +697,7 @@
       if(error.status===401||error.status===403){
         // Do not reveal offline snapshots after the server rejects a session.
         account={mode:'signed_out',requires_profile_setup:false};
+        window.RoxyHomeRecovery?.reset();
         clearRecipePreferences();
         syncFamilyMapReadiness();
         window.RoxyFitness?.clear();
@@ -3066,7 +3067,13 @@
       history.replaceState(null,'',`${location.pathname}#hoy`);location.reload();
     }catch(error){$('loginError').textContent=error.message;button.disabled=false;button.textContent=label}
   }
-  function renderAccount(){const person=activePersonName();$('accountSummary').textContent=account.mode==='member'?`${person} · ${account.household_name} · la compra, recetas y despensa son compartidas.`:account.mode==='signed_out'?'Tu sesión personal está cerrada. Entra de nuevo; Roxy no ha ejecutado ningún borrado de personas ni recorridos.':account.requires_profile_setup?'Este dispositivo usa el acceso anterior. Crea los perfiles personales sin perder los datos actuales.':'Entra con tu perfil para que Roxy sepa quién eres.';$('accountButton').textContent=account.mode==='member'?'Administrar personas':account.requires_profile_setup?'Crear perfiles personales':'Entrar con mi perfil'}
+  function renderAccount(){const person=activePersonName();$('accountSummary').textContent=account.mode==='member'?`${person} · ${account.household_name} · la compra, recetas y despensa son compartidas.`:account.mode==='signed_out'?'Tu sesión personal está cerrada. Entra de nuevo; Roxy no ha ejecutado ningún borrado de personas ni recorridos.':account.requires_profile_setup?'Este dispositivo usa el acceso anterior. Crea los perfiles personales sin perder los datos actuales.':'Entra con tu perfil para que Roxy sepa quién eres.';$('accountButton').textContent=account.mode==='member'?'Administrar personas':account.requires_profile_setup?'Crear perfiles personales':'Entrar con mi perfil';if($('accountRecoveryButton'))$('accountRecoveryButton').hidden=account.mode!=='member'}
+  function openRecoverySettings(){
+    if(account.mode!=='member'){ $('pairDialog').showModal(); return; }
+    if(!window.RoxyHomeRecovery){announce('No se pudo cargar Seguridad. Recarga la página para intentarlo de nuevo.');return;}
+    const captured=account;
+    window.RoxyHomeRecovery.openManage({id:captured.id,username:captured.username,isCurrent:()=>account.mode==='member'&&account.id===captured.id&&account.session_version===captured.session_version});
+  }
   function renderMembers(rows){const root=$('accountMembers');root.replaceChildren();rows.forEach(row=>{const article=document.createElement('article');article.className='member-row';const copy=document.createElement('div');const strong=document.createElement('strong');strong.textContent=row.display_name;const small=document.createElement('small');small.textContent=`@${row.username}`;copy.append(strong,small);const role=document.createElement('span');role.textContent=row.role==='OWNER'?'ADMINISTRA':'MIEMBRO';article.append(copy,role);root.append(article)})}
   async function openAccountDialog(){if(account.mode!=='member'&&!account.requires_profile_setup){$('pairDialog').showModal();return}const bootstrap=account.mode!=='member';$('bootstrapAccountForm').hidden=!bootstrap;$('memberManagement').hidden=bootstrap;$('accountDialog').showModal();if(bootstrap){$('ownerDisplayName').value=greetingName;return}try{const result=await api('/v1/home-account/members');renderMembers(result.members||[]);$('addMemberForm').hidden=account.role!=='OWNER'}catch(error){announce(error.message)}}
   async function bootstrapAccount(event){event.preventDefault();$('bootstrapAccountError').textContent='';try{const result=await api('/v1/home-account/bootstrap',{method:'POST',body:JSON.stringify({household_name:$('householdName').value.trim(),display_name:$('ownerDisplayName').value.trim(),username:$('ownerUsername').value.trim(),password:$('ownerPassword').value,storage_user_id:user})});account=result;$('ownerPassword').value='';$('accountDialog').close();await load();announce(`Bienvenido, ${result.display_name}. Tus datos siguen en el hogar compartido.`)}catch(error){$('bootstrapAccountError').textContent=error.message}}
@@ -3210,6 +3217,11 @@
     $('pairForm').addEventListener('submit',pair);
     $('loginForm').addEventListener('submit',login);
     $('accountButton').addEventListener('click',openAccountDialog);
+    $('accountRecoveryButton').addEventListener('click',openRecoverySettings);
+    $('loginForgotButton').addEventListener('click',()=>{
+      if(!window.RoxyHomeRecovery){$('loginError').textContent='No se pudo cargar la recuperación. Recarga la página para intentarlo de nuevo.';return;}
+      $('loginPassword').value=''; window.RoxyHomeRecovery.openReset();
+    });
     $('personalizationButton').addEventListener('click',openPersonalization);
     $('recipePreferencesSettings').addEventListener('click',editRecipePreferences);
     $('recipePreferencesDialog').addEventListener('close',()=>{recipeWelcomeController?.dispose();recipeWelcomeController=null;$('recipePreferencesRoot').replaceChildren();activateRecipeSources()});

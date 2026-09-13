@@ -38,6 +38,10 @@ class HomeTrialLimitError(ValueError):
     pass
 
 
+class _RecoveryRejected(Exception):
+    """Leave the locked store unchanged for every invalid recovery attempt."""
+
+
 def _valid_account_structure(payload: Any) -> bool:
     return (
         isinstance(payload, dict)
@@ -83,6 +87,8 @@ def trial_status(household: dict[str, Any]) -> dict[str, Any] | None:
             "ai_remaining_today": max(0, TRIAL_AI_DAILY_LIMIT - used), "auto_charge": False,
             "media_generation": False, "voice": False}
 PASSWORD_ITERATIONS = 600_000
+RECOVERY_CODE_COUNT = 8
+RECOVERY_SCHEMA_VERSION = 1
 MEMBER_THEMES = {"classic", "olive", "coastal", "terracotta"}
 MEMBER_BACKGROUNDS = {"plant", "linen", "clean", "warm"}
 MEMBER_AVATARS = {"home", "professional", "monogram"}
@@ -92,6 +98,77 @@ MEMBER_TEXT_SCALES = {"compact", "standard", "large"}
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _session_version(member: dict[str, Any]) -> int:
+    version = member.get("session_version", 0)
+    if type(version) is not int or version < 0:
+        raise HomeAccountStorageError("El estado de acceso necesita revisión. Conservamos las cuentas.")
+    return version
+
+
+def _recovery_state(member: dict[str, Any]) -> dict[str, Any]:
+    if "recovery" not in member:
+        return {"schema_version": RECOVERY_SCHEMA_VERSION, "hashes": [], "generated_at": None}
+    value = member["recovery"]
+    try:
+        if not isinstance(member.get("id"), str) or not re.fullmatch(r"[a-zA-Z0-9_-]{1,128}", member["id"]):
+            raise ValueError("Invalid recovery member identity")
+        if not isinstance(value, dict) or set(value) != {"schema_version", "hashes", "generated_at"}:
+            raise ValueError("Invalid recovery structure")
+        if type(value["schema_version"]) is not int or value["schema_version"] != RECOVERY_SCHEMA_VERSION:
+            raise ValueError("Invalid recovery schema")
+        hashes = value["hashes"]
+        if not isinstance(hashes, list) or len(hashes) > RECOVERY_CODE_COUNT:
+            raise ValueError("Invalid recovery hashes")
+        if any(not isinstance(item, str) or not re.fullmatch(r"[a-f0-9]{64}", item) for item in hashes):
+            raise ValueError("Invalid recovery hash")
+        if len(set(hashes)) != len(hashes):
+            raise ValueError("Duplicate recovery hash")
+        generated = datetime.fromisoformat(value["generated_at"])
+        if generated.tzinfo is None:
+            raise ValueError("Invalid recovery timestamp")
+    except (KeyError, TypeError, ValueError, AttributeError) as exc:
+        raise HomeAccountStorageError("El estado de recuperación necesita revisión. Conservamos las cuentas.") from exc
+    return value
+
+
+def _normalize_recovery_code(value: Any) -> str | None:
+    # Only presentation separators and hex case may change. Never strip arbitrary
+    # characters or accept a prefix: all 128 random bits must still be supplied.
+    if not isinstance(value, str) or len(value) > 128:
+        return None
+    normalized = re.sub(r"[ \t\r\n-]", "", value).lower()
+    return normalized if re.fullmatch(r"[a-f0-9]{32}", normalized) else None
+
+
+def _recovery_digest(member_id: str, code: str) -> str:
+    return hashlib.sha256(("roxy-home-recovery-v1\0" + member_id + "\0" + code).encode("utf-8")).hexdigest()
+
+
+def _new_recovery_codes(member_id: str) -> tuple[dict[str, Any], list[str]]:
+    codes: list[str] = []
+    # A bound fails closed if the random source cannot produce distinct tokens.
+    for _ in range(RECOVERY_CODE_COUNT * 4):
+        code = secrets.token_hex(16)
+        if not isinstance(code, str) or not re.fullmatch(r"[a-f0-9]{32}", code):
+            raise HomeAccountStorageError("No se pudieron generar los códigos de recuperación. Inténtalo más tarde.")
+        if code not in codes:
+            codes.append(code)
+        if len(codes) == RECOVERY_CODE_COUNT:
+            break
+    if len(codes) != RECOVERY_CODE_COUNT:
+        raise HomeAccountStorageError("No se pudieron generar los códigos de recuperación. Inténtalo más tarde.")
+    state = {"schema_version": RECOVERY_SCHEMA_VERSION,
+             "hashes": [_recovery_digest(member_id, code) for code in codes], "generated_at": _now_iso()}
+    displayed = ["-".join(code[index:index + 8] for index in range(0, 32, 8)).upper() for code in codes]
+    return state, displayed
+
+
+def _validate_recovery_password(value: Any) -> str:
+    if not isinstance(value, str) or not 12 <= len(value) <= 128:
+        raise ValueError("La contraseña nueva debe tener entre 12 y 128 caracteres.")
+    return value
 
 
 def normalize_username(value: Any) -> str:
@@ -180,6 +257,7 @@ def public_member(member: dict[str, Any], household: dict[str, Any]) -> dict[str
         "household_name": household["name"],
         "storage_user_id": household["storage_user_id"],
         "active": bool(member.get("active", True)),
+        "session_version": _session_version(member),
         "preferences": normalize_member_preferences(member.get("preferences")),
         "recipe_onboarding_required": recipe_onboarding_required(member),
         "trial": trial_status(household),
@@ -213,6 +291,9 @@ class HomeAccountStore:
                     raise ValueError("Invalid trial state")
             except (KeyError, TypeError, ValueError, AttributeError) as exc:
                 raise HomeAccountStorageError("El estado de la demo necesita revisión. Conservamos los datos y no ampliamos el acceso.") from exc
+        for member in payload["members"].values():
+            _session_version(member)
+            _recovery_state(member)
         if status == "READY":
             _protect_existing_accounts(self.path)
         return payload
@@ -257,6 +338,7 @@ class HomeAccountStore:
         display_name: Any,
         password: Any,
         _trial_admission: str | None = None,
+        _issue_recovery: bool = False,
     ) -> dict[str, Any]:
         normalized_username = normalize_username(username)
         normalized_name = normalize_display_name(display_name)
@@ -296,20 +378,28 @@ class HomeAccountStore:
                 "password_hash": encoded_password,
                 "role": "OWNER",
                 "active": True,
+                "session_version": 0,
                 "preferences": default_member_preferences(),
                 "recipe_onboarding_required": True,
                 "created_at": _now_iso(),
             }
+            recovery_codes = None
+            if _issue_recovery:
+                member["recovery"], recovery_codes = _new_recovery_codes(member_id)
             payload["households"][household_id] = household
             payload["members"][member_id] = member
-            return public_member(member, household)
+            result = public_member(member, household)
+            if recovery_codes is not None:
+                result["recovery_codes"] = recovery_codes
+            return result
 
         return self._mutate(apply)
 
     def register_trial(self, *, username: Any, display_name: Any, password: Any, admission_hash: str) -> dict[str, Any]:
         # The caller cannot choose, attach to or overwrite a household namespace.
         return self.bootstrap("demo_" + uuid4().hex, household_name="Mi hogar", username=username,
-                              display_name=display_name, password=password, _trial_admission=admission_hash)
+                              display_name=display_name, password=password, _trial_admission=admission_hash,
+                              _issue_recovery=True)
 
     def reserve_trial_request(self, member_id: str) -> dict[str, Any]:
         def apply(payload: dict[str, Any]) -> dict[str, Any]:
@@ -392,6 +482,7 @@ class HomeAccountStore:
                 "password_hash": encoded_password,
                 "role": "MEMBER",
                 "active": True,
+                "session_version": 0,
                 "preferences": default_member_preferences(),
                 "recipe_onboarding_required": True,
                 "created_at": _now_iso(),
@@ -400,6 +491,74 @@ class HomeAccountStore:
             return public_member(member, household)
 
         return self._mutate(apply)
+
+    @staticmethod
+    def _active_recovery_member(payload: dict[str, Any], member_id: str) -> dict[str, Any]:
+        member = payload["members"].get(member_id)
+        if not member or member.get("active", True) is not True or member.get("household_id") not in payload["households"]:
+            raise PermissionError("No se pudo confirmar el acceso para gestionar la recuperación.")
+        return member
+
+    def recovery_status(self, member_id: str) -> dict[str, Any]:
+        payload = self._read_unlocked()
+        member = self._active_recovery_member(payload, member_id)
+        state = _recovery_state(member)
+        return {"enabled": bool(state["hashes"]), "remaining": len(state["hashes"]), "generated_at": state["generated_at"]}
+
+    def rotate_recovery_codes(
+        self, member_id: str, current_password: Any, *, expected_session_version: int | None = None,
+    ) -> dict[str, Any]:
+        if expected_session_version is not None and (type(expected_session_version) is not int or expected_session_version < 0):
+            raise PermissionError("No se pudo confirmar el acceso para gestionar la recuperación.")
+
+        def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            member = self._active_recovery_member(payload, member_id)
+            version = _session_version(member)
+            password_valid = isinstance(current_password, str) and verify_password(current_password, member.get("password_hash"))
+            if not password_valid or (expected_session_version is not None and expected_session_version != version):
+                raise PermissionError("No se pudo confirmar el acceso para gestionar la recuperación.")
+            state, codes = _new_recovery_codes(member_id)
+            member["recovery"] = state
+            return {"recovery_codes": codes, "remaining": len(codes), "generated_at": state["generated_at"]}
+
+        return self._mutate(apply)
+
+    def reset_password_with_recovery(self, username: Any, code: Any, new_password: Any) -> bool:
+        password = _validate_recovery_password(new_password)
+        # Pay the same password-hash cost for unknown, inactive and valid users;
+        # failed attempts never create account records or update their counters.
+        encoded_password = hash_password(password)
+        try:
+            normalized_username = normalize_username(username) if isinstance(username, str) else None
+        except ValueError:
+            normalized_username = None
+        normalized_code = _normalize_recovery_code(code)
+
+        def apply(payload: dict[str, Any]) -> bool:
+            member = next((row for row in payload["members"].values() if row.get("username") == normalized_username), None)
+            member_id = member.get("id") if member and isinstance(member.get("id"), str) else "unknown-member"
+            state = _recovery_state(member) if member else {"hashes": []}
+            candidate = _recovery_digest(member_id, normalized_code or "0" * 32)
+            padded_hashes = [*state["hashes"], *(["0" * 64] * (RECOVERY_CODE_COUNT - len(state["hashes"])))]
+            matched = False
+            for stored in padded_hashes:
+                matched = hmac.compare_digest(candidate, stored) or matched
+            if (not member or normalized_code is None or not matched or member.get("active", True) is not True
+                    or member.get("household_id") not in payload["households"]):
+                raise _RecoveryRejected()
+            version = _session_version(member)
+            now = _now_iso()
+            member["password_hash"] = encoded_password
+            member["session_version"] = version + 1
+            member["recovery"] = {**state, "hashes": []}
+            member["password_changed_at"] = now
+            member["updated_at"] = now
+            return True
+
+        try:
+            return self._mutate(apply)
+        except _RecoveryRejected:
+            return False
 
     @staticmethod
     def _recipe_profile_snapshot(payload: dict[str, Any], member_id: str) -> dict[str, Any]:

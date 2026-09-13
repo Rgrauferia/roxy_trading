@@ -3,7 +3,41 @@
 Actualizado: 2026-09-13. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 
-## 195 — CANDIDATO: bienvenida culinaria privada y descubrimiento personal
+## 196 — candidato probado: recuperación privada y protección de acceso
+
+Ocho códigos de respaldo de 128 bits, emitidos una vez al registrar una cuenta
+nueva o desde Más → Seguridad con la contraseña actual. Sólo hashes ligados al
+miembro persistidos. Restablecer consume todo el lote, cambia la contraseña e
+invalida sesiones personales mediante versión, sin iniciar sesión ni ampliar la
+demo. Sesiones antiguas conservadas hasta un reset; otros miembros no se afectan.
+No recuperación por correo ni recuperación retroactiva de cuentas sin códigos.
+
+Origen/miembro/contraseña/versión comprobados para rotación, escritura bajo lock;
+API sin caché ni eco de contraseñas en errores. Límite de login normalizado y por
+IP, límites independientes de recuperación, sin bloqueo del acceso normal por
+errores de recuperación. Legacy sólo acepta namespaces explícitamente permitidos.
+Origen HTTPS usa URL confiable de Render, no cabeceras forwarded arbitrarias.
+Códigos fuera de almacenamiento browser; copia/TXT voluntarios y confirmación de
+guardado antes de bienvenida. Ocultar pestaña tapa los códigos sin impedir pegar
+en un gestor; cerrar/cambiar identidad destruye el contenido del diálogo.
+
+2909 Python aprobadas/11 PostgreSQL omitidas; 782 Node aprobadas. Ocho fallos
+iniciales eran fixtures legacy no declaradas como permitidas: fixture corregida,
+regresión separada impide namespaces demo. QA real 393×852: alta sintética,
+8 códigos, bienvenida, logout, reset, contraseña vieja rechazada/nueva aceptada,
+preferencias guardadas y regeneración/estado8 en Seguridad. Cuenta y servidor QA
+locales desechables, sin proveedores ni escrituras en cuentas públicas.
+HTML/APP196, JS198, CSS136, SW195, registrationJS3, recoveryJS/CSS1.
+
+Todavía NO publicado este candidato. Registro público sigue deshabilitado.
+Usuario confirma no tener Cloudflare; formulario de alta abierto en pestaña30.
+Solicitó enviar con sus datos, pero los campos estaban vacíos al comprobarlos;
+se le pidió introducirlos allí. No cuenta/Turnstile creado ni pago/contrato hecho.
+Antes de abrir: Turnstile real + HTTPS/Origin + IP cliente/proxy verificadas,
+soporte para pérdidas sin códigos y alcance pendiente de los demás módulos.
+Detalle: reports/home_release_196_20260913.md. No declarar demo terminada.
+
+## 195 — PUBLICADO: bienvenida culinaria privada y descubrimiento personal
 
 Cuatro pasos ES/EN al completar el registro de miembros nuevos: idioma, país
 opcional, cocina de origen/seleccionada/mixta, gustos, dieta, alergias opcionales,
@@ -28,7 +62,14 @@ observado. Vista393×852 inspeccionada; no prueba física del teléfono. Native
 voice no requiere ElevenLabs. Nuevos assets Docker/SW; precarga conserva20.
 743Node y2829Pythonaprobadas/11PostgreSQLomitidas; suite final84.17s.
 
-Último público sigue194 hasta comprobar despliegue195. Registro público sigue
+Publicado754be0d45d299716e91f472a3779c78a5c3afbe3,Render
+dep-dajf6hdckfvc739pbvkg Live48.1s.9archivospúblicosHTTP200byte-idénticos,
+health200ok;sesiónconservada/meta195/catálogo1072 y Configurar mis gustos
+abriócuatropasosparaRobert sinrespuestasguardadas;393pxsin desbordamiento.
+Propios31750/31752detenidos ydosdirectoriossintéticoseliminados trasSIGTERM
+(elrunner no ejecutóTemporaryDirectorycleanup).Pestañas25/28/26cerradas;
+24públicapreservada conpreguntas,27Cloudflarelogin,1originalintacta;viewportreset
+solicitado.Prototiposintactos.No redeploy sólo por estas notas.Registro público sigue
 DESHABILITADO: inspección Render de claves (sin valores) no muestra variables
 Turnstile/signup; disco10GB montado/var/data confirmado. Cloudflare requiere
 login del usuario, pestaña27 abierta y solicitud enviada. Recuperación/soporte

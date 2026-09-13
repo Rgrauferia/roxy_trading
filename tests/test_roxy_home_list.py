@@ -38,21 +38,21 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "script-src 'none'" in privacy.headers["content-security-policy"]
     assert "roxy_privacy.html assets/roxy_privacy.css" in Path("Dockerfile.roxy-home").read_text(encoding="utf-8")
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="195"' in page.text
+    assert 'name="roxy-home-version" content="196"' in page.text
     assert 'href="/assets/vendor/maplibre-gl.css?v=1"' not in page.text
     assert 'src="/assets/vendor/maplibre-gl.js?v=1"' not in page.text
     assert 'src="/assets/roxy_maplibre_loader.js?v=1"' in page.text
     assert 'href="/assets/roxy_list.css?v=136"' in page.text
-    assert 'src="/assets/roxy_list.js?v=197"' in page.text
+    assert 'src="/assets/roxy_list.js?v=198"' in page.text
     assert '/assets/vendor/maplibre-gl.css?v=1' in worker.text
     assert '/assets/vendor/maplibre-gl.js?v=1' in worker.text
     assert '/assets/roxy_list.css?v=136' in worker.text
-    assert '/assets/roxy_list.js?v=197' in worker.text
+    assert '/assets/roxy_list.js?v=198' in worker.text
     for asset in ('roxy_home_weather_renderer.js?v=2', 'roxy_home_map_readiness.js?v=1', 'roxy_home_open_recipes.js?v=5', 'roxy_home_recipe_provider.js?v=2', 'roxy_home_myplate_recipes.js?v=4', 'roxy_home_myplate_recipes.css?v=2'):
         assert '/assets/' + asset in worker.text
         assert '/assets/' + asset in page.text
         assert client.get('/assets/' + asset).status_code == 200
-    assert 'roxy-list-shell-v194' in worker.text
+    assert 'roxy-list-shell-v195' in worker.text
     for asset in ('roxy_recipe_guide.js?v=1', 'roxy_recipe_guide.css?v=1'):
         assert '/assets/' + asset in page.text and '/assets/' + asset in worker.text
         assert client.get('/assets/' + asset).status_code == 200
@@ -62,6 +62,12 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
         assert '/assets/' + asset in page.text and '/assets/' + asset in worker.text
         assert client.get('/assets/' + asset).status_code == 200
     assert page.text.index('roxy_recipe_onboarding.js') < page.text.index('roxy_list.js')
+    for asset in ('roxy_home_recovery.js?v=1', 'roxy_home_recovery.css?v=1'):
+        assert '/assets/' + asset in page.text and '/assets/' + asset in worker.text
+        assert client.get('/assets/' + asset).status_code == 200
+    assert page.text.index('roxy_home_recovery.js') < page.text.index('roxy_home_registration.js')
+    assert 'id="loginForgotButton"' in page.text and 'id="accountRecoveryButton"' in page.text
+    assert 'COPY assets/roxy_home_recovery.js assets/roxy_home_recovery.css ./assets/' in Path('Dockerfile.roxy-home').read_text()
     assert 'COPY assets/roxy_recipe_onboarding.js assets/roxy_recipe_onboarding.css ./assets/' in Path('Dockerfile.roxy-home').read_text()
     for asset in ('roxy_home_drinks.js?v=5', 'roxy_home_drinks.css?v=4'):
         assert '/assets/' + asset in page.text and '/assets/' + asset in worker.text
@@ -105,13 +111,13 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="designProjectForm"' in page.text
     assert '/v1/home-design/' in script.text
     assert 'Revisar productos' in script.text
-    assert "const APP_VERSION = '195'" in script.text
+    assert "const APP_VERSION = '196'" in script.text
     assert '/assets/roxy_home_recipe_provider.js?v=2' in page.text
     assert '/assets/roxy_home_recipe_provider.js?v=2' in worker.text
     assert client.get('/assets/roxy_home_recipe_provider.js').status_code == 200
     assert 'https://www.themealdb.com' in page.headers['content-security-policy']
-    assert '/assets/roxy_home_registration.js?v=2' in page.text
-    assert '/assets/roxy_home_registration.js?v=2' in worker.text
+    assert '/assets/roxy_home_registration.js?v=3' in page.text
+    assert '/assets/roxy_home_registration.js?v=3' in worker.text
     assert 'COPY assets/roxy_home_registration.js ./assets/roxy_home_registration.js' in Path('Dockerfile.roxy-home').read_text()
     assert 'https://challenges.cloudflare.com' in page.headers['content-security-policy']
     assert 'id="designTrendSignal"' in page.text
