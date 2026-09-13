@@ -48,8 +48,11 @@ function harness({guide = false} = {}) {
     removeEventListener(name, callback) { this.listeners[name] = (this.listeners[name] || []).filter(el => el !== callback); }
     async emit(name) { for (const fn of [...(this.listeners[name] || [])]) fn({target:this, currentTarget:this, preventDefault() {}}); await settle(); }
     click() { return this.disabled ? Promise.resolve() : this.emit('click'); }
-    focus() { activeElement = this; }
-    scrollIntoView() {}
+    focus(options = {}) {
+      if (this.closest('[hidden]') || (this.classList.contains('myplate-status') && !this.textContent)) return;
+      activeElement = this; this.lastFocusOptions = options;
+    }
+    scrollIntoView(options = {}) { this.lastScrollOptions = options; }
     querySelectorAll(selector) { return selector.startsWith('.') ? byClass(this, selector.slice(1)) : all(this, selector); }
     querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }
     get classList() { return {add: name => { this.className += ` ${name}`; }, remove: name => { this.className = this.className.split(/\s+/).filter(value => value !== name).join(' '); }, contains: name => this.className.split(/\s+/).includes(name)}; }
@@ -59,7 +62,7 @@ function harness({guide = false} = {}) {
     removeEventListener(name, fn) { documentListeners[name] = (documentListeners[name] || []).filter(value => value !== fn); }};
   document.body.root = true;
   const forbidden = action => { storageWrites.push(action); throw new Error(`Forbidden external/storage operation: ${action}`); };
-  const sandbox = {window:{}, document, URL, URLSearchParams, AbortController,
+  const sandbox = {window:{}, document, URL, URLSearchParams, AbortController, Date:class extends Date {static now() {return now;}},
     setTimeout(fn, delay = 0) { const id = ++timerId; timers.set(id, {fn, due:now + delay}); return id; }, clearTimeout(id) { timers.delete(id); },
     fetch() { return forbidden('browser fetch'); }, localStorage:{setItem() { forbidden('localStorage'); }, getItem() { forbidden('localStorage read'); }},
     sessionStorage:{setItem() { forbidden('sessionStorage'); }, getItem() { forbidden('sessionStorage read'); }}, indexedDB:{open() { forbidden('indexedDB'); }}};
@@ -75,7 +78,7 @@ function harness({guide = false} = {}) {
       const [id, value] = item; timers.delete(id); now = value.due; value.fn(); await settle(); }
     now = until; await settle(); };
   const visibility = async hidden => { document.hidden = hidden; for (const fn of [...(documentListeners.visibilitychange || [])]) fn(); await settle(); };
-  return {...sandbox.window.RoxyMyPlateRecipes, container, tick, visibility, storageWrites, guideMounts,
+  return {...sandbox.window.RoxyMyPlateRecipes, container, tick, visibility, storageWrites, guideMounts, suspend:duration => {now += duration;},
     get activeElement() { return activeElement; }, get timers() { return timers; }};
 }
 
@@ -132,6 +135,36 @@ test('pagination replaces 24 cards instead of accumulating or fetching hidden de
   await button(panel, 'Página anterior').click();
   assert.equal(byClass(panel, 'myplate-recipe-card').length, 24); assert.equal(mock.requests.at(-1).url.searchParams.get('offset'), '24');
   assert.ok(mock.requests.every(call => call.url.pathname.endsWith('/myplate-recipes')));
+});
+
+test('bottom pagination focuses the first new recipe and scrolls its card into view when the empty status is hidden', async () => {
+  const h = harness(), panel = h.container(), mock = server(); await start(h, panel, mock);
+  const oldFirst = byClass(panel, 'myplate-recipe-card')[0];
+  await button(panel, 'Página siguiente').click();
+  const first = byClass(panel, 'myplate-recipe-card')[0], heading = all(first, 'h3')[0];
+  assert.notEqual(first, oldFirst); assert.equal(oldFirst.isConnected, false);
+  assert.equal(byClass(panel, 'myplate-status')[0].textContent, '');
+  assert.equal(h.activeElement, heading); assert.equal(heading.tabIndex, -1);
+  assert.equal(heading.textContent, rows[24].title); assert.equal(heading.lastFocusOptions.preventScroll, true);
+  assert.equal(first.lastScrollOptions.block, 'start'); assert.equal(first.lastScrollOptions.behavior, 'auto');
+});
+
+test('an explicit search with no results focuses its visible empty message', async () => {
+  const h = harness(), panel = h.container(), mock = server(); await start(h, panel, mock);
+  all(panel, 'input')[0].value = 'no-synthetic-matches'; await all(panel, 'form')[0].emit('submit');
+  const status = byClass(panel, 'myplate-status')[0];
+  assert.equal(h.activeElement, status); assert.match(status.textContent, /No encontramos/);
+  assert.equal(status.lastFocusOptions.preventScroll, false);
+});
+
+for (const target of ['catalog', 'detail']) test(`an explicit ${target} failure focuses the visible error and preserves retry`, async () => {
+  const h = harness(), panel = h.container();
+  const mock = server({intercept:(_call, n) => n === 2 ? Promise.reject(new Error('synthetic transport failure')) : undefined});
+  await start(h, panel, mock);
+  await button(panel, target === 'catalog' ? 'Página siguiente' : 'Ver receta').click();
+  const status = byClass(panel, 'myplate-status')[0];
+  assert.equal(h.activeElement, status); assert.match(status.textContent, /No pudimos/);
+  assert.equal(status.lastFocusOptions.preventScroll, false); assert.equal(button(panel, 'Reintentar consulta').hidden, false);
 });
 
 test('search and category changes are explicit, reset page, and preserve query text without household data', async () => {
@@ -206,6 +239,59 @@ test('source timeout expires at 12 seconds even when transport ignores abort; la
   assert.equal(byClass(panel, 'myplate-recipe-card').length, 24); assert.equal(h.timers.size, 0);
 });
 
+for (const interruptedBy of ['scope', 'ancestor']) for (const outcome of ['response', 'timeout']) {
+  test(`an unnoticed ${interruptedBy} change during ${outcome} leaves a recoverable query instead of a loading label`, async () => {
+    const pending = deferred(), h = harness(), outer = h.container(), panel = h.container(); outer.append(panel);
+    let matches = true;
+    const mock = server({intercept:(_call, number) => number === 1 ? pending.promise : undefined});
+    await start(h, panel, mock, {isCurrent:() => matches});
+    if (interruptedBy === 'scope') matches = false; else outer.hidden = true;
+    if (outcome === 'timeout') await h.tick(12000);
+    else {pending.resolve({recipes:[],provider:'MyPlate.food',live:true,total:0,offset:0,limit:24,next_offset:null}); await settle();}
+    assert.equal(byClass(panel, 'myplate-library')[0].getAttribute('aria-busy'), 'false');
+    assert.equal(button(panel, 'Reintentar consulta').hidden, false);
+    assert.doesNotMatch(byClass(panel, 'myplate-status')[0].textContent, /Consultando/);
+    assert.equal(byClass(panel, 'myplate-recipe-card').length, 0);
+    matches = true; outer.hidden = false; h.setActive(panel, true); await settle();
+    assert.equal(mock.requests.length, 1, 'resuming does not spend another provider request automatically');
+    await button(panel, 'Reintentar consulta').click();
+    assert.equal(mock.requests.length, 2); assert.equal(byClass(panel, 'myplate-recipe-card').length, 24);
+    assert.equal(h.timers.size, 0);
+  });
+}
+
+test('a suspended timer expires immediately on activation and does not require its delayed callback', async () => {
+  const pending = deferred(), h = harness(), panel = h.container(), mock = server({intercept:() => pending.promise});
+  await start(h, panel, mock); h.suspend(15000); h.setActive(panel, true); await settle();
+  assert.equal(mock.requests[0].options.signal.aborted, true); assert.equal(h.timers.size, 0);
+  assert.equal(button(panel, 'Reintentar consulta').hidden, false); assert.equal(button(panel, 'Buscar recetas').disabled, false);
+  assert.match(byClass(panel, 'myplate-status')[0].textContent, /tardando/); assert.equal(mock.requests.length, 1);
+});
+
+for (const target of ['catalog', 'detail']) test(`cancel remains available during ${target} loading and retry ignores the late cancelled response`, async () => {
+  const pending = deferred(), h = harness(), panel = h.container();
+  const mock = server({intercept:(_call, n) => n === (target === 'catalog' ? 1 : 2) ? pending.promise : undefined});
+  await start(h, panel, mock); if (target === 'detail') await button(panel, 'Ver receta').click();
+  const count = mock.requests.length, cancel = button(panel, 'Cancelar consulta');
+  assert.equal(cancel.hidden, false); assert.ok(!cancel.disabled); await cancel.click();
+  assert.equal(mock.requests[count - 1].options.signal.aborted, true); assert.equal(cancel.hidden, true);
+  assert.equal(button(panel, 'Reintentar consulta').hidden, false); assert.equal(h.timers.size, 0);
+  await button(panel, 'Reintentar consulta').click(); assert.equal(mock.requests.length, count + 1);
+  const view = target === 'catalog' ? 'myplate-grid' : 'myplate-detail-body', visible = byClass(panel, view)[0].textContent;
+  pending.resolve(null); await settle(); assert.equal(byClass(panel, view)[0].textContent, visible);
+  assert.equal(button(panel, 'Reintentar consulta').hidden, true); assert.equal(h.timers.size, 0);
+});
+
+test('successful catalog has one count, bottom pagination, and collapsed attribution and quotas', async () => {
+  const h = harness(), panel = h.container(), mock = server(); await start(h, panel, mock);
+  assert.equal(byClass(panel, 'myplate-status')[0].textContent, '');
+  assert.equal(byClass(panel, 'myplate-pagination').length, 1);
+  assert.equal(byClass(panel, 'myplate-total')[0].textContent, '51 recetas · originales en inglés');
+  const credits = byClass(panel, 'myplate-credits')[0]; assert.equal(credits.tagName, 'DETAILS'); assert.ok(!credits.open);
+  assert.ok(credits.contains(byClass(panel, 'myplate-quota')[0])); assert.ok(credits.contains(byClass(panel, 'myplate-language')[0]));
+  assert.match(credits.textContent, /USDA MyPlate Kitchen/); assert.match(credits.textContent, /20 consultas por minuto/);
+});
+
 for (const exit of ['inactive', 'hidden', 'identity', 'document']) test(`pending list is cancelled and ignored on ${exit}`, async () => {
   const pending = deferred(), h = harness(), panel = h.container(), mock = server({intercept:() => pending.promise}); await start(h, panel, mock);
   if (exit === 'inactive') h.setActive(panel, false);
@@ -272,7 +358,7 @@ test('unified explore auto-loads one summary page without focus, details, duplic
   h.render(panel, options); h.setActive(panel, true); await settle();
   assert.equal(mock.requests.length, 1);
   await button(panel, 'Página siguiente').click(); assert.equal(mock.requests.length, 2);
-  assert.equal(h.activeElement, byClass(panel, 'myplate-status')[0]);
+  assert.equal(h.activeElement, all(byClass(panel, 'myplate-recipe-card')[0], 'h3')[0]);
   h.render(panel, options); await settle();
   assert.equal(mock.requests.length, 2); assert.equal(mock.requests.at(-1).url.searchParams.get('offset'), '24');
 });
@@ -313,7 +399,7 @@ test('food subcategories use verified native categories while pasta and rice rem
     await button(panel, label).click();
     assert.equal(mock.requests.at(-1).url.searchParams.get('category'), '');
     assert.equal(mock.requests.at(-1).url.searchParams.get('q'), q);
-    assert.ok(byClass(panel, 'myplate-filter-hint')[0].textContent.includes(`Búsqueda en la fuente: “${q}”`));
+    assert.equal(byClass(panel, 'myplate-filter-hint')[0].textContent, `“${q}”`);
   }
   await button(panel, 'Volver a platos principales').click();
   assert.equal(mock.requests.at(-1).url.searchParams.get('category'), 'Main dish');
@@ -395,45 +481,45 @@ test('changing identity with auto-load aborts the old response and requests only
   assert.equal(byClass(panel, 'myplate-recipe-card').length, 24); assert.deepEqual(h.storageWrites, []);
 });
 
-test('top pager is before the cards and shares current page, bounds and source-only requests with bottom pager', async () => {
+test('a single pager follows the cards and preserves page bounds and source-only requests', async () => {
   const h = harness(), panel = h.container(), mock = server(); await start(h, panel, mock);
-  const browser = byClass(panel, 'myplate-browser')[0], pagers = byClass(panel, 'myplate-pagination'), top = byClass(panel, 'myplate-pagination-top')[0];
-  assert.equal(pagers.length, 2); assert.ok(browser.children.indexOf(top) < browser.children.indexOf(byClass(panel, 'myplate-grid')[0]));
-  assert.equal(top.hidden, false); assert.equal(button(top, 'Anterior').disabled, true); assert.equal(button(top, 'Siguiente').disabled, false);
+  const browser = byClass(panel, 'myplate-browser')[0], pagers = byClass(panel, 'myplate-pagination'), pager = pagers[0];
+  assert.equal(pagers.length, 1); assert.ok(browser.children.indexOf(pager) > browser.children.indexOf(byClass(panel, 'myplate-grid')[0]));
+  assert.equal(pager.hidden, false); assert.equal(button(pager, 'Página anterior').disabled, true); assert.equal(button(pager, 'Página siguiente').disabled, false);
   assert.ok(pagers.every(pager => all(pager, 'span')[0].textContent === 'Página 1 de 3'));
-  await button(top, 'Siguiente').click(); assert.equal(mock.requests.at(-1).url.searchParams.get('offset'), '24');
+  await button(pager, 'Página siguiente').click(); assert.equal(mock.requests.at(-1).url.searchParams.get('offset'), '24');
   assert.ok(pagers.every(pager => all(pager, 'span')[0].textContent === 'Página 2 de 3'));
   await button(panel, 'Página siguiente').click(); assert.ok(pagers.every(pager => all(pager, 'span')[0].textContent === 'Página 3 de 3'));
-  assert.equal(button(top, 'Siguiente').disabled, true); assert.equal(button(panel, 'Página siguiente').disabled, true);
-  await button(top, 'Anterior').click(); assert.equal(mock.requests.at(-1).url.searchParams.get('offset'), '24');
+  assert.equal(button(panel, 'Página siguiente').disabled, true);
+  await button(pager, 'Página anterior').click(); assert.equal(mock.requests.at(-1).url.searchParams.get('offset'), '24');
   assert.equal(button(panel, 'Página siguiente').disabled, false); assert.ok(mock.requests.every(call => call.url.pathname.endsWith('/myplate-recipes')));
 });
 
-test('top and bottom pagers are disabled while a shared page request is in flight', async () => {
+test('pager is disabled while a page request is in flight', async () => {
   const pending = deferred(), h = harness(), panel = h.container(), mock = server({intercept:(call, n) => n === 2 ? pending.promise : undefined});
-  await start(h, panel, mock); const top = byClass(panel, 'myplate-pagination-top')[0]; await button(top, 'Siguiente').click();
-  for (const control of [button(top, 'Anterior'), button(top, 'Siguiente'), button(panel, 'Página anterior'), button(panel, 'Página siguiente')]) assert.equal(control.disabled, true);
-  await button(top, 'Siguiente').click(); await button(panel, 'Página siguiente').click(); assert.equal(mock.requests.length, 2);
+  await start(h, panel, mock); await button(panel, 'Página siguiente').click();
+  for (const control of [button(panel, 'Página anterior'), button(panel, 'Página siguiente')]) assert.equal(control.disabled, true);
+  await button(panel, 'Página siguiente').click(); assert.equal(mock.requests.length, 2);
   pending.resolve({recipes:rows.slice(24,48), total:51, offset:24, limit:24, next_offset:48, provider:'MyPlate.food', live:true}); await settle();
-  assert.equal(button(top, 'Anterior').disabled, false); assert.equal(button(top, 'Siguiente').disabled, false);
+  assert.equal(button(panel, 'Página anterior').disabled, false); assert.equal(button(panel, 'Página siguiente').disabled, false);
 });
 
-for (const size of [0,1,24]) test(`both pagers stay hidden for a single page or no rows (${size})`, async () => {
+for (const size of [0,1,24]) test(`pager stays hidden for a single page or no rows (${size})`, async () => {
   const h = harness(), panel = h.container(), mock = server({items:rows.slice(0,size)}); await start(h, panel, mock);
   assert.ok(byClass(panel, 'myplate-pagination').every(pager => pager.hidden));
 });
 
-test('top pager retains search and category scope and resets together on clear', async () => {
+test('pager retains search and category scope and resets on clear', async () => {
   const h = harness(), panel = h.container(), mock = server(); await start(h, panel, mock);
   await button(byClass(panel, 'myplate-categories')[0], 'Postres').click();
   const input = all(panel, 'input')[0]; input.value = 'Synthetic'; await all(panel, 'form')[0].emit('submit');
-  await button(byClass(panel, 'myplate-pagination-top')[0], 'Siguiente').click();
+  await button(panel, 'Página siguiente').click();
   const query = mock.requests.at(-1).url.searchParams; assert.equal(query.get('category'), 'Dessert'); assert.equal(query.get('q'), 'Synthetic'); assert.equal(query.get('offset'), '24');
   await button(panel, 'Ver todas').click(); assert.ok(byClass(panel, 'myplate-pagination').every(pager => all(pager, 'span')[0].textContent === 'Página 1 de 3'));
 });
 
-test('top pager cannot issue a stale request after the collection is inactive', async () => {
-  const h = harness(), panel = h.container(), mock = server(); await start(h, panel, mock); const next = button(byClass(panel, 'myplate-pagination-top')[0], 'Siguiente');
+test('pager cannot issue a stale request after the collection is inactive', async () => {
+  const h = harness(), panel = h.container(), mock = server(); await start(h, panel, mock); const next = button(panel, 'Página siguiente');
   h.setActive(panel, false); await next.click(); assert.equal(mock.requests.length, 1);
 });
 
@@ -554,7 +640,7 @@ test('clearing a personal selection restores the full catalogue and does not sil
   h.render(panel,options); await settle(); await button(panel,'Ver todas').click();
   assert.equal(mock.requests.at(-1).url.searchParams.get('q'),'');assert.equal(mock.requests.at(-1).url.searchParams.get('category'),'');
   h.render(panel,options);await settle();assert.equal(mock.requests.length,2);assert.equal(all(panel,'input')[0].value,'');
-  assert.match(byClass(panel,'myplate-total')[0].textContent,/51 recetas en el catálogo/);
+  assert.match(byClass(panel,'myplate-total')[0].textContent,/51 recetas · originales en inglés/);
 });
 
 for (const change of ['revision','member','preset-id','query','category','leave-personal']) test(`personal ${change} invalidates open source details and guide callbacks`,async()=>{
@@ -638,8 +724,8 @@ test('a screened page separates source total from visible rows and does not fetc
   const visible=rows.slice(0,12),notice='Cribado sintético: los resultados visibles todavía necesitan revisión.';
   const h=harness(),panel=h.container(),mock=server({intercept:(_call,n)=>n===1?filteredPage(visible,{hidden:12,notice}):undefined});
   h.render(panel,personalOptions(mock,{preset:{id:'all-food',label:'Tus sabores',query:'Synthetic',category:''}}));await settle();
-  assert.equal(byClass(panel,'myplate-recipe-card').length,12);assert.equal(byClass(panel,'myplate-total')[0].textContent,'51 coincidencias en la fuente');
-  assert.match(byClass(panel,'myplate-status')[0].textContent,/12 recetas visibles.*12 ocultas/);
+  assert.equal(byClass(panel,'myplate-recipe-card').length,12);assert.equal(byClass(panel,'myplate-total')[0].textContent,'51 coincidencias en la fuente · originales en inglés');
+  assert.match(byClass(panel,'myplate-status')[0].textContent,/12 recetas ocultas/);
   assert.ok(all(panel,'p').some(node=>node.textContent===notice&&!node.hidden));assert.equal(mock.requests.length,1);
   assert.ok(byClass(panel,'myplate-pagination').every(pager=>!pager.hidden));
   await button(panel,'Página siguiente').click();assert.equal(mock.requests[1].url.searchParams.get('offset'),'24');
@@ -647,14 +733,14 @@ test('a screened page separates source total from visible rows and does not fetc
   assert.equal(all(panel,'p').some(node=>node.textContent===notice&&!node.hidden),false,'A notice from the previous response must not survive an unfiltered response');
 });
 
-test('a fully screened first page still exposes both next controls and can reach the next source page',async()=>{
+test('a fully screened first page still exposes next control and can reach the next source page',async()=>{
   const h=harness(),panel=h.container(),mock=server({intercept:(_call,n)=>n===1?filteredPage([],{hidden:24}):undefined});
   h.render(panel,personalOptions(mock,{preset:{id:'all-food',label:'Tus sabores',query:'Synthetic',category:''}}));await settle();
-  assert.equal(byClass(panel,'myplate-recipe-card').length,0);assert.equal(byClass(panel,'myplate-total')[0].textContent,'51 coincidencias en la fuente');
-  assert.match(byClass(panel,'myplate-status')[0].textContent,/0 recetas visibles.*24 ocultas.*página siguiente/);
-  const top=byClass(panel,'myplate-pagination-top')[0];assert.equal(top.hidden,false);assert.equal(button(top,'Siguiente').disabled,false);assert.equal(button(panel,'Página siguiente').disabled,false);
-  assert.equal(button(top,'Anterior').disabled,true);assert.ok(byClass(panel,'myplate-pagination').every(pager=>all(pager,'span')[0].textContent==='Página 1 de 3'));
-  await button(top,'Siguiente').click();assert.equal(mock.requests[1].url.searchParams.get('offset'),'24');assert.equal(byClass(panel,'myplate-recipe-card').length,24);
+  assert.equal(byClass(panel,'myplate-recipe-card').length,0);assert.equal(byClass(panel,'myplate-total')[0].textContent,'51 coincidencias en la fuente · originales en inglés');
+  assert.match(byClass(panel,'myplate-status')[0].textContent,/24 recetas ocultas.*página siguiente/);
+  assert.equal(byClass(panel,'myplate-pagination')[0].hidden,false);assert.equal(button(panel,'Página siguiente').disabled,false);
+  assert.equal(button(panel,'Página anterior').disabled,true);assert.ok(byClass(panel,'myplate-pagination').every(pager=>all(pager,'span')[0].textContent==='Página 1 de 3'));
+  await button(panel,'Página siguiente').click();assert.equal(mock.requests[1].url.searchParams.get('offset'),'24');assert.equal(byClass(panel,'myplate-recipe-card').length,24);
   assert.ok(byClass(panel,'myplate-pagination').every(pager=>all(pager,'span')[0].textContent==='Página 2 de 3'));assert.deepEqual(h.storageWrites,[]);
 });
 
@@ -662,8 +748,8 @@ test('a fully screened final page keeps previous navigation without inventing an
   const h=harness(),panel=h.container(),mock=server({intercept:(_call,n)=>n===3?filteredPage([],{offset:48,total:51,hidden:3,next:null}):undefined});
   h.render(panel,personalOptions(mock,{preset:{id:'all-food',label:'Tus sabores',query:'Synthetic',category:''}}));await settle();
   await button(panel,'Página siguiente').click();await button(panel,'Página siguiente').click();
-  assert.equal(byClass(panel,'myplate-recipe-card').length,0);assert.equal(byClass(panel,'myplate-total')[0].textContent,'51 coincidencias en la fuente');
-  assert.match(byClass(panel,'myplate-status')[0].textContent,/3 ocultas.*otra selección/);
+  assert.equal(byClass(panel,'myplate-recipe-card').length,0);assert.equal(byClass(panel,'myplate-total')[0].textContent,'51 coincidencias en la fuente · originales en inglés');
+  assert.match(byClass(panel,'myplate-status')[0].textContent,/3 recetas ocultas.*otra selección/);
   assert.ok(byClass(panel,'myplate-pagination').every(pager=>!pager.hidden&&all(pager,'span')[0].textContent==='Página 3 de 3'));
   assert.equal(button(panel,'Página siguiente').disabled,true);assert.equal(button(panel,'Página anterior').disabled,false);
   await button(panel,'Página anterior').click();assert.equal(mock.requests.at(-1).url.searchParams.get('offset'),'24');assert.equal(byClass(panel,'myplate-recipe-card').length,24);
@@ -671,7 +757,7 @@ test('a fully screened final page keeps previous navigation without inventing an
 
 test('zero screened exclusions still disclose that the total counts source matches, without a compatibility claim',async()=>{
   const h=harness(),panel=h.container(),mock=server({intercept:()=>filteredPage(rows.slice(0,24),{hidden:0})});
-  h.render(panel,personalOptions(mock));await settle();assert.equal(byClass(panel,'myplate-total')[0].textContent,'51 coincidencias en la fuente');
+  h.render(panel,personalOptions(mock));await settle();assert.equal(byClass(panel,'myplate-total')[0].textContent,'51 coincidencias en la fuente · originales en inglés');
   assert.equal(byClass(panel,'myplate-recipe-card').length,24);assert.ok(panel.textContent.includes('revisa los ingredientes completos'));
   assert.equal(byClass(panel,'myplate-status')[0].textContent.includes('compatibles'),false);
 });

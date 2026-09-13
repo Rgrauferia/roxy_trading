@@ -1,5 +1,15 @@
 # Roxy Home — estado operativo
 
+## 197 — candidato local: recetas compactas y carga recuperable
+
+Se corrigió la jerarquía que ocultaba fotos detrás de controles: gustos compactos,
+destinos/subcategorías horizontales, selector agrupado local, borradores/importación
+después de fichas. MyPlate interrumpido ya ofrece cancelar/reintentar; deadline12s
+y aislamiento de respuestas preservados, paginación enfoca nuevos platos.
+251 pruebas MyPlate/fotos +195 perfil/API aprobadas. QA sintética8768, sin datos
+reales modificados. Publicación pendiente. No amplía catálogo ni resuelve fotos
+locales faltantes/1000recetasES. Ver reports/home_release_197_20260913.md.
+
 Actualizado: 2026-09-13. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 
@@ -16,8 +26,14 @@ Health200 y registro200disabled; sesión Robert permanece operativa en Más.
 No pagos, DNS, migración, nueva cuenta Roxy ni datos del hogar modificados.
 Runtime confirma un worker y confianza Uvicorn sólo loopback. Ajuste de identidad
 de cuotas Render/Cloudflare implementado:3155Python/11PGomitidas y47Node aprobadas.
-Modo render_cf guardado en Render medianteSaveonly; pendiente de despliegue y
-comprobación pública de resistencia a cabeceras falsas, sin alterar Uvicorn.
+Publicado7ccc18d0fe637b2c3cff9126c134f1c490d3bd60,Render
+dep-dajfpc2jnfac73f0n6qg Live56.4s;render_cf efectivo/registro0 confirmados enShell,
+hasheshelper/servicioidénticos. Diezloginssintéticos401→normal429 yXFFfalso429;
+CF-Connecting-IPfalso403HTMLdeCloudflare antesdelapp. Mismousuarioinexistente
+desdeegressRender401:dosconexionesdistinguidas,sincookies/cuentascreadas.
+SesiónRobertconservadatrasrecarga;Seguridadsin códigos,sinformulariotocado.
+Pendiente tokenTurnstileválido/altareal/replay;publicsignup siguecerrado.
+Cloudflare34yRoxy36preservadas,sinsecretosenarchivos.No redeploy sólopornotas.
 Ver reports/home_cloudflare_20260913.md. No anunciar apertura ni demo terminada.
 
 ## 196 — PUBLICADO: recuperación privada y protección de acceso

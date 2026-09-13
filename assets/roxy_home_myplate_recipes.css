@@ -89,3 +89,22 @@
   .myplate-categories { gap: 6px; }
 }
 @media (max-width: 320px) { .myplate-grid { grid-template-columns: minmax(0, 1fr); } }
+.myplate-library{padding:0;border:0;border-radius:0;background:none;box-shadow:none}
+.myplate-heading h2{font-size:26px}
+.myplate-total{font-size:12px;margin:6px 0}
+.myplate-language{font-size:11px;margin:3px 0}
+.myplate-controls{grid-template-columns:minmax(0,1fr) auto;gap:8px;margin:14px 0 10px}
+.myplate-controls label>span{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.myplate-controls .myplate-button{padding:10px 12px}
+.myplate-categories{flex-wrap:nowrap;overflow-x:auto;padding:2px 0 8px;scrollbar-width:thin}
+.myplate-category{flex:none}
+.myplate-filter-hint{display:none}
+.myplate-status{margin:8px 0}
+.myplate-grid{margin-top:12px}
+.myplate-card-body h3{font-size:20px}
+@media(max-width:600px){
+  .myplate-controls input{padding:11px 10px}
+  .myplate-controls .myplate-button{font-size:12px;max-width:92px}
+  .myplate-card-body h3{font-size:19px;line-height:1.2}
+  .myplate-card-body{padding:12px}
+}

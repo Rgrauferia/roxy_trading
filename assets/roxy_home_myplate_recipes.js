@@ -65,7 +65,7 @@
     }
     previous?.dispose();
     const state = {signature, active:Boolean(active), isCurrent, generation:0, controller:null,
-      busy:false, loaded:false, page:1, totalPages:0, canNext:false,
+      busy:false, loaded:false, page:1, totalPages:0, canNext:false, deadline:0, expire:null,
       group, autoLoad:Boolean(autoLoad), initialLoadRequested:Boolean(autoLoad), loadAttempted:false,
       category:personal ? preset.category || '' : group === 'food' ? 'Main dish' : group === 'dessert' ? 'Dessert' : '', query:personal ? preset.query : '', selected:null,
       categoryOptions:['Main dish', 'Dessert', 'Beverage', 'Salad', 'Soup', 'Breakfast', 'Bread', 'Side dish']};
@@ -77,7 +77,7 @@
     const heading = node('header', null, 'myplate-heading');
     const introduction = node('div');
     const title = node('h2'); introduction.append(title);
-    const total = node('p', 'Catálogo en directo · MyPlate.food', 'myplate-total');
+    const total = node('p', 'Originales en inglés · MyPlate.food', 'myplate-total');
     introduction.append(total); heading.append(introduction);
     const intro = node('p', 'Abre una receta para ver sus ingredientes y preparación originales.', 'myplate-intro');
     const language = node('p', 'Originales en inglés · enlace al español cuando existe.', 'myplate-note myplate-language');
@@ -96,39 +96,36 @@
     const status = node('p', '', 'myplate-status'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite'); status.tabIndex = -1;
     const personalNotice = node('p', '', 'myplate-note'); personalNotice.hidden = true;
     const retry = button('Reintentar consulta', () => state.selected ? void openRecipe(state.selected) : void load(state.page)); retry.hidden = true;
+    const cancel = button('Cancelar consulta', () => { stop(); paused(); }); cancel.hidden = true;
     const grid = node('div', null, 'myplate-grid');
     const pagination = node('nav', null, 'myplate-pagination'); pagination.setAttribute('aria-label', 'Páginas del catálogo MyPlate'); pagination.hidden = true;
     const pageLabel = node('span');
     const prev = button('Página anterior', () => { if (state.page > 1) void load(state.page - 1); });
     const next = button('Página siguiente', () => { if (state.canNext) void load(state.page + 1); });
     pagination.append(prev, pageLabel, next);
-    const topPagination = node('nav', null, 'myplate-pagination myplate-pagination-top'); topPagination.setAttribute('aria-label', 'Cambiar página de recetas'); topPagination.hidden = true;
-    const topLabel = node('span');
-    const topPrev = button('Anterior', () => { if (state.page > 1) void load(state.page - 1); });
-    const topNext = button('Siguiente', () => { if (state.canNext) void load(state.page + 1); });
-    topPagination.append(topPrev, topLabel, topNext);
     const baseCategory = () => state.group === 'food' ? 'Main dish' : state.group === 'dessert' ? 'Dessert' : '';
     const clear = button('Ver todas', () => { search.value = ''; state.query = ''; state.category = baseCategory(); void load(1); }); clear.hidden = true;
-    browser.append(form, categories, filterHint, topPagination, grid, clear, pagination);
+    browser.append(form, categories, filterHint, grid, clear, pagination);
     const detail = node('section', null, 'myplate-detail'); detail.hidden = true;
     const back = button('Volver a las recetas', () => closeDetail());
     const detailBody = node('div', null, 'myplate-detail-body'); detail.append(back, detailBody);
     const credit = node('details', null, 'myplate-credits'); credit.append(node('summary', 'Fuente, idioma y uso de estas recetas'));
     const creditText = node('p', attribution); creditText.lang = 'en';
-    credit.append(creditText, quota, node('p', 'MyPlate.food es un archivo independiente, no el sitio oficial del USDA. El catálogo se consulta en directo; no se descarga ni se guarda completo en Roxy.'),
+    credit.append(creditText, language, quota, node('p', 'MyPlate.food es un archivo independiente, no el sitio oficial del USDA. El catálogo se consulta en directo; no se descarga ni se guarda completo en Roxy.'),
       node('p', 'Conservamos el texto original, sin completar pasos con IA ni adaptar cantidades o alergias. La colección no equivale a recetas ensayadas individualmente por Roxy. Algunas imágenes de la fuente se han ampliado con IA.'),
-      node('p', 'Hasta 100 fichas completas al día en esta conexión compartida de Roxy. La fuente permite hasta 20 consultas por minuto. Al alcanzar el cupo puedes consultar la receta directamente en MyPlate.food; la disponibilidad puede variar.'));
+      node('p', 'La fuente permite hasta 20 consultas por minuto. La disponibilidad puede variar.'));
     sourceLink(credit, 'Conocer MyPlate.food', 'https://myplate.food/about');
-    root.append(heading, language, start, status, personalNotice, retry, browser, detail, credit); container.append(root);
+    root.append(heading, start, status, personalNotice, retry, cancel, browser, detail, credit); container.append(root);
 
     const current = () => renders.get(container) === state && state.active && !container.hidden && !container.closest?.('[hidden]') && container.isConnected && !document.hidden && state.isCurrent();
-    const controls = () => [explore, submit, search, prev, next, topPrev, topNext, clear, ...Array.from(categories.children)];
+    const controls = () => [explore, submit, search, retry, prev, next, clear, ...Array.from(categories.children)];
     const setBusy = value => {
-      state.busy = value; root.setAttribute('aria-busy', String(value));
+      state.busy = value; root.setAttribute('aria-busy', String(value)); cancel.hidden = !value;
       controls().forEach(control => { control.disabled = value; });
-      if (!value) { prev.disabled = topPrev.disabled = state.page <= 1; next.disabled = topNext.disabled = !state.canNext; }
+      if (!value) { prev.disabled = state.page <= 1; next.disabled = !state.canNext; }
     };
-    const stop = () => { state.generation++; state.controller?.abort(); state.controller = null; setBusy(false); };
+    const stop = () => { state.generation++; state.controller?.abort(); state.controller = null; state.deadline = 0; state.expire = null; setBusy(false); };
+    const paused = () => { status.textContent = 'Consulta interrumpida. Puedes reintentar cuando quieras.'; retry.hidden = false; };
     const purgeDetail = () => { state.guide?.dispose(); state.guide = null; state.selected = null; detailBody.replaceChildren(); detail.hidden = true; };
     const closeDetail = () => {
       stop(); purgeDetail(); retry.hidden = true; status.textContent = ''; browser.hidden = !state.loaded;
@@ -137,10 +134,14 @@
     const request = (path, controller) => new Promise((resolve, reject) => {
       let settled = false;
       const finish = (action, value) => {
-        if (settled) return; settled = true; clearTimeout(timer); controller.signal.removeEventListener('abort', aborted); action(value);
+        if (settled) return; settled = true; clearTimeout(timer); controller.signal.removeEventListener('abort', aborted);
+        if (state.controller === controller) { state.deadline = 0; state.expire = null; }
+        action(value);
       };
       const aborted = () => finish(reject, Object.assign(new Error('cancelled'), {name:'AbortError'}));
-      const timer = setTimeout(() => { finish(reject, Object.assign(new Error('timeout'), {name:'TimeoutError'})); controller.abort(); }, 12000);
+      const expire = () => { finish(reject, Object.assign(new Error('timeout'), {name:'TimeoutError'})); controller.abort(); };
+      const timer = setTimeout(expire, 12000);
+      state.deadline = Date.now() + 12000; state.expire = expire;
       controller.signal.addEventListener('abort', aborted, {once:true});
       if (controller.signal.aborted) { aborted(); return; }
       Promise.resolve().then(() => {
@@ -171,8 +172,7 @@
         if (query) item.title = `Buscar “${query}” en la fuente`;
         item.setAttribute('aria-pressed', String(state.category === value && state.query === query)); categories.append(item);
       });
-      filterHint.textContent = state.query ? `Búsqueda en la fuente: “${state.query}”${state.category ? ` · ${categoryLabels[state.category] || state.category}` : ''}. Los resultados conservan la clasificación original.` :
-        state.category ? `Categoría de la fuente: ${categoryLabels[state.category] || state.category}.` : '';
+      filterHint.textContent = state.query ? `“${state.query}”${state.category ? ` · ${categoryLabels[state.category] || state.category}` : ''}` : '';
       filterHint.hidden = !filterHint.textContent;
     };
     const groupHeading = () => {
@@ -185,7 +185,7 @@
       const article = node('article', null, 'myplate-recipe-card');
       article.append(photo(summary));
       const body = node('div', null, 'myplate-card-body');
-      const title = node('h3', summary.title); title.lang = 'en';
+      const title = node('h3', summary.title); title.lang = 'en'; title.tabIndex = -1;
       const meta = node('p', summary.category ? `${categoryLabels[summary.category] || summary.category} · EN` : 'Original en inglés', 'myplate-card-meta');
       const open = button('Ver receta', () => { if (!state.busy) void openRecipe(summary); });
       open.setAttribute('aria-label', `Ver receta: ${summary.title}`); body.append(title, meta, open); article.append(body); return article;
@@ -194,15 +194,17 @@
       if (!current() || state.busy) return;
       stop(); purgeDetail(); state.page = page; state.loaded = false; state.initialLoadRequested = false; state.loadAttempted = true;
       retry.hidden = true; start.hidden = true; personalNotice.hidden = true; personalNotice.textContent = ''; categoryButtons();
-      browser.hidden = false; grid.replaceChildren(); clear.hidden = true; pagination.hidden = topPagination.hidden = true;
+      browser.hidden = false; grid.replaceChildren(); clear.hidden = true; pagination.hidden = true;
+      total.textContent = 'Originales en inglés · MyPlate.food';
       const generation = state.generation, controller = new AbortController(); state.controller = controller; setBusy(true);
       status.textContent = 'Consultando las recetas de la fuente…';
       const offset = (page - 1) * 24;
       const params = new URLSearchParams({requested:'true', q:state.query, category:state.category, offset:String(offset), limit:'24'});
       try {
         const data = await request(`/v1/home-food/${encodeURIComponent(user)}/myplate-recipes?${params}`, controller);
-        if (!current() || generation !== state.generation || controller.signal.aborted) return;
-        if (data.provider !== 'MyPlate.food' || data.live !== true || !Array.isArray(data.recipes) || data.recipes.length > 24 ||
+        if (generation !== state.generation || controller.signal.aborted) return;
+        if (!current()) { paused(); return; }
+        if (!data || data.provider !== 'MyPlate.food' || data.live !== true || !Array.isArray(data.recipes) || data.recipes.length > 24 ||
           !data.recipes.every(validSummary) || new Set(data.recipes.map(row => row.slug)).size !== data.recipes.length ||
           !Number.isInteger(data.total) || data.total < 0 || data.offset !== offset || data.limit !== 24 ||
           !(data.next_offset === null || data.next_offset === offset + 24) ||
@@ -212,19 +214,24 @@
         if (Array.isArray(data.category_options) && data.category_options.length <= 30 && data.category_options.every(value =>
           typeof value === 'string' && value.trim())) { state.categoryOptions = data.category_options; categoryButtons(); }
         const filtered = Number.isInteger(data.hidden_in_page), hiddenCount = data.hidden_in_page || 0;
-        total.textContent = `${data.total.toLocaleString('es')} ${filtered ? 'coincidencias en la fuente' : `recetas${state.query || state.category ? ' en esta selección' : ' en el catálogo'}`}`;
-        status.textContent = filtered && hiddenCount ? `${data.recipes.length} recetas visibles en esta página · ${hiddenCount} ocultas por posibles conflictos con tus preferencias.` : data.recipes.length ? `${offset + 1}–${offset + data.recipes.length} de ${data.total}` :
+        total.textContent = `${data.total.toLocaleString('es')} ${filtered ? 'coincidencias en la fuente' : 'recetas'} · originales en inglés`;
+        status.textContent = filtered && hiddenCount ? `${hiddenCount} recetas ocultas en esta página por posibles conflictos con tus preferencias.` : data.recipes.length ? '' :
           'No encontramos recetas con estos filtros. Prueba otra palabra en inglés o vuelve a ver todas.';
         if (filtered && !data.recipes.length && hiddenCount) status.textContent += state.canNext ? ' Puedes probar la página siguiente.' : ' Prueba otra selección.';
         if (typeof data.personal_notice === 'string') {personalNotice.textContent = data.personal_notice; personalNotice.hidden = !data.personal_notice;}
         clear.hidden = !state.query && state.category === baseCategory();
         pageLabel.textContent = `Página ${page} de ${Math.max(1, state.totalPages)}`;
-        topLabel.textContent = pageLabel.textContent;
-        pagination.hidden = topPagination.hidden = state.totalPages <= 1;
-        if (focus) status.focus({preventScroll:false});
+        pagination.hidden = state.totalPages <= 1;
+        if (focus) {
+          const firstCard = grid.firstChild, firstTitle = firstCard?.querySelector('h3');
+          if (firstTitle) { firstTitle.focus({preventScroll:true}); firstCard.scrollIntoView({block:'start', behavior:'auto'}); }
+          else status.focus({preventScroll:false});
+        }
       } catch (error) {
-        if (!current() || generation !== state.generation || (controller.signal.aborted && error?.name !== 'TimeoutError')) return;
+        if (generation !== state.generation) return;
+        if (!current() || (controller.signal.aborted && error?.name !== 'TimeoutError')) { paused(); return; }
         status.textContent = errorText(error); retry.hidden = false;
+        if (focus) status.focus({preventScroll:false});
       } finally { if (generation === state.generation) { state.controller = null; setBusy(false); } }
     }
     async function openRecipe(summary) {
@@ -235,13 +242,16 @@
       status.textContent = 'Cargando ingredientes y preparación originales…';
       try {
         const data = await request(`/v1/home-food/${encodeURIComponent(user)}/myplate-recipes/${encodeURIComponent(summary.slug)}?requested=true`, controller);
-        if (!current() || generation !== state.generation || controller.signal.aborted) return;
-        if (!validDetail(data.recipe, summary.slug)) throw new Error('invalid_recipe');
+        if (generation !== state.generation || controller.signal.aborted) return;
+        if (!current()) { paused(); return; }
+        if (!validDetail(data?.recipe, summary.slug)) throw new Error('invalid_recipe');
         showRecipe(data.recipe, summary); status.textContent = '';
       } catch (error) {
-        if (!current() || generation !== state.generation || (controller.signal.aborted && error?.name !== 'TimeoutError')) return;
+        if (generation !== state.generation) return;
+        if (!current() || (controller.signal.aborted && error?.name !== 'TimeoutError')) { paused(); return; }
         status.textContent = errorText(error, true); retry.hidden = false;
         sourceLink(detailBody, 'Abrir receta en MyPlate.food', summary.source_url);
+        status.focus({preventScroll:false});
       } finally { if (generation === state.generation) { state.controller = null; setBusy(false); } }
     }
     function showRecipe(recipe, summary) {
@@ -307,18 +317,21 @@
         stop(); purgeDetail(); grid.replaceChildren();
         state.group = nextGroup; state.category = baseCategory(); state.query = ''; search.value = '';
         state.page = 1; state.totalPages = 0; state.canNext = false; state.loaded = false; state.loadAttempted = false;
-        state.initialLoadRequested = true; status.textContent = ''; retry.hidden = true; pagination.hidden = topPagination.hidden = true;
-        clear.hidden = true; browser.hidden = true; start.hidden = false; total.textContent = 'Catálogo en directo · MyPlate.food';
+        state.initialLoadRequested = true; status.textContent = ''; retry.hidden = true; pagination.hidden = true;
+        clear.hidden = true; browser.hidden = true; start.hidden = false; total.textContent = 'Originales en inglés · MyPlate.food';
       }
       if (nextAutoLoad && !state.autoLoad && !state.loaded && !state.loadAttempted) state.initialLoadRequested = true;
       state.autoLoad = nextAutoLoad; groupHeading(); categoryButtons(); setBusy(state.busy);
     };
     state.activate = value => {
       state.active = Boolean(value);
-      if (current()) { if (state.initialLoadRequested && !state.busy) void load(1, {focus:false}); return; }
+      if (current()) {
+        if (state.busy && state.deadline && Date.now() >= state.deadline) state.expire?.();
+        if (state.initialLoadRequested && !state.busy) void load(1, {focus:false}); return;
+      }
       const wasBusy = state.busy, hadDetail = Boolean(state.selected); stop(); purgeDetail();
       if (hadDetail) { browser.hidden = !state.loaded; start.hidden = state.loaded; }
-      if (wasBusy) { status.textContent = 'Consulta pausada. Pulsa Reintentar consulta para continuar.'; retry.hidden = false; }
+      if (wasBusy) paused();
     };
     const visibility = () => state.activate(state.active);
     document.addEventListener('visibilitychange', visibility);

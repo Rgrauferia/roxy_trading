@@ -90,3 +90,23 @@ test('normal and offline recovery activate browsing only after revealing confirm
   assert.equal((source.match(/load\.renderedScope=\{owner:requestedOwner,identity\};\$\('app'\)\.hidden=false;\s*activateRecipeSources\(\);/g)||[]).length,2);
   assert.match(part('    const sourceContext=','    const myplateSelected='),/isCurrent:\(\)=>recipeSourcesReady\(\)/);
 });
+test('local recipes use a single category selector with broad optgroups',()=>{
+  const render=part('  function renderRecipes()','  function aquariumInhabitantsField(');
+  assert.match(render,/createElement\('select'\)/);
+  assert.match(render,/Categoría de mi recetario/);
+  assert.match(render,/createElement\('optgroup'\)/);
+  assert.doesNotMatch(render,/title:'Todo mi recetario'/);
+  assert.match(render,/recipeLocalGroup=recipeFilter==='favorite'\?'favorite':'all'/);
+});
+test('preference entry stays accessible without a large promotional card',()=>{
+  const render=part('  function renderRecipePreferences(', '  async function cacheSnapshot(');
+  assert.match(render,/recipe-preferences-shortcut/);
+  assert.match(render,/setAttribute\('aria-label',complete\?'Cambiar mis gustos':'Configurar mis gustos'\)/);
+  assert.doesNotMatch(render,/Hagamos este recetario tuyo/);
+});
+test('draft and import tools follow recipe cards rather than blocking the first screen',()=>{
+  const html=fs.readFileSync(require('node:path').join(__dirname,'../assets/roxy_list.html'),'utf8');
+  assert.ok(html.indexOf('id="recipeEditorialFilters"')>html.indexOf('id="recipeLibrary"'));
+  assert.ok(html.indexOf('id="recipeImportToggle"')>html.indexOf('id="recipeLibrary"'));
+  assert.match(html,/<summary>Añadir recetas y otras fuentes<\/summary>/);
+});

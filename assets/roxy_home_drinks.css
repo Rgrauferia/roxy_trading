@@ -66,3 +66,8 @@
 @media (max-width: 720px) { .drinks-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; } .drinks-card-body { padding: 12px; } .drinks-card-body h3 { font-size: 19px; } .drinks-spirit-filter { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 420px) { .drinks-library { padding: 17px; } .drinks-card-body { padding: 11px; } .drinks-card-body h3 { font-size: 18px; } .drinks-card-body > .drinks-button { padding: 10px 6px; font-size: 12px; } .drinks-dialog { width: calc(100% - 18px); border-radius: 23px; } .drinks-dialog-inner { padding: 19px; } .drinks-dialog-heading { flex-wrap: wrap; gap: 12px; } .drinks-reader { padding: 17px; } }
 @media (max-width: 320px) { .drinks-grid, .drinks-search { grid-template-columns: minmax(0, 1fr); } }
+.drinks-library{padding:0;border:0;border-radius:0;background:none;box-shadow:none}
+.drinks-heading h2{font-size:26px}
+.drinks-search label>span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.drinks-search{margin:12px 0 10px}
+.drinks-photo{aspect-ratio:1.35}
