@@ -1,4 +1,4 @@
-"""Synthetic provider data only: no mirrored recipe text or live calls."""
+"""Synthetic provider fixtures and one attributed source regression; no live calls."""
 from concurrent.futures import ThreadPoolExecutor
 import json
 
@@ -111,6 +111,14 @@ def test_source_text_quantities_and_notes_not_rewritten_by_reading_segments():
     ("Use U.S. measures. Stir again.", ["Use U.S. measures. ", "Stir again."], "sentences"),
     ("Follow Dr. Cook and A. Baker. Stir again.",
      ["Follow Dr. Cook and A. Baker. ", "Stir again."], "sentences"),
+    ("Leave the peel on. Put the lid on. Serve in the pan.",
+     ["Leave the peel on. ", "Put the lid on. ", "Serve in the pan."], "sentences"),
+    ("Turn the heat off. Take the tray out. Place skin side up. Serve warm.",
+     ["Turn the heat off. ", "Take the tray out. ", "Place skin side up. ", "Serve warm."], "sentences"),
+    ("Preheat to 400 °F. Bake until crisp. Serve warm.",
+     ["Preheat to 400 °F. ", "Bake until crisp. ", "Serve warm."], "sentences"),
+    ("Preheat to 180.5 ° C. Bake until crisp. Serve warm.",
+     ["Preheat to 180.5 ° C. ", "Bake until crisp. ", "Serve warm."], "sentences"),
     ("Don't overmix. Serve warm.", ["Don't overmix. ", "Serve warm."], "sentences"),
     ("Don’t overmix. Serve warm.", ["Don’t overmix. ", "Serve warm."], "sentences"),
     ("Mix (until smooth). Serve warm.", ["Mix (until smooth). ", "Serve warm."], "sentences"),
@@ -145,6 +153,39 @@ def test_source_reader_boundaries_are_literal_complete_and_deterministic(text, e
     assert result["can_cook"] is False and result["can_add_to_shopping"] is False
     assert result["editorial_status"] == "external_original_not_individually_reviewed"
     assert "steps" not in result
+
+
+def test_cran_apple_crisp_public_source_preserves_ten_literal_reading_segments():
+    # Exact directions observed in the public MyPlate.food Cran-Apple Crisp
+    # reader (USDA MyPlate Kitchen collection), supplied with the incident.
+    # This fixture is regression evidence, not a new runtime catalogue entry.
+    source = (
+        "Wash hands with soap and water. Preheat oven to 400 °F. "
+        "Wash apples, remove cores and slice thinly, keeping peel on. "
+        "In a bowl, combine the cranberries and apples. Pour into an 8x8 inch pan. "
+        "Combine melted margarine with oatmeal, brown sugar, and cinnamon until well blended. "
+        "Sprinkle over apple/cranberry mixture. Cover and bake for 15 minutes. "
+        "Uncover and bake 10 more minutes until the topping is crisp and brown. Serve warm or cold."
+    )
+    expected = [
+        "Wash hands with soap and water. ",
+        "Preheat oven to 400 °F. ",
+        "Wash apples, remove cores and slice thinly, keeping peel on. ",
+        "In a bowl, combine the cranberries and apples. ",
+        "Pour into an 8x8 inch pan. ",
+        "Combine melted margarine with oatmeal, brown sugar, and cinnamon until well blended. ",
+        "Sprinkle over apple/cranberry mixture. ",
+        "Cover and bake for 15 minutes. ",
+        "Uncover and bake 10 more minutes until the topping is crisp and brown. ",
+        "Serve warm or cold.",
+    ]
+    result = recipes._detail({**detail(), "directions": source}, "fixture-dish")
+    assert result["source_steps"] == expected
+    assert result["source_steps_method"] == "sentences"
+    assert result["directions"] == "".join(result["source_steps"]) == source
+    assert result["source_steps_language"] == "en"
+    assert result["can_cook"] is False and result["can_add_to_shopping"] is False
+    assert result["editorial_status"] == "external_original_not_individually_reviewed"
 
 
 @pytest.mark.parametrize("text", [

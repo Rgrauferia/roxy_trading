@@ -44,8 +44,8 @@ _SOURCE_ABBREVIATIONS = frozenset({
 })
 _SHORT_SENTENCE_WORDS = frozenset({
     "add", "air", "bun", "cup", "cut", "dip", "dry", "eat", "egg", "fat", "ham",
-    "hot", "ice", "jam", "lid", "low", "mix", "nut", "oil", "pan", "pea", "pie",
-    "pot", "raw", "red", "rub", "tin", "top", "wet",
+    "hot", "ice", "jam", "lid", "low", "mix", "nut", "off", "oil", "on", "out",
+    "pan", "pea", "pie", "pot", "raw", "red", "rub", "tin", "top", "up", "wet",
 })
 
 
@@ -231,14 +231,18 @@ def _source_sentences(paragraph: str) -> list[str]:
             return [paragraph]
         if punctuation == ".":
             # A bounded suffix keeps repeated-sentence sources linear in size.
-            token = re.search(r"([A-Za-z][A-Za-z.]*)$", paragraph[max(0, end.start() - 64):end.start()])
+            suffix = paragraph[max(0, end.start() - 64):end.start()]
+            token = re.search(r"([A-Za-z][A-Za-z.]*)$", suffix)
             word = token.group(1) if token else ""
-            if word and (word.lower() in _SOURCE_ABBREVIATIONS or len(word) == 1 or "." in word):
+            # A numeric temperature with an explicit degree symbol is not an
+            # initial or an abbreviated word. Plain F./C. remain protected.
+            temperature = bool(re.search(r"\b\d+(?:\.\d+)?[ \t]*°[ \t]*[CF]$", suffix))
+            if not temperature and word and (word.lower() in _SOURCE_ABBREVIATIONS or len(word) == 1 or "." in word):
                 continue
             # A spaced decimal, numeric label, or unknown short abbreviation is
             # ambiguous. Keep the paragraph instead of guessing its structure.
             if (end.start() and paragraph[end.start() - 1].isdigit()) or (
-                    word and len(word) <= 3 and word.lower() not in _SHORT_SENTENCE_WORDS):
+                    not temperature and word and len(word) <= 3 and word.lower() not in _SHORT_SENTENCE_WORDS):
                 return [paragraph]
         # An aside following a sentence remains attached to that sentence;
         # a boundary after its balanced close is safe for a reading segment.

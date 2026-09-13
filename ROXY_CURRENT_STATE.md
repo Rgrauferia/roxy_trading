@@ -1,13 +1,19 @@
 # Roxy Home — estado operativo
 
-## 197 — candidato local: recetas compactas y carga recuperable
+## 197 — navegación publicada; ajuste de pasos en verificación
 
 Se corrigió la jerarquía que ocultaba fotos detrás de controles: gustos compactos,
 destinos/subcategorías horizontales, selector agrupado local, borradores/importación
 después de fichas. MyPlate interrumpido ya ofrece cancelar/reintentar; deadline12s
 y aislamiento de respuestas preservados, paginación enfoca nuevos platos.
-251 pruebas MyPlate/fotos +195 perfil/API aprobadas. QA sintética8768, sin datos
-reales modificados. Publicación pendiente. No amplía catálogo ni resuelve fotos
+797 Node +251 pruebas MyPlate/fotos +195 perfil/API aprobadas. QA sintética8768,
+sin datos reales modificados. Publicado74567835, Render dep-dajgf18u01pc73944mjg
+Live48.3s/HTML197/health200/cincoassetsidénticos. Público393px: Comidas24/318,
+Postres81/página2funciona, fotosprimera pantalla. Cran-Apple Crisp reveló una
+regresión de segmentación (guía1bloque); corrección adicional de finales on/off/
+out/up y °F/°C implementada: 10 segmentos idénticos al original,246 pruebas/API;
+pendiente comprobar segundo despliegue.
+No amplía catálogo ni resuelve fotos
 locales faltantes/1000recetasES. Ver reports/home_release_197_20260913.md.
 
 Actualizado: 2026-09-13. Este documento pertenece exclusivamente a la rama Home.
