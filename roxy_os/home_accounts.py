@@ -3,11 +3,9 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
-import json
 import os
 import re
 import secrets
-import tempfile
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -15,6 +13,13 @@ from typing import Any, Callable
 from uuid import uuid4
 
 from roxy_os.home_demo import TRIAL_DAYS, TRIAL_AI_DAILY_LIMIT, TRIAL_MEMBER_LIMIT, DEMO_NOTICE_VERSION
+from roxy_os.home_recipe_profile import (
+    RecipeProfileConflictError, RecipeProfileValidationError, normalize_recipe_profile,
+    recipe_onboarding_required, recipe_profile_options,
+)
+from roxy_os.home_private_storage import (
+    HomePrivateStorageError, initialized_marker, read_private_json, write_private_json,
+)
 
 try:
     import fcntl
@@ -31,6 +36,34 @@ class HomeAccountStorageError(RuntimeError):
 
 class HomeTrialLimitError(ValueError):
     pass
+
+
+def _valid_account_structure(payload: Any) -> bool:
+    return (
+        isinstance(payload, dict)
+        and all(isinstance(payload.get(key), dict) for key in ("households", "members"))
+        and all(isinstance(row, dict) for key in ("households", "members") for row in payload[key].values())
+    )
+
+
+def _protect_existing_accounts(path: Path) -> None:
+    """Mark a validated legacy file without rewriting it or its identities."""
+    try:
+        try:
+            descriptor = os.open(initialized_marker(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError:
+            return
+        with os.fdopen(descriptor, "w", encoding="ascii") as stream:
+            stream.write("1\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        directory = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    except OSError as exc:
+        raise HomeAccountStorageError("No se pudo confirmar el almacenamiento de las cuentas. Conservamos los datos; inténtalo más tarde.") from exc
 
 
 def trial_status(household: dict[str, Any]) -> dict[str, Any] | None:
@@ -148,6 +181,7 @@ def public_member(member: dict[str, Any], household: dict[str, Any]) -> dict[str
         "storage_user_id": household["storage_user_id"],
         "active": bool(member.get("active", True)),
         "preferences": normalize_member_preferences(member.get("preferences")),
+        "recipe_onboarding_required": recipe_onboarding_required(member),
         "trial": trial_status(household),
     }
 
@@ -165,15 +199,9 @@ class HomeAccountStore:
 
     def _read_unlocked(self) -> dict[str, Any]:
         try:
-            payload = json.loads(self.path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            return self._empty()
-        except (OSError, ValueError, TypeError) as exc:
+            payload, status = read_private_json(self.path, self._empty, _valid_account_structure, HomePrivateStorageError)
+        except HomePrivateStorageError as exc:
             raise HomeAccountStorageError("No se pudieron leer las cuentas. Conservamos el archivo; inténtalo más tarde.") from exc
-        if not isinstance(payload, dict) or not all(isinstance(payload.get(k), dict) for k in ("households", "members")):
-            raise HomeAccountStorageError("El archivo de cuentas necesita revisión. No se sobrescribió ningún perfil.")
-        if any(not isinstance(row, dict) for rows in (payload["households"], payload["members"]) for row in rows.values()):
-            raise HomeAccountStorageError("El archivo de cuentas necesita revisión. No se sobrescribió ningún perfil.")
         for household in payload["households"].values():
             if "trial" not in household:
                 continue
@@ -185,24 +213,16 @@ class HomeAccountStore:
                     raise ValueError("Invalid trial state")
             except (KeyError, TypeError, ValueError, AttributeError) as exc:
                 raise HomeAccountStorageError("El estado de la demo necesita revisión. Conservamos los datos y no ampliamos el acceso.") from exc
+        if status == "READY":
+            _protect_existing_accounts(self.path)
         return payload
 
     def _write_unlocked(self, payload: dict[str, Any]) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
         payload["schema_version"] = ACCOUNT_STORE_VERSION
-        handle, temp_name = tempfile.mkstemp(prefix=f".{self.path.name}.", suffix=".tmp", dir=str(self.path.parent))
         try:
-            with os.fdopen(handle, "w", encoding="utf-8") as stream:
-                json.dump(payload, stream, ensure_ascii=False, indent=2, sort_keys=True)
-                stream.flush()
-                os.fsync(stream.fileno())
-            os.chmod(temp_name, 0o600)
-            os.replace(temp_name, self.path)
-        finally:
-            try:
-                os.unlink(temp_name)
-            except FileNotFoundError:
-                pass
+            write_private_json(self.path, payload, _valid_account_structure, HomePrivateStorageError)
+        except HomePrivateStorageError as exc:
+            raise HomeAccountStorageError(str(exc)) from exc
 
     def _mutate(self, callback: Callable[[dict[str, Any]], Any]) -> Any:
         self.lock_path.parent.mkdir(parents=True, exist_ok=True)
@@ -277,6 +297,7 @@ class HomeAccountStore:
                 "role": "OWNER",
                 "active": True,
                 "preferences": default_member_preferences(),
+                "recipe_onboarding_required": True,
                 "created_at": _now_iso(),
             }
             payload["households"][household_id] = household
@@ -372,10 +393,73 @@ class HomeAccountStore:
                 "role": "MEMBER",
                 "active": True,
                 "preferences": default_member_preferences(),
+                "recipe_onboarding_required": True,
                 "created_at": _now_iso(),
             }
             payload["members"][member_id] = member
             return public_member(member, household)
+
+        return self._mutate(apply)
+
+    @staticmethod
+    def _recipe_profile_snapshot(payload: dict[str, Any], member_id: str) -> dict[str, Any]:
+        member = payload["members"].get(member_id)
+        if not member or member.get("active", True) is not True:
+            raise PermissionError("Sesión no disponible")
+        if member.get("household_id") not in payload["households"]:
+            raise PermissionError("Sesión no disponible")
+        revision = member.get("recipe_profile_revision", 0)
+        if type(revision) is not int or revision < 0:
+            raise HomeAccountStorageError("El perfil culinario necesita revisión. Conservamos los datos.")
+        raw = member.get("recipe_profile")
+        if raw is None:
+            if revision:
+                raise HomeAccountStorageError("El perfil culinario necesita revisión. Conservamos los datos.")
+            profile = None
+        else:
+            try:
+                profile = normalize_recipe_profile(raw)
+            except RecipeProfileValidationError as exc:
+                raise HomeAccountStorageError("El perfil culinario necesita revisión. Conservamos los datos.") from exc
+            if revision < 1:
+                raise HomeAccountStorageError("El perfil culinario necesita revisión. Conservamos los datos.")
+        return {
+            "member_id": member_id,
+            "revision": revision,
+            "profile": profile,
+            "required": recipe_onboarding_required(member),
+            "options": recipe_profile_options(),
+        }
+
+    def get_recipe_profile(self, member_id: str) -> dict[str, Any]:
+        """Return only the authenticated member's profile via its dedicated API."""
+        return self._recipe_profile_snapshot(self._read_unlocked(), member_id)
+
+    def update_recipe_profile(
+        self,
+        member_id: str,
+        *,
+        profile: dict[str, Any],
+        expected_revision: int,
+    ) -> dict[str, Any]:
+        normalized = normalize_recipe_profile(profile)
+        if type(expected_revision) is not int or expected_revision < 0:
+            raise RecipeProfileValidationError("La revisión del perfil no es válida. Recarga la página.")
+
+        def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            before = self._recipe_profile_snapshot(payload, member_id)
+            if before["revision"] != expected_revision:
+                raise RecipeProfileConflictError("Tu perfil culinario cambió en otra pestaña. Recarga antes de guardar.")
+            member = payload["members"][member_id]
+            now = _now_iso()
+            member["recipe_profile"] = deepcopy(normalized)
+            member["recipe_profile_revision"] = before["revision"] + 1
+            member.setdefault("recipe_profile_created_at", now)
+            member["recipe_profile_updated_at"] = now
+            member["recipe_profile_consented_at"] = now
+            if normalized["completed"]:
+                member.setdefault("recipe_profile_completed_at", now)
+            return self._recipe_profile_snapshot(payload, member_id)
 
         return self._mutate(apply)
 

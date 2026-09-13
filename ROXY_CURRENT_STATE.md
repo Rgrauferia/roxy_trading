@@ -3,7 +3,40 @@
 Actualizado: 2026-09-13. Este documento pertenece exclusivamente a la rama Home.
 No mezclar cambios, memoria, secretos ni despliegues de Trading/Crypto.
 
-## 194 — CANDIDATO: guía de recetas con voz y controles
+## 195 — CANDIDATO: bienvenida culinaria privada y descubrimiento personal
+
+Cuatro pasos ES/EN al completar el registro de miembros nuevos: idioma, país
+opcional, cocina de origen/seleccionada/mixta, gustos, dieta, alergias opcionales,
+tiempo y experiencia; consentimiento explícito antes de guardar. Miembros
+existentes acceden desde Recetas → Cambiar/Configurar mis gustos sin alterar
+su hogar. Perfil privado por miembro con revisión optimista y enlace de sesión;
+no se incluye en me/members, publicidad, afiliados, IA ni almacenamiento browser.
+Alta ahora fuerza recarga completa, no sólo cambio de fragmento.
+
+Para ti usa búsquedas fijas por elecciones y categorías variadas si no se
+indicaron gustos. Descarta conflictos evidentes de títulos/descripciones y al
+abrir coteja ingredientes: no certifica alergias, origen, dieta, tiempo o técnica.
+Preserva totales originales y páginas aunque se oculten todos los resultados.
+Idioma y duración ausentes siguen explícitos. No traduce ni inventa recetas.
+Marcador accounts.json.initialized protege contra reinicialización accidental
+de un archivo ya usado; no detecta pérdida simultánea del disco y marcador.
+
+QA real local aislada: dos altas sintéticas, bienvenida ES/EN, consentimiento,
+guardado/reentrada/edición, selección fuente16italianas y318platos principales,
+filtrado de tarjetas, guía Italian Bean Patties8pasos, listo→2, TTS onstart
+observado. Vista393×852 inspeccionada; no prueba física del teléfono. Native
+voice no requiere ElevenLabs. Nuevos assets Docker/SW; precarga conserva20.
+743Node y2829Pythonaprobadas/11PostgreSQLomitidas; suite final84.17s.
+
+Último público sigue194 hasta comprobar despliegue195. Registro público sigue
+DESHABILITADO: inspección Render de claves (sin valores) no muestra variables
+Turnstile/signup; disco10GB montado/var/data confirmado. Cloudflare requiere
+login del usuario, pestaña27 abierta y solicitud enviada. Recuperación/soporte
+siguen pendientes. 1072 consultables EN no son1000 revisadas ES/plan/Compra;
+MyPlate mantiene100detalles/día/IP compartida,20consultas/min,sin bulk mirror.
+Informe y evidencia: reports/home_release_195_20260913.md.
+
+## 194 — PUBLICADO: guía de recetas con voz y controles
 
 Guía común para MyPlate, Open Drinks y originales abiertos: lectura literal,
 pasos, repetir/pausar, controles escritos y micrófono opt-in para comandos.
@@ -17,7 +50,13 @@ Paginación superior y fuentes secundarias plegadas; catálogos sin cambios:
 671 pruebas Node aprobadas;2494Python/11PGomitidas aprobadas. QA local comprobó
 guía de café ES4pasos y comienzo de lectura EN mediante onstart, no audio físico
 en el teléfono del usuario. Pancakes EN8pasos y comando escrito listo→paso2
-comprobados. Falta verificación pública; no afirmar publicado.
+comprobados. Publicado commit efdfc56eaf3e2ef2599a1afa85824275e9726897,
+Render dep-dajdgj5g1s2s73cchns0 Live13sep13:08EDT. Reinicio502transitorio→
+health200ok;9assets públicos200idénticos. QA pública: sesión conservada,
+meta194, catálogo1072/página1de45 y guía Apple Slice Pancakes1de8 abiertos;
+sin errores de consola ni desbordamiento a1049px. No prueba física de teléfono.
+Servidores propios31748/31749 detenidos, pestañas QA22/Render23 cerradas,
+viewport restaurado; pestaña pública1 preservada. Prototipos intactos.
 500 recetas revisadas ES/plan/Compra y conversación habitual siguen pendientes.
 Informe: reports/home_release_194_20260913.md.
 

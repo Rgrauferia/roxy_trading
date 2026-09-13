@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '194';
+  const APP_VERSION = '195';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -100,6 +100,7 @@
   let recipeCollection = 'all';
   let recipeLocalGroup = 'all';
   let recipeNavigationIdentity = '';
+  let recipeProfileEnvelope=null,recipeProfileIdentity='',recipeProfileError='',recipeWelcomeController=null,recipePresetId='';
   let recipeImportExpanded = false;
   let search = '';
   let showAllStaples = false;
@@ -445,8 +446,8 @@
   async function api(path,options={}) {
     const response = await fetch(path, {
       credentials:'include', cache:'no-store',
+      ...options,
       headers:{Accept:'application/json','Content-Type':'application/json',...(options.headers||{})},
-      ...options
     });
     let data = {};
     try { data = await response.json(); } catch (_error) {}
@@ -457,6 +458,92 @@
       throw error;
     }
     return data;
+  }
+  function clearRecipePreferences(){
+    recipeWelcomeController?.dispose();recipeWelcomeController=null;recipeProfileEnvelope=null;recipeProfileIdentity='';recipeProfileError='';recipePresetId='';
+    $('recipeWelcomeRoot')?.replaceChildren();$('recipePreferencesRoot')?.replaceChildren();
+    if($('recipeWelcomePage'))$('recipeWelcomePage').hidden=true;
+    if($('recipePreferencesDialog')?.open)$('recipePreferencesDialog').close();
+    document.body.classList.remove('recipe-welcome-active');
+  }
+  function privateRecipeApi(memberId,isCurrent){return async(path,options={})=>{
+    if(!isCurrent())throw new Error('Tu sesión cambió. Vuelve a entrar.');
+    const result=await api(path,{...options,headers:{...(options.headers||{}),'X-Roxy-Recipe-Member':memberId}});
+    if(!isCurrent())throw new Error('Tu sesión cambió. Vuelve a entrar.');
+    return result;
+  }}
+  async function prepareRecipePreferences(isCurrent,{force=false}={}){
+    if(account.mode!=='member'){clearRecipePreferences();return true}
+    const memberId=account.id;
+    if(recipeProfileIdentity!==memberId)clearRecipePreferences();
+    recipeProfileIdentity=memberId;
+    if(force||!recipeProfileEnvelope){
+      const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);
+      try{
+        const result=await privateRecipeApi(memberId,isCurrent)('/v1/home-account/recipe-profile',{signal:controller.signal});
+        if(!isCurrent())return false;
+        if(result.member_id!==memberId||!Number.isInteger(result.revision)||!result.options)throw new Error('No se pudieron confirmar tus gustos.');
+        recipeProfileEnvelope=result;recipeProfileError='';
+      }catch(error){if(!isCurrent())return false;recipeProfileEnvelope=null;recipePresetId='';recipeProfileError=error.name==='AbortError'?'No pudimos cargar tus gustos. Reintenta.':error.message}
+      finally{clearTimeout(timer)}
+    }
+    if(!isCurrent())return false;
+    const required=account.recipe_onboarding_required===true&&!(recipeProfileEnvelope?.profile?.completed);
+    if(required){showRecipePreferences(true);return false}
+    return true;
+  }
+  function showRecipePreferences(required=false){
+    if(account.mode!=='member'){openAccountDialog();return}
+    const memberId=account.id,owner=user;
+    const isCurrent=()=>account.mode==='member'&&account.id===memberId&&user===owner&&recipeProfileIdentity===memberId;
+    const host=$(required?'recipeWelcomeRoot':'recipePreferencesRoot');
+    recipeWelcomeController?.dispose();recipeWelcomeController=null;host.replaceChildren();
+    if(required){$('app').hidden=true;$('recipeWelcomePage').hidden=false;document.body.classList.add('recipe-welcome-active');activateRecipeSources()}
+    else if(!$('recipePreferencesDialog').open)$('recipePreferencesDialog').showModal();
+    activateRecipeSources();
+    if(!recipeProfileEnvelope||!window.RoxyRecipeOnboarding?.render){
+      const message=document.createElement('p');message.setAttribute('role','alert');message.textContent=recipeProfileError||'La bienvenida no pudo cargar. Reintenta para continuar.';
+      host.append(message,makeButton('Reintentar','primary',async()=>{await prepareRecipePreferences(isCurrent,{force:true});if(isCurrent()&&recipeProfileEnvelope)showRecipePreferences(required)}));
+      if(!required)host.append(makeButton('Cerrar','secondary',()=>$('recipePreferencesDialog').close()));return;
+    }
+    recipeWelcomeController=window.RoxyRecipeOnboarding.render(host,{
+      profile:recipeProfileEnvelope,identity:memberId,displayName:account.display_name||'',required,isCurrent,
+      api:privateRecipeApi(memberId,isCurrent),
+      onCancel:()=>{if(!required)$('recipePreferencesDialog').close()},
+      onSaved:result=>{
+        if(!isCurrent()||result.member_id!==memberId)return;
+        recipeProfileEnvelope=result;recipeProfileError='';account.recipe_onboarding_required=result.required===true;
+        recipePresetId='';recipeWelcomeController?.dispose();recipeWelcomeController=null;
+        $('recipeWelcomePage').hidden=true;document.body.classList.remove('recipe-welcome-active');
+        if($('recipePreferencesDialog').open)$('recipePreferencesDialog').close();
+        recipeNavigationIdentity='';recipeCollection='personal';
+        selectPanel('recipes');void load({quiet:true});
+      }
+    });
+  }
+  async function editRecipePreferences(){
+    if(account.mode!=='member'){openAccountDialog();return}
+    const memberId=account.id;const isCurrent=()=>account.id===memberId&&account.mode==='member';
+    await prepareRecipePreferences(isCurrent,{force:true});if(isCurrent())showRecipePreferences(false);
+  }
+  function selectedRecipePreset(){const rows=recipeProfileEnvelope?.discovery?.presets||[];return rows.find(row=>row.id===recipePresetId)||rows[0]||null}
+  function renderRecipePreferences(petMode){
+    const host=$('recipePersonalSelection');if(!host)return;host.replaceChildren();host.hidden=petMode;if(petMode)return;
+    const complete=recipeProfileIdentity===account.id&&recipeProfileEnvelope?.profile?.completed;
+    const title=document.createElement('h3');title.textContent=complete?`La cocina de ${activePersonName()||'tu día'}`:'Hagamos este recetario tuyo';
+    const text=document.createElement('p');text.textContent=complete?'Empieza por lo que te gusta. Puedes cambiar tus elecciones cuando quieras.':'Cuéntale a Roxy qué te gusta y qué necesitas evitar.';
+    host.append(title,text,makeButton(complete?'Cambiar mis gustos':'Configurar mis gustos','secondary',editRecipePreferences));
+    if(recipeProfileError){const error=document.createElement('p');error.setAttribute('role','status');error.textContent='No pudimos comprobar tus preferencias. Esta vista no está personalizada.';host.append(error)}
+    if(!complete||recipeCollection!=='personal')return;
+    const profile=recipeProfileEnvelope.profile;
+    const note=document.createElement('p');note.className='recipe-personal-caution';
+    note.textContent='Revisa ingredientes y etiquetas antes de cocinar: estos filtros no certifican que una receta sea apta para alergias.';host.append(note);
+    if(profile.language==='es'){const language=document.createElement('p');language.textContent='Elegiste español. En el catálogo externo las instrucciones siguen en inglés; las bebidas tienen guía en español.';host.append(language)}
+    const presets=recipeProfileEnvelope.discovery?.presets||[];
+    const navigation=document.createElement('nav');navigation.setAttribute('aria-label','Tus selecciones de recetas');
+    presets.forEach(row=>{const button=makeButton(row.label,'secondary',()=>{recipePresetId=row.id;renderRecipes()});button.setAttribute('aria-pressed',String(row.id===selectedRecipePreset()?.id));navigation.append(button)});host.append(navigation);
+    const preset=selectedRecipePreset();if(preset?.reason){const reason=document.createElement('p');reason.textContent=preset.reason;host.append(reason)}
+    if(recipeProfileEnvelope.discovery?.notice){const details=document.createElement('details');const summary=document.createElement('summary');summary.textContent='Cómo se eligen estas recetas';const notice=document.createElement('p');notice.textContent=recipeProfileEnvelope.discovery.notice;details.append(summary,notice);host.append(details)}
   }
   async function cacheSnapshot() { await dbSet(`snapshot:${user}`,snapshot); }
   const collectionRecovery={};
@@ -530,7 +617,7 @@
     try {
       const nextAccount=await api('/v1/home-account/me');
       if(!isCurrent())return;
-      if(account.id!==nextAccount.id||account.mode!==nextAccount.mode)window.RoxyFitness?.clear();
+      if(account.id!==nextAccount.id||account.mode!==nextAccount.mode){window.RoxyFitness?.clear();clearRecipePreferences();}
       account=nextAccount;
       if(account.storage_user_id){user=account.storage_user_id;localStorage.setItem('roxyShoppingUser',user)}
       syncFamilyMapReadiness();
@@ -539,8 +626,10 @@
       if(activePanel==='fitness')mountFitness();
       const trial=account.trial;
       $('demoTrialBanner').hidden=!trial;
-      if(trial)$('demoTrialBanner').textContent=trial.status==='ACTIVE'?`Demo gratis · hasta ${new Date(trial.expires_at).toLocaleString('es')}. Hasta ${trial.ai_daily_limit} solicitudes de Roxy al día por hogar; quedan ${trial.ai_remaining_today}. Voz y generación de imágenes/vídeos no incluidas.`:'Tu prueba de 5 días terminó. Puedes consultar tus datos. No hay cobro automático.';
+      if(trial)$('demoTrialBanner').textContent=trial.status==='ACTIVE'?`Demo gratis · hasta ${new Date(trial.expires_at).toLocaleString('es')}. Hasta ${trial.ai_daily_limit} solicitudes de Roxy al día por hogar; quedan ${trial.ai_remaining_today}. Lectura con voz del dispositivo incluida; voz premium e imágenes/vídeos generados no incluidos.`:'Tu prueba de 5 días terminó. Puedes consultar tus datos. No hay cobro automático.';
       appearance=safeAppearance(account.preferences||appearance);applyAppearance();
+      if(!await prepareRecipePreferences(isCurrent))return;
+      if(!isCurrent())return;
       const rangeStart=new Date();rangeStart.setHours(0,0,0,0);rangeStart.setDate(rangeStart.getDate()-7);
       const rangeEnd=new Date(rangeStart);rangeEnd.setDate(rangeEnd.getDate()+370);
       const [shopping,food,shoppingCommerce,calendarData,dailyData,designData,weatherData,plantsData,familyData] = await Promise.all([
@@ -608,6 +697,7 @@
       if(error.status===401||error.status===403){
         // Do not reveal offline snapshots after the server rejects a session.
         account={mode:'signed_out',requires_profile_setup:false};
+        clearRecipePreferences();
         syncFamilyMapReadiness();
         window.RoxyFitness?.clear();
         $('app').hidden=true;
@@ -718,12 +808,12 @@
   let activePanel='';
   function mountFitness(){window.RoxyFitness?.mount($('fitnessRoot'),{identity:account.id||account.mode||'preview',navigate:selectPanel})}
   function recipeSourcesReady(){
-    return !$('app').hidden&&load.renderedScope?.owner===user&&load.renderedScope?.identity===collectionIdentity();
+    return !$('app').hidden&&!$('recipePreferencesDialog')?.open&&load.renderedScope?.owner===user&&load.renderedScope?.identity===collectionIdentity();
   }
   function activateRecipeSources(){
     const active=activePanel==='recipes'&&recipeSourcesReady();
     window.RoxyOpenRecipes?.setActive($('openRecipePanel'),active&&recipeCollection==='world');
-    window.RoxyMyPlateRecipes?.setActive($('myplateRecipePanel'),active&&['all','food','dessert'].includes(recipeCollection));
+    window.RoxyMyPlateRecipes?.setActive($('myplateRecipePanel'),active&&['personal','all','food','dessert'].includes(recipeCollection));
     window.RoxyDrinks?.setActive($('drinksRecipePanel'),active&&recipeCollection==='drinks');
   }
   function selectPanel(panel,{smooth=true}={}) {
@@ -1146,6 +1236,7 @@
     copy.append(strong,small);if(requiresReview){const review=document.createElement('em');review.textContent='Pendiente de revisión · no lista para cocinar';copy.append(review)}if(recipe.audience==='pet'&&recipe.personalization_reason){const match=document.createElement('em');match.className='pet-recipe-match';match.textContent=requiresReview?'Filtrada con su perfil; la idoneidad de la preparación sigue pendiente de revisión.':recipe.personalization_reason;copy.append(match)}button.append(img,copy);button.addEventListener('click',()=>openRecipe(recipe));return button;
   }
   const recipeCollectionChoices=[
+    {id:'personal',title:'Para ti',icon:'favorite'},
     {id:'all',title:'Explorar',icon:'apps'},
     {id:'food',title:'Comidas',icon:'restaurant'},
     {id:'drinks',title:'Bebidas',icon:'local_cafe'},
@@ -1171,12 +1262,13 @@
   function renderRecipeNavigation(petMode){
     const identity=JSON.stringify([user,collectionIdentity()]);
     if(recipeNavigationIdentity!==identity){
-      recipeNavigationIdentity=identity;recipeCollection='all';recipeLocalGroup='all';recipeImportExpanded=false;
+      recipeNavigationIdentity=identity;recipeCollection=recipeProfileIdentity===account.id&&recipeProfileEnvelope?.profile?.completed?'personal':'all';recipeLocalGroup='all';recipeImportExpanded=false;
       recipeSearch='';recipeFilter='all';recipeShowDrafts=false;$('recipeSearch').value='';
     }
     $('recipeNavigation').hidden=petMode;
     const choices=$('recipeCollections');choices.replaceChildren();
     recipeCollectionChoices.forEach(({id,title,icon})=>{
+      if(id==='personal'&&!(recipeProfileIdentity===account.id&&recipeProfileEnvelope?.profile?.completed))return;
       const item=makeButton(title,'recipe-collection-button',()=>chooseRecipeCollection(id));
       const glyph=document.createElement('span');glyph.className='material-symbols-rounded';glyph.setAttribute('aria-hidden','true');glyph.textContent=icon;
       item.prepend(glyph);item.setAttribute('aria-pressed',String(recipeCollection===id));item.dataset.recipeCollection=id;choices.append(item);
@@ -1193,11 +1285,14 @@
     const imageService=homeFood.recipe_image_service||{};const petMode=recipeAudience==='pet';
     if(window.RoxyRecipeProvider)window.RoxyRecipeProvider.render($('recipeProviderPanel'),{user,service:homeFood.recipe_provider_service||{},api,hidden:petMode});
     renderRecipeNavigation(petMode);
+    renderRecipePreferences(petMode);
     const sourceOwner=user, sourceIdentity=collectionIdentity();
-    const sourceContext={user,identity:sourceIdentity,api,isCurrent:()=>recipeSourcesReady()&&user===sourceOwner&&collectionIdentity()===sourceIdentity};
+    const sourceMember=account.id;
+    const sourceContext={user,identity:sourceIdentity,api:(path,options={})=>api(path,{...options,headers:{...(options.headers||{}),...(sourceMember?{'X-Roxy-Recipe-Member':sourceMember}:{})}}),isCurrent:()=>recipeSourcesReady()&&user===sourceOwner&&collectionIdentity()===sourceIdentity};
     const sourceActive=recipeSourcesReady()&&activePanel==='recipes';
-    const myplateSelected=!petMode&&['all','food','dessert'].includes(recipeCollection);
-    if(window.RoxyMyPlateRecipes)window.RoxyMyPlateRecipes.render($('myplateRecipePanel'),{...sourceContext,hidden:!myplateSelected,active:sourceActive&&myplateSelected,autoLoad:true,browseGroup:myplateSelected?recipeCollection:'all'});
+    const myplateSelected=!petMode&&['personal','all','food','dessert'].includes(recipeCollection);
+    const personalPreset=recipeCollection==='personal'?selectedRecipePreset():null;
+    if(window.RoxyMyPlateRecipes)window.RoxyMyPlateRecipes.render($('myplateRecipePanel'),{...sourceContext,hidden:!myplateSelected,active:sourceActive&&myplateSelected,autoLoad:true,browseGroup:myplateSelected?recipeCollection:'all',preset:personalPreset,personalRevision:recipeProfileEnvelope?.revision||0});
     if(window.RoxyDrinks)window.RoxyDrinks.render($('drinksRecipePanel'),{...sourceContext,hidden:petMode||recipeCollection!=='drinks',active:sourceActive&&recipeCollection==='drinks',autoLoad:true});
     if(window.RoxyOpenRecipes)window.RoxyOpenRecipes.render($('openRecipePanel'),{...sourceContext,hidden:petMode||recipeCollection!=='world',active:sourceActive&&recipeCollection==='world'});
     $('recipeSearch').disabled=false;
@@ -3116,6 +3211,9 @@
     $('loginForm').addEventListener('submit',login);
     $('accountButton').addEventListener('click',openAccountDialog);
     $('personalizationButton').addEventListener('click',openPersonalization);
+    $('recipePreferencesSettings').addEventListener('click',editRecipePreferences);
+    $('recipePreferencesDialog').addEventListener('close',()=>{recipeWelcomeController?.dispose();recipeWelcomeController=null;$('recipePreferencesRoot').replaceChildren();activateRecipeSources()});
+    $('recipeWelcomeSignOut').addEventListener('click',async()=>{try{await api('/v1/shopping/session',{method:'DELETE'});clearRecipePreferences();location.reload()}catch(error){announce(error.message)}});
     $('personalizationForm').addEventListener('submit',savePersonalization);
     $('personalizationForm').addEventListener('input',renderPersonalizationPreview);
     $('personalizationForm').addEventListener('change',renderPersonalizationPreview);

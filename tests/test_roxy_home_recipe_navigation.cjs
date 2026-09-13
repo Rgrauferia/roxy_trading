@@ -11,6 +11,7 @@ function harness(){
     setAttribute(k,v){this.attrs[k]=v;},focus(){this.focused=true;},querySelector(selector){return this.children.find(row=>selector.includes(`"${row.dataset.recipeCollection}"`));}});
   const $=id=>{if(!elements.has(id))elements.set(id,el());return elements.get(id);};
   const ctx={$ ,user:'qa-household',identity:'member-a',recipeNavigationIdentity:'',recipeCollection:'all',recipeLocalGroup:'all',
+    account:{id:'member-a',mode:'member'},recipeProfileIdentity:'',recipeProfileEnvelope:null,
     recipeImportExpanded:false,recipeSearch:'',recipeFilter:'all',recipeShowDrafts:false,renderCount:0,
     collectionIdentity:()=>ctx.identity,renderRecipes:()=>ctx.renderCount++,document:{createElement:el},
     recipeCategoryId:row=>row.category,makeButton:(title,cls,action)=>Object.assign(el(),{textContent:title,className:cls,click:action})};
@@ -31,6 +32,21 @@ test('member change clears previous selection, drafts, search and expanded impor
   h.identity='member-b';h.renderRecipeNavigation(false);assert.equal(h.recipeCollection,'all');assert.equal(h.recipeLocalGroup,'all');assert.equal(h.recipeShowDrafts,false);assert.equal(h.recipeSearch,'');assert.equal(h.recipeImportExpanded,false);
 });
 test('pet mode hides human collection and local category navigation',()=>{const h=harness();h.renderRecipeNavigation(true);assert.equal(h.$('recipeNavigation').hidden,true);assert.equal(h.$('recipeLocalGroups').hidden,true);});
+test('completed current member preferences add Para ti and select it on the first render',()=>{
+  const h=harness();h.recipeProfileIdentity='member-a';h.recipeProfileEnvelope={member_id:'member-a',profile:{completed:true}};h.renderRecipeNavigation(false);
+  assert.deepEqual(h.$('recipeCollections').children.map(row=>row.textContent),['Para ti','Explorar','Comidas','Bebidas','Postres','Mi recetario']);
+  assert.equal(h.recipeCollection,'personal');assert.equal(h.$('recipeCollections').children[0].attrs['aria-pressed'],'true');
+  h.chooseRecipeCollection('all');h.renderRecipeNavigation(false);assert.equal(h.recipeCollection,'all','Rerender respects explicit browsing away from Para ti');
+});
+for(const completed of [false,undefined])test(`unfinished personal profile does not expose Para ti (${completed})`,()=>{
+  const h=harness();h.recipeProfileIdentity='member-a';h.recipeProfileEnvelope={member_id:'member-a',profile:{completed}};h.renderRecipeNavigation(false);
+  assert.equal(h.recipeCollection,'all');assert.equal(h.$('recipeCollections').children.some(row=>row.dataset.recipeCollection==='personal'),false);
+});
+test('switching to another member cannot inherit the previous personal navigation',()=>{
+  const h=harness();h.recipeProfileIdentity='member-a';h.recipeProfileEnvelope={member_id:'member-a',profile:{completed:true}};h.renderRecipeNavigation(false);assert.equal(h.recipeCollection,'personal');
+  h.identity='member-b';h.account.id='member-b';h.renderRecipeNavigation(false);assert.equal(h.recipeCollection,'all');
+  assert.equal(h.$('recipeCollections').children.some(row=>row.dataset.recipeCollection==='personal'),false);
+});
 for(const category of ['coffee_hot','juices','smoothies','cocktails'])test(`${category} belongs only to drinks`,()=>{const h=harness();assert.equal(h.localRecipeGroup(category),'drinks');});
 test('desserts and breakfast have separate parents',()=>{const h=harness();assert.equal(h.localRecipeGroup('desserts'),'dessert');assert.equal(h.localRecipeGroup('breakfast'),'food');});
 test('search intersects parent group instead of silently escaping it',()=>{
@@ -65,6 +81,8 @@ test('source browse requires the current authenticated scope to be visible',()=>
   ctx.load.renderedScope={owner:'home-a',identity:'member:a'};
   assert.equal(ctx.recipeSourcesReady(),false);
   ctx.app.hidden=false;assert.equal(ctx.recipeSourcesReady(),true);
+  ctx.app.open=true;assert.equal(ctx.recipeSourcesReady(),false,'Editing preferences pauses recipe media and requests');
+  ctx.app.open=false;
   ctx.load.renderedScope.identity='member:b';assert.equal(ctx.recipeSourcesReady(),false);
   ctx.load.renderedScope={owner:'home-b',identity:'member:a'};assert.equal(ctx.recipeSourcesReady(),false);
 });

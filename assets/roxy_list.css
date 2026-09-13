@@ -1322,3 +1322,17 @@ body.design-module-mode .design-panel{display:grid;gap:22px;max-width:760px;padd
 /* Keep the human library focused on choosing and preparing a recipe. */
 #recipesPanel:not(.pet-mode)>#recipeLead,
 #recipesPanel:not(.pet-mode) #recipeCollectionHint{display:none}
+/* Member culinary welcome and focused discovery; existing household views stay intact. */
+.recipe-welcome-page{max-width:860px;margin:24px auto;padding:16px 16px 40px}
+.recipe-welcome-page>[type=button]{display:block;margin:20px auto}
+body.recipe-welcome-active .bottom-nav,body.recipe-welcome-active #roxyVoiceLauncher,body.recipe-welcome-active .topbar>button{display:none!important}
+.recipe-preferences-dialog{width:min(880px,96vw);max-height:92dvh;overflow:auto;padding:12px;border:0;border-radius:24px;background:#faf7f0;color:#214c39}
+.recipe-preferences-dialog::backdrop{background:#0b281f99}
+.recipe-personal-selection{padding:20px;border:1px solid #d7dfd2;border-radius:22px;background:linear-gradient(110deg,#eef3e8,#fffdf7);margin-bottom:18px}
+.recipe-personal-selection h3{font-size:clamp(23px,4vw,32px);margin:0 0 8px}
+.recipe-personal-selection p{font-size:14px;line-height:1.5;margin:10px 0;color:#4d5f51}
+.recipe-personal-selection nav{display:flex;gap:8px;overflow:auto;padding:8px 0}
+.recipe-personal-selection nav button{flex:none;min-height:44px}
+.recipe-personal-selection nav [aria-pressed=true]{background:#194d37;color:white;border-color:#194d37}
+.recipe-personal-selection .recipe-personal-caution{font-size:12px}
+.myplate-personal-fit{padding:16px;border:1px solid #c9ae72;border-radius:16px;background:#fff6df;margin:16px 0;line-height:1.5}

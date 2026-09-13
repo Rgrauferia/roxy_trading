@@ -60,7 +60,8 @@
       $('signupForm').reset();
       localStorage.setItem('roxyShoppingUser', result.storage_user_id);
       // A full navigation discards the previous household's in-memory UI.
-      location.replace(`${location.pathname}#hoy`);
+      history.replaceState(null, '', `${location.pathname}#hoy`);
+      location.reload();
     } catch (error) {
       $('signupError').textContent = error.message;
       setToken('');

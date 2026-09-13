@@ -60,6 +60,9 @@ def trial_access_mode(method: str, path: str) -> str:
         return "local"
     if path in {"/v1/home-account/me", "/v1/home-account/preferences", "/v1/home-account/members"}:
         return "local"
+    if path == "/v1/home-account/recipe-profile" and method in {"GET", "PUT"}:
+        # Private culinary choices only; no AI, recipe generation or purchases.
+        return "local"
     if method == "GET" and path in {"/v1/home-food/recipe-photo", "/v1/home-food/recipe-photo-info"}:
         return "local"
     if method == "GET" and re.fullmatch(r"/v1/home-food/[^/]+/providers/recipes/status", path):

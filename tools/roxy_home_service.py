@@ -59,6 +59,8 @@ from roxy_os.home_recipe_photos import (
     RecipePhotoStore,
 )
 from roxy_os.home_accounts import HomeAccountStore, HomeAccountStorageError, HomeTrialLimitError
+from roxy_os.home_recipe_profile import RecipeProfileConflictError, RecipeProfileValidationError
+from roxy_os.home_recipe_discovery import discovery_presets, assess_recipe_fit, screen_recipe_summaries
 from roxy_os.home_demo import registration_config, verify_signup_token, trial_access_mode, DEMO_NOTICE_VERSION
 from roxy_os.home_calendar import DEFAULT_TIMEZONE, HomeCalendarStore, parse_calendar_command
 from roxy_os.home_calendar_google import GoogleCalendarConfig, GoogleCalendarSync
@@ -555,6 +557,13 @@ class HomePersonalizationRequest(BaseModel):
     avatar: str = Field(default="home", pattern="^(home|professional|monogram)$")
     response_style: str = Field(default="balanced", pattern="^(balanced|brief|close|explanatory)$")
     text_scale: str = Field(default="standard", pattern="^(compact|standard|large)$")
+
+
+class HomeRecipeProfileRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    member_id: str = Field(min_length=1, max_length=128)
+    expected_revision: int = Field(ge=0, strict=True)
+    profile: dict[str, Any]
 
 
 class CalendarEventRequest(BaseModel):
@@ -2001,6 +2010,48 @@ def home_account_preferences(
     except (KeyError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"status": "UPDATED", "mode": "member", "requires_profile_setup": False, **updated}
+
+
+def _recipe_profile_member(request: Request, auth: AuthContext) -> dict[str, Any]:
+    member = _member_for_auth(auth)
+    if member is None:
+        raise HTTPException(status_code=403, detail="Entra con tu perfil personal para configurar tus gustos.")
+    if request.headers.get("x-roxy-recipe-member", "") != member["id"]:
+        raise HTTPException(status_code=409, detail="La sesión cambió. Recarga antes de consultar tus gustos.")
+    return member
+
+
+def _recipe_profile_response(member_id: str) -> dict[str, Any]:
+    result = _account_store().get_recipe_profile(member_id)
+    result["discovery"] = discovery_presets(result.get("profile")) if (result.get("profile") or {}).get("completed") else {"presets": [], "notice": ""}
+    return result
+
+
+@app.get("/v1/home-account/recipe-profile")
+def read_home_recipe_profile(request: Request, auth: AuthContext = Depends(_authenticate)) -> dict[str, Any]:
+    _rate_limit(request)
+    member = _recipe_profile_member(request, auth)
+    return _recipe_profile_response(member["id"])
+
+
+@app.put("/v1/home-account/recipe-profile")
+def update_home_recipe_profile(payload: HomeRecipeProfileRequest, request: Request,
+                               auth: AuthContext = Depends(_authenticate)) -> dict[str, Any]:
+    _rate_limit(request)
+    member = _recipe_profile_member(request, auth)
+    if request.headers.get("origin", "") != str(request.base_url).rstrip("/"):
+        raise HTTPException(status_code=403, detail="Guarda tus gustos desde Roxy Home.")
+    if payload.member_id != member["id"]:
+        raise HTTPException(status_code=409, detail="La sesión cambió. No se modificaron las preferencias.")
+    try:
+        result = _account_store().update_recipe_profile(member["id"], profile=payload.profile,
+                                                        expected_revision=payload.expected_revision)
+    except RecipeProfileConflictError:
+        raise HTTPException(status_code=409, detail="Tus gustos cambiaron en otra pestaña. Cierra y vuelve a abrir los ajustes.") from None
+    except (RecipeProfileValidationError, ValueError):
+        raise HTTPException(status_code=422, detail="Revisa las respuestas y el permiso para guardar tus preferencias.") from None
+    result["discovery"] = discovery_presets(result.get("profile")) if (result.get("profile") or {}).get("completed") else {"presets": [], "notice": ""}
+    return result
 
 
 def _family_member(auth: AuthContext) -> dict[str, Any]:
@@ -3850,8 +3901,17 @@ def search_home_myplate_recipes(
         raise HTTPException(status_code=400, detail="Elige explorar o buscar para consultar MyPlate.food.")
     # This no-key live API permits commercial per-request use, including trials.
     # Only deliberate search/category/paging goes out; never household profiles.
+    profile = None
+    if request.headers.get("x-roxy-recipe-member"):
+        member = _recipe_profile_member(request, auth)
+        profile = _account_store().get_recipe_profile(member["id"]).get("profile")
     try:
-        return myplate_recipes.search_recipes(q=q, category=category, offset=offset, limit=limit)
+        result = myplate_recipes.search_recipes(q=q, category=category, offset=offset, limit=limit)
+        if profile and profile.get("completed"):
+            screened = screen_recipe_summaries(profile, result.get("recipes") or [])
+            result = {**result, "recipes": screened["rows"], "hidden_in_page": screened["hidden_in_page"],
+                      "personal_notice": screened["notice"]}
+        return result
     except myplate_recipes.MyPlateRecipeError as exc:
         raise _myplate_recipe_error(exc) from None
     except Exception:
@@ -3868,8 +3928,17 @@ def read_home_myplate_recipe(
     _authorize_user(user_id, auth)
     if not requested:
         raise HTTPException(status_code=400, detail="Abre una receta para consultar su preparación original.")
+    profile = None
+    if request.headers.get("x-roxy-recipe-member"):
+        member = _recipe_profile_member(request, auth)
+        profile = _account_store().get_recipe_profile(member["id"]).get("profile")
     try:
-        return myplate_recipes.get_recipe(slug)
+        result = myplate_recipes.get_recipe(slug)
+        if profile and profile.get("completed"):
+            row = result.get("recipe") or {}
+            lines = [str(item.get("text") or "") + " " + str(item.get("note") or "") for item in row.get("ingredients", [])]
+            row["personal_fit"] = assess_recipe_fit(profile, lines, title=row.get("title", ""))
+        return result
     except myplate_recipes.MyPlateRecipeError as exc:
         raise _myplate_recipe_error(exc) from None
     except Exception:

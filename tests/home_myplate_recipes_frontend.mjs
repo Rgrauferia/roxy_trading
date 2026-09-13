@@ -507,3 +507,182 @@ test('a stale guide close callback cannot clear or focus over the newly mounted 
   first.options.onClose(); assert.equal(h.activeElement, focused); assert.equal(nextOpener.hidden, true);
   await button(panel, 'Volver a las recetas').click(); assert.equal(second.disposals, 1);
 });
+
+const personalOptions = (mock, extra = {}) => ({
+  user:'household/a', identity:'member-a', api:mock.api, browseGroup:'personal', personalRevision:1, autoLoad:true,
+  preset:{id:'synthetic-tastes', label:'Sabores que elegiste', query:'Synthetic', category:'Dessert'}, ...extra,
+});
+
+test('personal selection forwards only the exact source query and category and retains them through pagination', async () => {
+  const h = harness(), panel = h.container(), mock = server(), options = personalOptions(mock);
+  h.render(panel, options); await settle();
+  assert.equal(mock.requests.length, 1); assert.equal(all(panel,'input')[0].value, 'Synthetic');
+  assert.equal(all(panel,'h2')[0].textContent, options.preset.label);
+  assert.equal(mock.requests[0].url.searchParams.get('q'), 'Synthetic');
+  assert.equal(mock.requests[0].url.searchParams.get('category'), 'Dessert');
+  assert.equal(mock.requests[0].url.searchParams.get('offset'), '0');
+  assert.equal(byClass(panel,'myplate-recipe-card').length, 24);
+  assert.match(byClass(panel,'myplate-filter-hint')[0].textContent, /Synthetic.*Postres/);
+  await button(panel,'Página siguiente').click();
+  assert.equal(mock.requests.at(-1).url.searchParams.get('q'), 'Synthetic');
+  assert.equal(mock.requests.at(-1).url.searchParams.get('category'), 'Dessert');
+  assert.equal(mock.requests.at(-1).url.searchParams.get('offset'), '24');
+  assert.ok(mock.requests.every(call => [...call.url.searchParams.keys()].sort().join(',') === 'category,limit,offset,q,requested'));
+  assert.deepEqual(h.storageWrites, []);
+});
+
+test('personal selection remains explicit unless autoLoad is enabled and waits for a visible current scope', async () => {
+  const h = harness(), panel = h.container(), mock = server(), options = personalOptions(mock,{autoLoad:false});
+  h.render(panel, options); await h.tick(60000); assert.equal(mock.requests.length, 0);
+  await button(panel,'Explorar recetas').click(); assert.equal(mock.requests.length, 1);
+  h.render(panel, personalOptions(mock,{personalRevision:2,active:false})); await settle(); assert.equal(mock.requests.length, 1);
+  h.setActive(panel,true); await settle(); assert.equal(mock.requests.length, 2);
+  assert.equal(mock.requests.at(-1).url.searchParams.get('category'), 'Dessert');
+});
+
+test('identical personalized renders do not reset a user search, refetch, or close an open guide', async () => {
+  const h = harness({guide:true}), panel = h.container(), mock = server(), options = personalOptions(mock);
+  h.render(panel, options); await settle(); all(panel,'input')[0].value = 'source 0'; await all(panel,'form')[0].emit('submit');
+  await button(panel,'Ver receta').click(); await button(panel,'Paso a paso con Roxy').click(); const call = h.guideMounts[0], count = mock.requests.length;
+  h.render(panel,{...options,preset:{...options.preset}}); await settle();
+  assert.equal(mock.requests.length,count); assert.equal(all(panel,'input')[0].value,'source 0');
+  assert.equal(call.disposals,0); assert.equal(call.options.isCurrent(),true);
+});
+
+test('clearing a personal selection restores the full catalogue and does not silently reapply it on rerender', async () => {
+  const h = harness(), panel = h.container(), mock = server(), options = personalOptions(mock);
+  h.render(panel,options); await settle(); await button(panel,'Ver todas').click();
+  assert.equal(mock.requests.at(-1).url.searchParams.get('q'),'');assert.equal(mock.requests.at(-1).url.searchParams.get('category'),'');
+  h.render(panel,options);await settle();assert.equal(mock.requests.length,2);assert.equal(all(panel,'input')[0].value,'');
+  assert.match(byClass(panel,'myplate-total')[0].textContent,/51 recetas en el catálogo/);
+});
+
+for (const change of ['revision','member','preset-id','query','category','leave-personal']) test(`personal ${change} invalidates open source details and guide callbacks`,async()=>{
+  const h=harness({guide:true}),panel=h.container(),mock=server(),options=personalOptions(mock);
+  h.render(panel,options);await settle();await button(panel,'Ver receta').click();await button(panel,'Paso a paso con Roxy').click();
+  const old=h.guideMounts[0],oldOpen=button(panel,'Paso a paso con Roxy');
+  const next={...options,preset:{...options.preset}};
+  if(change==='revision')next.personalRevision=2;
+  if(change==='member')next.identity='member-b';
+  if(change==='preset-id')next.preset.id='another-selection';
+  if(change==='query')next.preset.query='source 4';
+  if(change==='category')next.preset.category='Beverage';
+  if(change==='leave-personal')next.browseGroup='all';
+  h.render(panel,next);await settle();
+  assert.equal(old.disposals,1);assert.equal(old.options.isCurrent(),false);assert.equal(old.host.isConnected,false);
+  assert.equal(byClass(panel,'myplate-directions').length,0);assert.equal(byClass(panel,'myplate-detail')[0].hidden,true);
+  const focused=h.activeElement;old.options.onClose();await oldOpen.click();assert.equal(h.activeElement,focused);assert.equal(h.guideMounts.length,1);
+  assert.equal(mock.requests.length,3);assert.equal(mock.requests.at(-1).url.searchParams.get('offset'),'0');assert.deepEqual(h.storageWrites,[]);
+});
+
+for (const change of ['revision','member','query']) test(`late personal detail is aborted and ignored after ${change} changes`,async()=>{
+  const pending=deferred(),h=harness({guide:true}),panel=h.container();
+  const mock=server({intercept:call=>call.url.pathname.endsWith('/synthetic-000')?pending.promise:undefined}),options=personalOptions(mock);
+  h.render(panel,options);await settle();await button(panel,'Ver receta').click();const old=mock.requests[1];
+  const next={...options,preset:{...options.preset}};
+  if(change==='revision')next.personalRevision=2;if(change==='member')next.identity='member-b';if(change==='query')next.preset.query='source 4';
+  h.render(panel,next);await settle();assert.equal(old.options.signal.aborted,true);assert.equal(mock.requests.length,3);
+  const visible=byClass(panel,'myplate-grid')[0].textContent;
+  pending.resolve({recipe:{...detail(rows[0]),personal_fit:{status:'unrestricted',conflicts:[],caution:'Late profile A'}}});await settle();
+  assert.equal(byClass(panel,'myplate-grid')[0].textContent,visible);assert.equal(byClass(panel,'myplate-directions').length,0);
+  assert.equal(panel.textContent.includes('Late profile A'),false);assert.equal(h.guideMounts.length,0);assert.equal(h.timers.size,0);
+});
+
+test('late personal list cannot replace a newer profile selection even when the transport ignores abort',async()=>{
+  const pending=deferred(),h=harness(),panel=h.container(),mock=server({intercept:(call,n)=>n===1?pending.promise:undefined});
+  const options=personalOptions(mock);h.render(panel,options);await settle();
+  h.render(panel,{...options,personalRevision:2,preset:{id:'new',label:'Tu nueva selección',query:'source 4',category:'Dessert'}});await settle();
+  assert.equal(mock.requests[0].options.signal.aborted,true);assert.equal(mock.requests.length,2);
+  const visible=byClass(panel,'myplate-grid')[0].textContent;
+  pending.resolve({recipes:rows.slice(0,24),provider:'MyPlate.food',live:true,total:51,offset:0,limit:24,next_offset:24});await settle();
+  assert.equal(byClass(panel,'myplate-grid')[0].textContent,visible);assert.equal(all(panel,'h2')[0].textContent,'Tu nueva selección');assert.equal(h.timers.size,0);
+});
+
+test('a personal conflict shows exact reasons, keeps source readable and disables starting the Roxy guide',async()=>{
+  const fit={status:'conflict',conflicts:['Contiene leche según tu respuesta.','Incluye un ingrediente que prefieres evitar.'],caution:'Revisa siempre etiquetas y contaminación cruzada.'};
+  const h=harness({guide:true}),panel=h.container(),mock=server({items:rows.slice(0,1),detailMutation:{personal_fit:fit}});
+  h.render(panel,personalOptions(mock));await settle();await button(panel,'Ver receta').click();
+  const assessment=byClass(panel,'myplate-personal-fit')[0];assert.equal(assessment.getAttribute('role'),'status');
+  for(const value of [...fit.conflicts,fit.caution])assert.ok(assessment.textContent.includes(value));
+  assert.match(assessment.textContent,/entra en conflicto/);const blocked=button(panel,'Busca otra receta compatible');assert.equal(blocked.disabled,true);
+  await blocked.click();assert.equal(h.guideMounts.length,0);assert.equal(button(panel,'Paso a paso con Roxy'),undefined);
+  assert.equal(byClass(panel,'myplate-directions')[0].textContent,detail(rows[0]).directions);assert.equal(byClass(panel,'myplate-directions')[0].parentNode.hidden,false);
+  assert.equal(mock.requests.length,2);assert.deepEqual(h.storageWrites,[]);
+});
+
+for(const status of ['needs_review','unrestricted'])test(`personal ${status} allows deliberate source guidance and retains the caution outside the hidden source body`,async()=>{
+  const fit={status,conflicts:[],caution:'La ausencia de coincidencias no certifica que esta receta sea apta.'};
+  const h=harness({guide:true}),panel=h.container(),mock=server({items:rows.slice(0,1),detailMutation:{personal_fit:fit}});
+  h.render(panel,personalOptions(mock));await settle();await button(panel,'Ver receta').click();
+  const assessment=byClass(panel,'myplate-personal-fit')[0],opener=button(panel,'Paso a paso con Roxy');
+  assert.ok(opener);assert.notEqual(opener.disabled,true);assert.equal(h.guideMounts.length,0);assert.match(assessment.textContent,/Antes de cocinar/);
+  await opener.click();assert.equal(h.guideMounts.length,1);assert.equal(h.guideMounts[0].options.language,'en');
+  assert.equal(assessment.hidden,false);assert.equal(assessment.parentNode.hidden,false);assert.equal(byClass(panel,'myplate-directions')[0].parentNode.hidden,true);
+  assert.ok(assessment.textContent.includes(fit.caution));assert.equal(mock.requests.length,2);assert.deepEqual(h.storageWrites,[]);
+});
+
+test('personal fit text is displayed literally without interpreting markup or nonstring conflicts',async()=>{
+  const fit={status:'conflict',conflicts:['<script>synthetic</script>',null,{message:'not source text'}],caution:'<img src=x onerror=synthetic>'};
+  const h=harness({guide:true}),panel=h.container(),mock=server({items:rows.slice(0,1),detailMutation:{personal_fit:fit}});
+  h.render(panel,personalOptions(mock));await settle();await button(panel,'Ver receta').click();
+  const assessment=byClass(panel,'myplate-personal-fit')[0];assert.ok(assessment.textContent.includes(fit.conflicts[0]));assert.ok(assessment.textContent.includes(fit.caution));
+  assert.equal(all(assessment,'script').length,0);assert.equal(all(assessment,'img').length,0);assert.equal(assessment.textContent.includes('[object Object]'),false);
+});
+
+const filteredPage = (items, {offset=0,total=51,hidden=24-items.length,next=offset+24<total?offset+24:null,notice='Cribado orientativo de esta página; revisa los ingredientes completos.'}={}) => ({
+  recipes:structuredClone(items),provider:'MyPlate.food',live:true,total,offset,limit:24,next_offset:next,
+  hidden_in_page:hidden,personal_notice:notice,
+});
+
+test('a screened page separates source total from visible rows and does not fetch hidden details',async()=>{
+  const visible=rows.slice(0,12),notice='Cribado sintético: los resultados visibles todavía necesitan revisión.';
+  const h=harness(),panel=h.container(),mock=server({intercept:(_call,n)=>n===1?filteredPage(visible,{hidden:12,notice}):undefined});
+  h.render(panel,personalOptions(mock,{preset:{id:'all-food',label:'Tus sabores',query:'Synthetic',category:''}}));await settle();
+  assert.equal(byClass(panel,'myplate-recipe-card').length,12);assert.equal(byClass(panel,'myplate-total')[0].textContent,'51 coincidencias en la fuente');
+  assert.match(byClass(panel,'myplate-status')[0].textContent,/12 recetas visibles.*12 ocultas/);
+  assert.ok(all(panel,'p').some(node=>node.textContent===notice&&!node.hidden));assert.equal(mock.requests.length,1);
+  assert.ok(byClass(panel,'myplate-pagination').every(pager=>!pager.hidden));
+  await button(panel,'Página siguiente').click();assert.equal(mock.requests[1].url.searchParams.get('offset'),'24');
+  assert.equal(byClass(panel,'myplate-recipe-card').length,24);assert.ok(mock.requests.every(call=>call.url.pathname.endsWith('/myplate-recipes')));
+  assert.equal(all(panel,'p').some(node=>node.textContent===notice&&!node.hidden),false,'A notice from the previous response must not survive an unfiltered response');
+});
+
+test('a fully screened first page still exposes both next controls and can reach the next source page',async()=>{
+  const h=harness(),panel=h.container(),mock=server({intercept:(_call,n)=>n===1?filteredPage([],{hidden:24}):undefined});
+  h.render(panel,personalOptions(mock,{preset:{id:'all-food',label:'Tus sabores',query:'Synthetic',category:''}}));await settle();
+  assert.equal(byClass(panel,'myplate-recipe-card').length,0);assert.equal(byClass(panel,'myplate-total')[0].textContent,'51 coincidencias en la fuente');
+  assert.match(byClass(panel,'myplate-status')[0].textContent,/0 recetas visibles.*24 ocultas.*página siguiente/);
+  const top=byClass(panel,'myplate-pagination-top')[0];assert.equal(top.hidden,false);assert.equal(button(top,'Siguiente').disabled,false);assert.equal(button(panel,'Página siguiente').disabled,false);
+  assert.equal(button(top,'Anterior').disabled,true);assert.ok(byClass(panel,'myplate-pagination').every(pager=>all(pager,'span')[0].textContent==='Página 1 de 3'));
+  await button(top,'Siguiente').click();assert.equal(mock.requests[1].url.searchParams.get('offset'),'24');assert.equal(byClass(panel,'myplate-recipe-card').length,24);
+  assert.ok(byClass(panel,'myplate-pagination').every(pager=>all(pager,'span')[0].textContent==='Página 2 de 3'));assert.deepEqual(h.storageWrites,[]);
+});
+
+test('a fully screened final page keeps previous navigation without inventing another page or a zero source total',async()=>{
+  const h=harness(),panel=h.container(),mock=server({intercept:(_call,n)=>n===3?filteredPage([],{offset:48,total:51,hidden:3,next:null}):undefined});
+  h.render(panel,personalOptions(mock,{preset:{id:'all-food',label:'Tus sabores',query:'Synthetic',category:''}}));await settle();
+  await button(panel,'Página siguiente').click();await button(panel,'Página siguiente').click();
+  assert.equal(byClass(panel,'myplate-recipe-card').length,0);assert.equal(byClass(panel,'myplate-total')[0].textContent,'51 coincidencias en la fuente');
+  assert.match(byClass(panel,'myplate-status')[0].textContent,/3 ocultas.*otra selección/);
+  assert.ok(byClass(panel,'myplate-pagination').every(pager=>!pager.hidden&&all(pager,'span')[0].textContent==='Página 3 de 3'));
+  assert.equal(button(panel,'Página siguiente').disabled,true);assert.equal(button(panel,'Página anterior').disabled,false);
+  await button(panel,'Página anterior').click();assert.equal(mock.requests.at(-1).url.searchParams.get('offset'),'24');assert.equal(byClass(panel,'myplate-recipe-card').length,24);
+});
+
+test('zero screened exclusions still disclose that the total counts source matches, without a compatibility claim',async()=>{
+  const h=harness(),panel=h.container(),mock=server({intercept:()=>filteredPage(rows.slice(0,24),{hidden:0})});
+  h.render(panel,personalOptions(mock));await settle();assert.equal(byClass(panel,'myplate-total')[0].textContent,'51 coincidencias en la fuente');
+  assert.equal(byClass(panel,'myplate-recipe-card').length,24);assert.ok(panel.textContent.includes('revisa los ingredientes completos'));
+  assert.equal(byClass(panel,'myplate-status')[0].textContent.includes('compatibles'),false);
+});
+
+for(const hidden of [-1,25,true,'1',1.5])test(`invalid screened count fails closed before showing cards: ${JSON.stringify(hidden)}`,async()=>{
+  const h=harness(),panel=h.container(),mock=server({intercept:()=>filteredPage([],{hidden})});
+  h.render(panel,personalOptions(mock));await settle();assert.equal(byClass(panel,'myplate-recipe-card').length,0);
+  assert.equal(button(panel,'Reintentar consulta').hidden,false);assert.ok(byClass(panel,'myplate-pagination').every(pager=>pager.hidden));
+});
+
+test('screened plus visible rows cannot exceed the source page size',async()=>{
+  const h=harness(),panel=h.container(),mock=server({intercept:()=>filteredPage(rows.slice(0,24),{hidden:1})});
+  h.render(panel,personalOptions(mock));await settle();assert.equal(byClass(panel,'myplate-recipe-card').length,0);assert.equal(button(panel,'Reintentar consulta').hidden,false);
+});

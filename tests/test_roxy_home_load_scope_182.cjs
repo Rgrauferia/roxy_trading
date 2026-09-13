@@ -11,6 +11,7 @@ function section(first, last) {
   return source.slice(start, end);
 }
 const executable = section('  const collectionRecovery=', '  function renderCollectionNotice(')
+  + section('  function clearRecipePreferences(){', '  function selectedRecipePreset()')
   + section('  async function load({quiet=false}', '  async function queueMutation(')
   + '\nthis.recovery=collectionRecovery;this.errors=collectionLoadErrors;';
 const copy = value => value === undefined ? undefined : structuredClone(value);
@@ -25,23 +26,36 @@ const fault = status => Object.assign(new Error('Synthetic unavailable'), { stat
 
 function harness(options = {}) {
   const db = new Map(), reads = [], writes = [], calls = [], busy = [], renders = [], elements = new Map();
+  const welcomeMounts = [], sourceActivations = [];
   let requestGeneration = 0;
+  const makeElement = () => ({ hidden: false, textContent: '', children: [],
+    append(...children) { this.children.push(...children); }, replaceChildren(...children) { this.children = children; },
+    setAttribute() {}, showModal() { this.open = true; }, close() { this.open = false; },
+  });
   const $ = id => {
-    if (!elements.has(id)) elements.set(id, { hidden: id === 'shoppingPanel', textContent: '', showModal() { this.open = true; } });
+    if (!elements.has(id)) elements.set(id, { ...makeElement(), hidden: ['shoppingPanel', 'recipeWelcomePage'].includes(id) });
     return elements.get(id);
   };
   const ctx = {
-    account: member(), user: 'house-a', activePanel: 'today', $, Date, Error, Array, encodeURIComponent,
+    account: member(), user: 'house-a', activePanel: 'today', $, Date, Error, Array, encodeURIComponent, AbortController, setTimeout, clearTimeout,
+    recipeProfileEnvelope: null, recipeProfileIdentity: '', recipeProfileError: '', recipeWelcomeController: null, recipePresetId: '',
+    recipeNavigationIdentity: '', recipeCollection: 'all',
     snapshot: { scope: 'unattributed-old-memory', items: [] }, homeFood: { scope: 'unattributed-old-memory' }, homeFoodReady: true, homeFoodLoadFailed: false,
     homePlants: { plants: [{ id: 'old-unattributed' }] }, homeDesign: { projects: [{ id: 'old-unattributed' }] },
     commerce: { scope: 'unattributed-old-memory' }, homeCalendar: {}, homeDaily: null, homeFamily: {}, homeWeather: {},
-    window: { RoxyFitness: { clear() {} } }, document: { querySelectorAll: () => [] },
+    window: { RoxyFitness: { clear() {} }, RoxyRecipeOnboarding: { render(host, settings) {
+      const mount = { host, settings, disposed: false, dispose() { this.disposed = true; } }; welcomeMounts.push(mount); return mount;
+    } } }, document: { querySelectorAll: () => [], createElement: makeElement, body: { classList: { add() {}, remove() {} } } },
     localStorage: { setItem() {} }, sessionStorage: { getItem: () => null, setItem() {} },
     appearance: {}, safeAppearance: value => value, applyAppearance() {}, mountFitness() {},
     setBusy: value => busy.push(value), setConnection() {}, announce() {},
     populateHomeForms() {}, render() { renders.push({ user: ctx.user, identity: ctx.collectionIdentity(), hiddenDuringRender: $('app').hidden, snapshot: copy(ctx.snapshot), plants: copy(ctx.homePlants), design: copy(ctx.homeDesign) }); },
     renderAccount() {}, renderHomeMoment() {}, renderRecipes() {}, openAccountDialog() {},
-    activateRecipeSources() { assert.equal($('app').hidden, false, 'sources activate only after scoped content is visible'); },
+    selectPanel(panel) { ctx.activePanel = panel; }, makeButton(text, cls, action) { return { textContent: text, className: cls, click: action }; },
+    activateRecipeSources() {
+      sourceActivations.push({ appHidden: $('app').hidden, welcomeHidden: $('recipeWelcomePage').hidden });
+      assert.ok(!$('app').hidden || !$('recipeWelcomePage').hidden, 'sources only activate visible scoped content or deactivate beneath the welcome');
+    },
     // Actual map lifecycle is covered separately by map_integration_185.
     syncFamilyMapReadiness() {}, resumeFamilyBaseMap() {},
     // Voice playback is tested with the real implementation in voice_ui; this
@@ -60,6 +74,7 @@ function harness(options = {}) {
       const scope = { owner: ctx.user, identity: `${ctx.account.mode}:${ctx.account.id || ''}`, generation: requestGeneration };
       let value;
       if (url === '/v1/home-account/me') value = copy(ctx.account);
+      else if (url === '/v1/home-account/recipe-profile') value = { member_id: ctx.account.id, revision: 0, required: ctx.account.recipe_onboarding_required === true, profile: null, options: {} };
       else if (url.startsWith('/v1/home-plants/')) value = { plants: [{ id: `${scope.owner}:${scope.identity}:${scope.generation}` }], scope, storage_status: 'READY' };
       else if (url.startsWith('/v1/home-design/')) value = { projects: [{ id: `${scope.owner}:${scope.identity}:${scope.generation}` }], scope, storage_status: 'READY' };
       else value = { scope, items: [], profile: {}, events: [], members: [], daily: [] };
@@ -68,7 +83,7 @@ function harness(options = {}) {
     },
   };
   vm.createContext(ctx); vm.runInContext(executable, ctx);
-  return { ctx, db, reads, writes, calls, busy, renders, $, setMember(id, household) { ctx.account = member(id, household); ctx.user = household; },
+  return { ctx, db, reads, writes, calls, busy, renders, welcomeMounts, sourceActivations, $, setMember(id, household) { ctx.account = member(id, household); ctx.user = household; },
     key(kind, id = ctx.account.id, household = ctx.user) { return ctx.collectionCacheKey(kind, household, 'member:' + id); },
   };
 }
@@ -271,4 +286,82 @@ test('malformed collection response restores the scoped cache instead of replaci
   const h = harness({ api: (url, value) => url.startsWith('/v1/home-design/') ? { status: 'READY' } : value });
   const saved = { projects: [{ id: 'valid-own-copy' }] }; h.db.set(h.key('design'), saved);
   await h.ctx.load(); assert.deepEqual(h.ctx.homeDesign, saved); assert.deepEqual(h.db.get(h.key('design')), saved);
+});
+
+test('new member onboarding resolves before household data, caches or recipe sources are revealed', async () => {
+  const pending = deferred();
+  const h = harness({ api: (url, value) => url === '/v1/home-account/recipe-profile' ? pending.promise : value });
+  h.ctx.account.recipe_onboarding_required = true;
+  const loading = h.ctx.load(); await flush();
+  assert.deepEqual(h.calls.map(call => call.url), ['/v1/home-account/me', '/v1/home-account/recipe-profile']);
+  assert.equal(h.$('app').hidden, true); assert.equal(h.reads.length, 0); assert.equal(h.renders.length, 0);
+  pending.resolve({ member_id: 'a', revision: 0, required: true, profile: null, options: {} }); await loading;
+  assert.equal(h.welcomeMounts.length, 1); assert.equal(h.welcomeMounts[0].settings.required, true);
+  assert.equal(h.$('recipeWelcomePage').hidden, false); assert.equal(h.$('app').hidden, true);
+  assert.equal(h.reads.length, 0); assert.equal(h.writes.length, 0); assert.equal(h.busy.at(-1), false);
+  const request = h.calls.find(call => call.url === '/v1/home-account/recipe-profile');
+  assert.equal(request.settings.headers['X-Roxy-Recipe-Member'], 'a');
+  assert.ok(request.settings.signal instanceof AbortSignal);
+});
+
+test('successful required onboarding exits the gate and reloads personalized recipes', async () => {
+  const h = harness(); h.ctx.account.recipe_onboarding_required = true; await h.ctx.load();
+  const mount = h.welcomeMounts[0]; assert.ok(mount);
+  const saved = { member_id: 'a', revision: 1, required: false, profile: { completed: true, language: 'es' }, options: {} };
+  mount.settings.onSaved(saved); await flush(); await flush();
+  assert.equal(h.ctx.recipeProfileEnvelope.revision, 1); assert.equal(h.ctx.account.recipe_onboarding_required, false);
+  assert.equal(h.$('recipeWelcomePage').hidden, true); assert.equal(h.$('app').hidden, false);
+  assert.equal(h.ctx.recipeCollection, 'personal'); assert.equal(h.ctx.activePanel, 'recipes');
+  assert.equal(h.welcomeMounts.length, 1, 'The completed profile must not open another required wizard');
+  assert.equal(h.renders.length, 1); assert.ok(h.calls.some(call => call.url === '/v1/shopping/house-a'));
+  assert.equal(h.calls.filter(call => call.url === '/v1/home-account/recipe-profile').length, 1, 'The verified save envelope is reused without a second profile GET');
+  assert.ok(h.writes.every(write => !write.key.includes('recipe-profile')), 'Private recipe answers never enter browser caches');
+});
+
+test('legacy members without a culinary profile continue into the app without a required welcome', async () => {
+  const h = harness(); await h.ctx.load();
+  assert.equal(h.welcomeMounts.length, 0); assert.equal(h.$('app').hidden, false);
+  assert.equal(h.ctx.recipeProfileEnvelope.profile, null);
+});
+
+test('new member profile load failure keeps the required gate closed with retry and no household reads', async () => {
+  const h = harness({ api: (url, value) => url === '/v1/home-account/recipe-profile' ? Promise.reject(fault(503)) : value });
+  h.ctx.account.recipe_onboarding_required = true; await h.ctx.load();
+  assert.equal(h.$('app').hidden, true); assert.equal(h.$('recipeWelcomePage').hidden, false);
+  assert.equal(h.welcomeMounts.length, 0); assert.equal(h.reads.length, 0); assert.equal(h.writes.length, 0);
+  assert.equal(h.calls.length, 2); assert.ok(h.$('recipeWelcomeRoot').children.some(child => child.textContent === 'Reintentar'));
+});
+
+test('an old profile request cannot mount or store the previous member after a household switch', async () => {
+  const pending = deferred();
+  const h = harness({ api: (url, value, scope) => url === '/v1/home-account/recipe-profile' && scope.identity === 'member:a' ? pending.promise : value });
+  h.ctx.account.recipe_onboarding_required = true; const first = h.ctx.load(); await flush();
+  h.setMember('b', 'house-b'); await h.ctx.load();
+  pending.resolve({ member_id: 'a', revision: 7, required: true, profile: null, options: {} }); await first;
+  assert.equal(h.ctx.account.id, 'b'); assert.equal(h.ctx.recipeProfileEnvelope.member_id, 'b');
+  assert.equal(h.ctx.recipeProfileIdentity, 'b'); assert.equal(h.welcomeMounts.length, 0);
+  assert.equal(h.$('app').hidden, false); assert.equal(h.ctx.snapshot.scope.owner, 'house-b');
+});
+
+test('a saved callback belonging to a prior member cannot reopen recipes for the current member', async () => {
+  const h = harness(); h.ctx.account.recipe_onboarding_required = true; await h.ctx.load();
+  const old = h.welcomeMounts[0]; h.setMember('b', 'house-b'); await h.ctx.load();
+  const before = copy(h.ctx.recipeProfileEnvelope), count = h.calls.length;
+  old.settings.onSaved({ member_id: 'a', revision: 1, required: false, profile: { completed: true }, options: {} }); await flush();
+  assert.deepEqual(h.ctx.recipeProfileEnvelope, before); assert.equal(h.calls.length, count);
+  assert.equal(h.ctx.account.id, 'b'); assert.equal(h.ctx.activePanel, 'today'); assert.equal(old.disposed, true);
+});
+
+test('failed fresh preference read clears the older envelope instead of opening editable stale answers', async () => {
+  let profileReads=0;
+  const h=harness({api:(url,value)=>{
+    if(url!=='/v1/home-account/recipe-profile')return value;
+    if(++profileReads===1)return{member_id:'a',revision:4,required:false,profile:{completed:true,language:'es'},options:{}};
+    throw fault(503);
+  }});
+  await h.ctx.load();assert.equal(h.ctx.recipeProfileEnvelope.revision,4);assert.equal(h.welcomeMounts.length,0);
+  await h.ctx.editRecipePreferences();
+  assert.equal(profileReads,2);assert.equal(h.ctx.recipeProfileEnvelope,null);
+  assert.equal(h.welcomeMounts.length,0,'An error must not mount the previous profile as current editable answers');
+  assert.ok(h.ctx.recipeProfileError);assert.ok(h.$('recipePreferencesRoot').children.some(child=>child.textContent==='Reintentar'));
 });
