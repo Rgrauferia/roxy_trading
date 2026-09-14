@@ -44,12 +44,12 @@
   }
   const sourceLink = (parent, row) => { if (!safeSource(row.source_url)) return; const a = node('a', 'Ver receta y autoría en la fuente'); a.href = row.source_url; a.target = '_blank'; a.rel = 'noopener noreferrer'; parent.append(a); };
   function setActive(container, active) { renders.get(container)?.activate(Boolean(active)); }
-  function render(container, {user, identity = '', api, companion, hidden = false, active = true, autoLoad = false, isCurrent = () => true}) {
+  function render(container, {user, identity = '', api, companion, speech, hidden = false, active = true, autoLoad = false, isCurrent = () => true}) {
     if (!container) return;
     const signature = JSON.stringify([user, identity, hidden]); const previous = renders.get(container);
-    if (previous?.signature === signature) { previous.isCurrent = isCurrent; previous.companion = companion; previous.autoLoad = autoLoad === true; previous.activate(active); return; }
+    if (previous?.signature === signature) { previous.isCurrent = isCurrent; previous.companion = companion; previous.speech = speech; previous.autoLoad = autoLoad === true; previous.activate(active); return; }
     previous?.dispose(); container.replaceChildren(); container.hidden = hidden;
-    const state = {signature, active:Boolean(active), autoLoad:autoLoad === true, autoLoadAttempted:false, isCurrent, companion, rows:[], counts:{}, page:1, category:'all', spiritBase:'', query:'',
+    const state = {signature, active:Boolean(active), autoLoad:autoLoad === true, autoLoadAttempted:false, isCurrent, companion, speech, rows:[], counts:{}, page:1, category:'all', spiritBase:'', query:'',
       loaded:false, busy:false, adult:false, generation:0, controller:null, detailGeneration:0, detailController:null, detailId:'',
       utterance:null, speechToken:0, guide:null, returnFocus:null};
     state.activate = () => {}; state.dispose = () => {}; renders.set(container, state); if (hidden) return;
@@ -146,15 +146,17 @@
       grid.replaceChildren(...matches.slice((state.page - 1) * 24, state.page * 24).map(row => {
         const card = node('article', null, 'drinks-card'); card.append(photo(row)); const body = node('div', null, 'drinks-card-body');
         const title = node('h3', row.title_es); title.lang = 'es';
-        const open = button('Preparar bebida', () => { if (current()) void openRecipe(row, open); }); open.setAttribute('aria-label', `Preparar bebida: ${title.textContent}`);
-        body.append(title, node('p', `${row.ingredient_count} ${row.ingredient_count === 1 ? 'ingrediente' : 'ingredientes'} · ${row.step_count} ${row.step_count === 1 ? 'paso' : 'pasos'}${row.alcoholic ? ' · Con alcohol' : ''}`, 'drinks-card-meta'), open); card.append(body); return card;
+        const open = button('Ver receta', () => { if (current()) void openRecipe(row, open); }); open.setAttribute('aria-label', `Ver receta: ${title.textContent}`);
+        const prepare = button('Preparar con Roxy', () => { if (current()) void openRecipe(row, prepare, true); }, 'drinks-button drinks-primary');
+        prepare.setAttribute('aria-label', `Preparar con Roxy: ${title.textContent}`);
+        body.append(title, node('p', `${row.ingredient_count} ${row.ingredient_count === 1 ? 'ingrediente' : 'ingredientes'} · ${row.step_count} ${row.step_count === 1 ? 'paso' : 'pasos'}${row.alcoholic ? ' · Con alcohol' : ''}`, 'drinks-card-meta'), prepare, open); card.append(body); return card;
       }));
       summary.textContent = `${state.rows.length} bebidas · ${state.rows.filter(row => !row.alcoholic).length} sin licores · ${state.rows.filter(row => row.alcoholic).length} cócteles (21+).`;
       status.textContent = matches.length ? `${(state.page - 1) * 24 + 1}–${Math.min(state.page * 24, matches.length)} de ${matches.length} ${matches.length === 1 ? 'bebida' : 'bebidas'}.` : 'No hay bebidas con esos filtros. Prueba otro nombre en español o inglés, o quita los filtros.';
       pageLabel.textContent = `Página ${state.page} de ${pages}`; prev.disabled = state.page === 1; next.disabled = state.page === pages; pager.hidden = pages <= 1;
       clear.hidden = !state.query && state.category === 'all'; if (focus) status.focus({preventScroll:false});
     }
-    async function openRecipe(summary, opener) {
+    async function openRecipe(summary, opener, prepare = false) {
       if (!current() || !state.loaded || state.busy || (summary.alcoholic && (!state.adult || state.category !== 'cocktail'))) return;
       if (state.detailController && state.detailId === summary.id) return;
       openDialog(summary.title_es, opener);
@@ -169,7 +171,7 @@
         if (!fresh() || controller.signal.aborted) return;
         if (!validSource(data.source) || data.audience !== 'human' || data.can_scale !== false || data.can_add_to_shopping !== false ||
           !validDetail(data.drink, summary)) throw new Error('invalid_detail');
-        state.detailController = null; showRecipe(data.drink, opener);
+        state.detailController = null; showRecipe(data.drink, opener, prepare);
       } catch (error) {
         if (!fresh() || (controller.signal.aborted && error?.name !== 'TimeoutError')) return;
         loading.textContent = error?.name === 'TimeoutError' ? 'Esta bebida tardó demasiado en cargar. Puedes reintentar.' :
@@ -177,7 +179,7 @@
         retryDetail.hidden = false;
       } finally { if (state.detailGeneration === detailGeneration && state.detailController === controller) { state.detailController = null; dialog.setAttribute('aria-busy', 'false'); } }
     }
-    function showRecipe(row, opener) {
+    function showRecipe(row, opener, prepare = false) {
       let spanish = translated(row), position = 0, reading = false;
       const title = openDialog(spanish ? row.title_es : row.title, opener);
       const guideAvailable = typeof window.RoxyRecipeGuide?.mount === 'function';
@@ -211,7 +213,7 @@
       const start = button(guideAvailable ? 'Paso a paso con Roxy' : 'Leer paso a paso', () => {
         if (!recipeCurrent()) return;
         reading = true; position = 0; paint();
-        if (guideAvailable) mountGuide(); else step.focus({preventScroll:false});
+        if (guideAvailable) mountGuide(true); else step.focus({preventScroll:false});
       }, 'drinks-button drinks-primary');
       const finish = button('Ver preparación completa', () => { stopSpeech(); reading = false; paint(); start.focus({preventScroll:false}); });
       if (!guideAvailable) {
@@ -233,13 +235,15 @@
       const licenseLink = node('a', 'Leer la licencia MIT completa de Open Drinks'); licenseLink.href = '/assets/open-drinks-license.txt'; licenseLink.target = '_blank'; licenseLink.rel = 'noopener noreferrer'; credits.append(licenseLink);
       dialogInner.append(credits);
       dialogInner.append(node('p', 'Cantidades originales, sin escalado ni cálculo de porciones. Comprueba ingredientes y alergias; no adaptamos automáticamente estas recetas.', 'drinks-note'));
-      function mountGuide() {
+      function mountGuide(startWithVoice = false) {
         stopGuide();
         if (!recipeCurrent() || !reading) return;
         state.guide = window.RoxyRecipeGuide.mount(reader, {
           title:spanish ? row.title_es : row.title, steps:stepLines(), ingredients:ingredientLines(), language:lang(),
           sourceLabel:spanish ? 'la traducción al español de Open Drinks' : 'Open Drinks, original en inglés',
-          initialStep:position, isCurrent:() => recipeCurrent() && reading,
+          initialStep:position, startWithVoice,
+          requestSpeech:typeof state.speech === 'function' ? params=>state.speech({...params,source:'drink',recipe_id:row.id,recipe_version:row.source_sha256,include_spirit_bases:state.adult}) : undefined,
+          isCurrent:() => recipeCurrent() && reading,
           askQuestion:typeof state.companion === 'function' ? params => {
             if (!recipeCurrent() || typeof state.companion !== 'function' || params.signal.aborted) return Promise.reject(new Error('recipe_inactive'));
             return state.companion({...params, source:'drink', recipe_id:row.id, recipe_version:row.source_sha256, include_spirit_bases:state.adult});
@@ -260,6 +264,7 @@
         reader.hidden = !reading; body.hidden = reading; start.hidden = reading; speechStatus.textContent = '';
       }
       paint();
+      if (prepare && guideAvailable) { reading = true; paint(); mountGuide(true); }
     }
     const stop = () => { state.generation++; state.controller?.abort(); state.controller = null; state.busy = false; explore.disabled = false; root.setAttribute('aria-busy', 'false'); };
     const request = (path, controller) => new Promise((resolve, reject) => {

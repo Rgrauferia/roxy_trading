@@ -118,7 +118,7 @@ function server(rows = fullRows(), {version = 'fixture-v1', intercept} = {}) {
 const searchFor = async (h, panel, query) => { const search = control(panel, 'Buscar en español o inglés', 'input'); search.value = query; await search.emit('input'); await h.tick(300); };
 
 test('open recipe companion carries the exact source hash and cancels when its card closes', async () => {
-  const h = harness({guide:true}), panel = h.container(), rows = fullRows(true).slice(0,1), mock = server(rows), requests = [], pending = deferred();
+  const h = harness({guide:true, voice:false}), panel = h.container(), rows = fullRows(true).slice(0,1), mock = server(rows), requests = [], pending = deferred();
   h.render(panel, {user:'reader', identity:'member-a', api:mock.api, companion:params => { requests.push(params); return pending.promise; }});
   await h.open(panel.firstChild); const card = cards(panel)[0]; await h.open(card); await findButton(card, 'Paso a paso con Roxy').click();
   const form = all(card, 'form').find(el => el.className === 'recipe-guide-command-form'); all(form, 'input')[0].value = '¿Qué significa batir?'; await form.emit('submit');
@@ -143,21 +143,21 @@ test('open recipe language change creates an independent companion conversation'
   assert.equal(requests[1].recipe_id, requests[0].recipe_id); assert.equal(requests[1].recipe_version, requests[0].recipe_version);
 });
 
-test('Roxy source guide mounts exact bilingual text, preserves position and starts speech only after listening', async () => {
+test('Roxy source guide mounts exact bilingual text, preserves position and starts narration when preparing', async () => {
   const h = harness({guide:true}), panel = h.container(), rows = fullRows(true).slice(0, 1), mock = server(rows);
   h.render(panel, {user:'reader', identity:'member-a', api:mock.api}); await h.open(panel.firstChild); const card = cards(panel)[0]; await h.open(card);
   assert.equal(h.guideMounts.length, 0); assert.equal(h.speechCalls.length, 0); assert.equal(findButton(card, 'Leer paso a paso'), undefined);
   await findButton(card, 'Paso a paso con Roxy').click(); const first = h.guideMounts[0];
   assert.equal(first.options.title, rows[0].translation.title); assert.equal(first.options.language, 'es'); assert.equal(first.options.initialStep, 0);
   assert.deepEqual(first.options.steps, rows[0].translation.steps); assert.deepEqual(first.options.ingredients, rows[0].translation.ingredients);
-  assert.equal(first.options.isCurrent(), true); assert.equal(h.speechCalls.length, 0);
+  assert.equal(first.options.isCurrent(), true); assert.equal(first.options.startWithVoice, true); assert.equal(h.speechCalls.filter(c=>c.type==='speak').length, 1);
   await findButton(card, 'Listo, siguiente').click(); await findButton(card, 'Ver original en inglés').click();
   const original = h.guideMounts[1]; assert.equal(first.disposed, true); assert.equal(original.options.initialStep, 1); assert.equal(original.options.language, 'en');
   assert.deepEqual(original.options.steps, rows[0].steps_original); assert.deepEqual(original.options.ingredients, rows[0].ingredients_original);
-  assert.equal(original.options.title, rows[0].title); assert.equal(h.speechCalls.length, 0);
+  assert.equal(original.options.title, rows[0].title); assert.equal(h.speechCalls.filter(c=>c.type==='speak').length, 2);
   await findButton(card, 'Escuchar este paso').click(); assert.equal(h.speechCalls.at(-1).utterance.text, rows[0].steps_original[1]); assert.equal(h.speechCalls.at(-1).utterance.lang, 'en');
   await findButton(card, 'Ver traducción al español').click(); assert.equal(original.disposed, true); assert.equal(h.guideMounts[2].options.initialStep, 1);
-  assert.equal(h.speechCalls.at(-1).type, 'cancel'); assert.equal(h.speechCalls.filter(call => call.type === 'speak').length, 1);
+  assert.equal(h.speechCalls.at(-1).type, 'cancel'); assert.equal(h.speechCalls.filter(call => call.type === 'speak').length, 3);
   await findButton(card, 'Volver a la receta').click(); assert.equal(h.guideMounts[2].disposed, true);
   assert.equal(findButton(card, 'Paso a paso con Roxy').hidden, false); assert.equal(h.activeElement, findButton(card, 'Paso a paso con Roxy'));
   assert.equal(mock.requests.length, 2); assert.equal(h.downloads.length, 0);
@@ -170,7 +170,7 @@ for (const mode of ['card', 'library', 'inactive', 'hidden', 'identity', 'docume
   const h = harness({guide:true}), panel = h.container(), mock = server(fullRows(true).slice(0, 2));
   const options = {user:'reader', identity:'member-a', api:mock.api, isCurrent:() => true};
   h.render(panel, options); const library = panel.firstChild; await h.open(library); const card = cards(panel)[0]; await h.open(card);
-  await findButton(card, 'Paso a paso con Roxy').click(); await findButton(card, 'Escuchar este paso').click();
+  await findButton(card, 'Paso a paso con Roxy').click();
   const mount = h.guideMounts[0], oldNext = findButton(card, 'Listo, siguiente');
   if (mode === 'card') await h.close(card);
   if (mode === 'library') await h.close(library);
@@ -201,10 +201,10 @@ test('source cards can restart a disposed guide after reopening without another 
 test('starting a guide in another already-open source card stops the previous guide', async () => {
   const h = harness({guide:true}), panel = h.container(), mock = server(fullRows(true).slice(0, 2));
   h.render(panel, {user:'reader', api:mock.api}); await h.open(panel.firstChild); const [first, second] = cards(panel);
-  await h.open(first); await h.open(second); await findButton(first, 'Paso a paso con Roxy').click(); await findButton(first, 'Escuchar este paso').click();
+  await h.open(first); await h.open(second); await findButton(first, 'Paso a paso con Roxy').click();
   await findButton(second, 'Paso a paso con Roxy').click();
-  assert.equal(h.guideMounts[0].disposed, true); assert.equal(h.speechCalls.at(-1).type, 'cancel'); assert.equal(h.guideMounts[1].options.isCurrent(), true);
-  assert.equal(all(panel, 'section').filter(el => el.className === 'recipe-guide').length, 1); assert.equal(h.speechCalls.filter(call => call.type === 'speak').length, 1);
+  assert.equal(h.guideMounts[0].disposed, true); assert.equal(h.speechCalls.at(-2).type, 'cancel'); assert.equal(h.speechCalls.at(-1).type, 'speak'); assert.equal(h.guideMounts[1].options.isCurrent(), true);
+  assert.equal(all(panel, 'section').filter(el => el.className === 'recipe-guide').length, 1); assert.equal(h.speechCalls.filter(call => call.type === 'speak').length, 2);
 });
 
 test('same-origin summaries defer detail and licensed photos until card opening; originals remain exact', async () => {

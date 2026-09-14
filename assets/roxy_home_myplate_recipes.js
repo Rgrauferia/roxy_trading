@@ -53,7 +53,7 @@
 
   function setActive(container, active) { renders.get(container)?.activate(Boolean(active)); }
 
-  function render(container, {user, identity = '', api, companion, hidden = false, active = true, isCurrent = () => true,
+  function render(container, {user, identity = '', api, companion, speech, hidden = false, active = true, isCurrent = () => true,
     browseGroup = 'all', autoLoad = false, preset = null, personalRevision = 0}) {
     if (!container) return;
     const group = ['all', 'food', 'dessert'].includes(browseGroup) ? browseGroup : 'all';
@@ -199,7 +199,10 @@
       const title = node('h3', summary.title); title.lang = 'en'; title.tabIndex = -1;
       const meta = node('p', summary.category ? `${categoryLabels[summary.category] || summary.category} · EN` : 'Original en inglés', 'myplate-card-meta');
       const open = button('Ver receta', () => { if (!state.busy) void openRecipe(summary); });
-      open.setAttribute('aria-label', `Ver receta: ${summary.title}`); body.append(title, meta, open); article.append(body); return article;
+      open.setAttribute('aria-label', `Ver receta: ${summary.title}`);
+      const prepare = button('Preparar con Roxy', () => { if (!state.busy) void openRecipe(summary, true); }, 'myplate-button myplate-primary');
+      prepare.setAttribute('aria-label', `Preparar con Roxy: ${summary.title}`);
+      body.append(title, meta, prepare, open); article.append(body); return article;
     };
     async function load(page, {focus = true} = {}) {
       if (!current() || state.busy) return;
@@ -245,7 +248,7 @@
         if (focus) status.focus({preventScroll:false});
       } finally { if (generation === state.generation) { state.controller = null; setBusy(false); } }
     }
-    async function openRecipe(summary) {
+    async function openRecipe(summary, prepare = false) {
       if (!current() || state.busy) return;
       stop(); purgeDetail(); state.selected = summary; browser.hidden = true; detail.hidden = false; heading.hidden = true; retry.hidden = true;
       detailBody.append(node('h3', summary.title));
@@ -256,7 +259,7 @@
         if (generation !== state.generation || controller.signal.aborted) return;
         if (!current()) { paused(); return; }
         if (!validDetail(data?.recipe, summary.slug)) throw new Error('invalid_recipe');
-        showRecipe(data.recipe, summary, data.companion_version); status.textContent = '';
+        showRecipe(data.recipe, summary, data.companion_version, prepare); status.textContent = '';
       } catch (error) {
         if (generation !== state.generation) return;
         if (!current() || (controller.signal.aborted && error?.name !== 'TimeoutError')) { paused(); return; }
@@ -265,7 +268,7 @@
         status.focus({preventScroll:false});
       } finally { if (generation === state.generation) { state.controller = null; setBusy(false); } }
     }
-    function showRecipe(recipe, summary, companionVersion) {
+    function showRecipe(recipe, summary, companionVersion, prepare = false) {
       detailBody.replaceChildren();
       const title = node('h3', recipe.title, 'myplate-detail-title'); title.lang = 'en'; title.tabIndex = -1;
       const recipeHeading = node('div', null, 'myplate-detail-heading'); recipeHeading.append(title);
@@ -281,18 +284,20 @@
       const recipeBody = node('div'); const guideHost = node('div');
       const sourceSteps = Array.isArray(recipe.source_steps) && recipe.source_steps_language === 'en' &&
         recipe.source_steps.every(step => typeof step === 'string' && step.trim()) && recipe.source_steps.join('') === recipe.directions ? recipe.source_steps : [recipe.directions];
-      const startGuide = button('Paso a paso con Roxy', () => {
+      const beginGuide = () => {
         if (!current() || detail.hidden || !window.RoxyRecipeGuide?.mount) return;
         state.guide?.dispose(); recipeBody.hidden = true; startGuide.hidden = true;
         const guide = window.RoxyRecipeGuide.mount(guideHost, {title:recipe.title, steps:sourceSteps,
           ingredients:recipe.ingredients.map(item => item.note ? `${item.text} (${item.note})` : item.text),
-          language:'en', sourceLabel:'MyPlate.food · original en inglés',
+          language:'en', startWithVoice:true, sourceLabel:'MyPlate.food · original en inglés',
+          requestSpeech:typeof speech==='function'?params=>speech({...params,source:'myplate',recipe_id:recipe.slug,recipe_version:companionVersion}):undefined,
           askQuestion:typeof companion==='function'&&/^[a-f0-9]{64}$/.test(companionVersion||'')?
             params=>companion({...params,source:'myplate',recipe_id:recipe.slug,recipe_version:companionVersion}):undefined,
           isCurrent:() => current() && !detail.hidden && state.selected?.slug === recipe.slug,
           onClose:() => { if (state.guide !== guide || !current() || detail.hidden || !startGuide.isConnected) return; state.guide = null; recipeBody.hidden = false; startGuide.hidden = false; startGuide.focus({preventScroll:true}); }});
         state.guide = guide;
-      }, 'myplate-button myplate-primary');
+      };
+      const startGuide = button('Paso a paso con Roxy', beginGuide, 'myplate-button myplate-primary');
       if (fit?.status === 'conflict') {startGuide.disabled = true;startGuide.textContent = 'Busca otra receta compatible';}
       if (window.RoxyRecipeGuide?.mount) detailBody.append(startGuide, guideHost);
       detailBody.append(recipeBody);
@@ -323,6 +328,7 @@
         node('p', '100 fichas completas al día y 20 consultas por minuto, con cupo compartido de Roxy. El catálogo se consulta en directo. Algunas imágenes de la fuente se han ampliado con IA.', 'myplate-note'));
       detailBody.append(node('p', 'Antes de empezar, revisa ingredientes, alergias y preparación completa.', 'myplate-note'));
       title.focus({preventScroll:false});
+      if (prepare && fit?.status !== 'conflict') beginGuide();
     }
     form.addEventListener('submit', event => {
       event.preventDefault(); if (state.busy) return;

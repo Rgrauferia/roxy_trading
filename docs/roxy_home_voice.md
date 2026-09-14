@@ -1,6 +1,6 @@
 # Voz oficial de Roxy Home
 
-La guía de cocina puede solicitar un MP3 al servidor de Home con la voz configurada para este producto. Si la voz oficial no está configurada, falla o no comienza a reproducirse, el lector intenta la voz del dispositivo con el texto completo del paso. El usuario puede detenerla y volver a escuchar. El navegador recibe únicamente el MP3; la clave y la llamada de síntesis al proveedor permanecen en el servidor.
+«Ver receta» abre el original en silencio. «Preparar con Roxy» en comidas y bebidas abre la guía y solicita su primer paso con la voz oficial. La guía común usa el servidor Home para generar MP3 y ofrece la voz del dispositivo como elección explícita. Si la oficial falla, muestra el motivo y permite reintentar sin cambiar de voz automáticamente. El lector anterior de sesiones guardadas conserva su respaldo automático, identificado como voz del dispositivo. La clave y la llamada al proveedor permanecen en el servidor.
 
 Home conserva una clave, agente y presupuesto propios. `ELEVENLABS_API_KEY` y `ELEVENLABS_AGENT_ID` genéricos nunca se usan como respaldo en Home. No hay un identificador de agente predeterminado compartido.
 
@@ -18,7 +18,7 @@ ROXY_HOME_ELEVENLABS_CACHE_DIR=/var/data/roxy_home/voice
 
 Si `ROXY_HOME_ELEVENLABS_VOICE_ID` queda vacío, el servidor consulta únicamente el agente Home indicado y usa su voz configurada. Para TTS también se puede configurar clave Home + voz Home sin agente conversacional. La conversación necesita un agente Home explícito; consulta su configuración antes de pedir acceso al micrófono.
 
-`CONFIGURED` y `provider_health_verified: false` indican configuración local, no una llamada ni disponibilidad comprobada del proveedor. La voz conversacional existente usa el agente público de Home por WebSocket: no se configura ni verifica su aislamiento en la cuenta del proveedor mediante estas pruebas locales. El incidente público registrado el 05/09 fue `payment_issue` de ElevenLabs. Su facturación actual no se ha vuelto a comprobar y este cambio no la modifica.
+`CONFIGURED` y `provider_health_verified: false` indican configuración local, no disponibilidad comprobada. El 13/09 Roberto confirmó resolver el pago pendiente de ElevenLabs; una síntesis breve real volvió a devolver audio (40.586 bytes). Se verificó el identificador de la voz histórica de Roxy y se configuró para TTS Home, sin copiar claves ni asignar el agente compartido. Modelo verificado: `eleven_flash_v2_5`. El agente de conversación general de Home sigue sin configurarse; esto no impide usar las preguntas de recetas mediante OpenAI y leerlas con TTS. No afirmar que el botón general Iniciar esté operativo por esta recuperación.
 
 ## Voz del dispositivo
 
@@ -30,7 +30,8 @@ Los lectores informan «hablando» sólo tras el evento de inicio de audio. El i
 
 - Cada lectura se almacena como MP3 usando un hash de usuario, voz, modelo y texto.
 - Repetir el mismo paso reutiliza el archivo y evita un nuevo consumo de ElevenLabs.
-- La ruta exige la sesión autenticada de Home y deriva el texto desde la sesión de cocina; el teléfono no puede convertir texto arbitrario.
+- La ruta antigua deriva el texto desde la sesión de cocina. La ruta `/recipe-speech` exige además miembro, origen y referencia vigente de receta/paso; resuelve el paso original en el servidor. El modo respuesta lee el texto visible enviado por el cliente (máximo 1.200 caracteres), ligado a la receta abierta, sin tratarlo como instrucciones o una modificación del hogar. No añade preferencias ni historial. El audio puede contener información personal ya presente en esa respuesta y queda en la caché privada del miembro.
+- Home reserva como máximo 200 solicitudes y 20.000 caracteres por día UTC antes de llamar a ElevenLabs, bajo bloqueo de proceso y archivo. Los intentos fallidos conservan la reserva por prudencia; estos conteos no son una factura. Repeticiones desde caché no consumen otra reserva. Contador privado persistente `/var/data/roxy_home/voice/usage.json`, sin texto ni secretos; corrupción o pérdida tras inicialización impide nuevos envíos. No se aumentan límites ni se reinicia el contador desde la UI.
 - El estado público distingue configuración de salud comprobada y nunca devuelve secretos.
 - Los pasos que superen el límite de 1.200 caracteres del TTS oficial se rechazan antes de llamar al proveedor; la alternativa del dispositivo recibe el texto íntegro. No se recorta silenciosamente el final de una instrucción.
 - Las pruebas automáticas usan voces, audio y hogares sintéticos. No demuestran audio audible en un teléfono físico ni resuelven una suspensión del proveedor.

@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '200';
+  const APP_VERSION = '201';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -481,6 +481,26 @@
       });
       if(!isCurrent()||account.id!==memberId||user!==owner)throw new Error('Tu sesión cambió. Vuelve a abrir la receta.');
       return result;
+    };
+  }
+  function recipeSpeechBridge(owner,memberId,isCurrent){
+    if(account.mode!=='member'||!memberId||account.trial===true)return undefined;
+    return async({signal,...payload})=>{
+      const current=()=>isCurrent()&&account.id===memberId&&user===owner;
+      if(!current())throw new Error('Tu sesión cambió. Vuelve a abrir la receta.');
+      const response=await fetch(`/v1/home-food/${encodeURIComponent(owner)}/recipe-speech`,{
+        method:'POST',credentials:'include',cache:'no-store',signal,
+        headers:{'Content-Type':'application/json',Accept:'audio/mpeg','X-Roxy-Recipe-Member':memberId},body:JSON.stringify(payload),
+      });
+      if(!current())throw new Error('Tu sesión cambió. Vuelve a abrir la receta.');
+      if(!response.ok){
+        let detail;try{detail=(await response.json()).detail}catch(_){}
+        throw new Error(typeof detail==='string'?detail:detail?.message||'No se pudo conectar la voz oficial. Puedes usar la voz del dispositivo.');
+      }
+      const blob=await response.blob();
+      if(!current())throw new Error('Tu sesión cambió. Vuelve a abrir la receta.');
+      if(blob.type!=='audio/mpeg'||blob.size<1024||blob.size>10*1024*1024)throw new Error('El audio recibido no es válido. Puedes reintentar.');
+      return blob;
     };
   }
   async function prepareRecipePreferences(isCurrent,{force=false}={}){
@@ -1299,6 +1319,7 @@
     const sourceMember=account.id;
     const sourceContext={user,identity:sourceIdentity,api:(path,options={})=>api(path,{...options,headers:{...(options.headers||{}),...(sourceMember?{'X-Roxy-Recipe-Member':sourceMember}:{})}}),isCurrent:()=>recipeSourcesReady()&&user===sourceOwner&&collectionIdentity()===sourceIdentity};
     sourceContext.companion=recipeCompanionBridge(sourceOwner,sourceMember,sourceContext.isCurrent);
+    sourceContext.speech=recipeSpeechBridge(sourceOwner,sourceMember,sourceContext.isCurrent);
     const sourceActive=recipeSourcesReady()&&activePanel==='recipes';
     const myplateSelected=!petMode&&['personal','all','food','dessert'].includes(recipeCollection);
     const personalPreset=recipeCollection==='personal'?selectedRecipePreset():null;
@@ -2802,11 +2823,13 @@
     const current=()=>user===owner&&account.id===memberId&&collectionIdentity()===identity&&Boolean($('cookingDialog')?.open)&&
       currentCooking?.session?.id===session.id&&currentCooking?.step_number===data.step_number&&currentCooking?.current_step===data.current_step&&currentCooking?.session?.status===session.status;
     const companion=recipeCompanionBridge(owner,memberId,current);
+    const officialSpeech=recipeSpeechBridge(owner,memberId,current);
     cookingCompanionScope=scope;
     cookingCompanion=window.RoxyRecipeGuide.mount(host,{
       conversationOnly:true,title:recipeDisplayTitle(data.recipe),steps:data.recipe.steps,
       ingredients:(data.recipe.ingredients||[]).map(item=>[item.quantity,item.unit,item.name].filter(value=>value!==undefined&&value!=='').join(' ')),
       language:'es',initialStep:data.step_number-1,isCurrent:current,onBeforeMedia:stopCookingSpeech,
+      requestSpeech:officialSpeech?params=>officialSpeech({...params,source:'saved',recipe_id:data.recipe.id,session_id:session.id}):undefined,
       askQuestion:params=>{stopCookingSpeech();return companion({...params,source:'saved',recipe_id:data.recipe.id,session_id:session.id})},
       onCommand:command=>{
         if(!current())return;

@@ -776,3 +776,17 @@ test('screened plus visible rows cannot exceed the source page size',async()=>{
   const h=harness(),panel=h.container(),mock=server({intercept:()=>filteredPage(rows.slice(0,24),{hidden:1})});
   h.render(panel,personalOptions(mock));await settle();assert.equal(byClass(panel,'myplate-recipe-card').length,0);assert.equal(button(panel,'Reintentar consulta').hidden,false);
 });
+
+test('food card preparation opens the voice guide directly and binds the authoritative recipe version', async () => {
+  const h=harness({guide:true}), panel=h.container(), spoken=[], version='b'.repeat(64);
+  const mock=server({intercept:call => call.url.pathname.endsWith('/synthetic-000') ? {recipe:detail(rows[0]),companion_version:version} : undefined});
+  await start(h,panel,mock,{speech:params=>{spoken.push(params);}});
+  await button(panel,'Ver receta').click(); assert.equal(h.guideMounts.length,0); assert.equal(spoken.length,0);
+  await button(panel,'Volver a las recetas').click(); await button(panel,'Preparar con Roxy').click();
+  assert.equal(h.guideMounts.length,1); const opts=h.guideMounts[0].options;
+  assert.equal(opts.startWithVoice,true); const controller=new AbortController();
+  await opts.requestSpeech({kind:'step',text:'',step_index:0,language:'en',signal:controller.signal});
+  assert.equal(spoken[0].recipe_version,version); assert.equal(spoken[0].source,'myplate');
+  assert.equal(spoken[0].recipe_id,rows[0].slug); assert.equal(spoken[0].signal,controller.signal);
+  assert.deepEqual(h.storageWrites,[]);
+});

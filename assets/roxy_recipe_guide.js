@@ -32,6 +32,7 @@
     mounts.get(container)?.dispose();
     const {title = '', sourceLabel = '', isCurrent = () => true, onClose, onStepChange, onCommand, onBeforeMedia} = options;
     const askQuestion = typeof options.askQuestion === 'function' ? options.askQuestion : null;
+    const requestSpeech = typeof options.requestSpeech === 'function' ? options.requestSpeech : null;
     const conversationOnly = options.conversationOnly === true;
     const steps = linesValid(options.steps) ? options.steps.slice() : [];
     const ingredients = linesValid(options.ingredients) ? options.ingredients.slice() : [];
@@ -42,6 +43,7 @@
     const Speech = window.SpeechSynthesisUtterance;
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const speechAvailable = Boolean(speech && Speech && typeof speech.speak === 'function' && typeof speech.getVoices === 'function');
+    const audioAvailable = speechAvailable || Boolean(requestSpeech);
     const id = `recipe-guide-${++sequence}`;
     const state = {
       active:true, disposed:false, paused:false, voiceEnabled:false,
@@ -49,6 +51,7 @@
       speechToken:0, utterance:null, voiceRequest:null, recognition:null, micToken:0,
       audioTimer:null, voiceTimer:null, cancelTimer:null, micTimer:null, scopeTimer:null,
       ownCancellationPending:false,
+      officialJob:null, deviceSelected:false,
       companionRequest:null, companionTimer:null, companionHistory:[], retryQuestion:null,
     };
     const cleanups = [];
@@ -76,7 +79,12 @@
     const hear = button('Escuchar este paso', () => { if (!usable() || !steps.length) return; cancelCompanion(); state.paused = false; state.voiceEnabled = true; paint(); speakStep(); });
     const repeat = button('Repetir', () => repeatStep());
     const pause = button('Pausar', () => togglePause());
-    controls.append(hear, repeat, pause);
+    const deviceVoice = button('Usar voz del dispositivo', () => {
+      if (!usable()) return;
+      stopSpeech(); state.deviceSelected = !state.deviceSelected; state.voiceEnabled = true; state.paused = false; paint(); speakStep();
+    });
+    deviceVoice.hidden = !requestSpeech; deviceVoice.disabled = !speechAvailable;
+    controls.append(hear, repeat, pause, deviceVoice);
     const audioStatus = node('p', '', 'recipe-guide-status'); audioStatus.setAttribute('role', 'status'); audioStatus.setAttribute('aria-live', 'polite');
     const ingredientPanel = node('details', null, 'recipe-guide-ingredients');
     const ingredientSummary = node('summary', `Ingredientes${ingredients.length ? ` (${ingredients.length})` : ''}`);
@@ -103,6 +111,10 @@
     const deviceNote = node('p', 'Voz del dispositivo, opcional. «Hablar» pide permiso de micrófono para un solo comando y activa la respuesta hablada; el navegador puede procesar el audio mediante su servicio. Los fragmentos se leen en su idioma original. Puedes usar los botones o escribir.', 'recipe-guide-note recipe-guide-device-note');
     const inputActions = node('div', null, 'recipe-guide-input-actions'); inputActions.append(talk);
     const disclosure = node('p', askQuestion ? 'Roxy responde con IA sobre esta receta. Preguntas a OpenAI · voz opcional del dispositivo.' : 'Voz opcional del dispositivo.', 'recipe-guide-note recipe-guide-disclosure'); disclosure.id = `${id}-disclosure`;
+    if (requestSpeech) {
+      disclosure.textContent = askQuestion ? 'Roxy responde sobre esta receta con OpenAI y usa su voz oficial de ElevenLabs al activar la lectura.' : 'Activa la lectura para escuchar la voz oficial de Roxy.';
+      deviceNote.textContent = 'La voz oficial envía a ElevenLabs el paso o la respuesta que vas a escuchar. Puedes elegir la voz del dispositivo como alternativa. «Hablar» pide permiso de micrófono para un comando; el navegador puede procesarlo mediante su servicio. Conservamos el idioma y el texto de la receta.';
+    }
     form.append(disclosure); input.setAttribute('aria-describedby', `${disclosure.id} ${help.id}`);
     const privacy = node('details', null, 'recipe-guide-privacy'); privacy.id = `${id}-privacy`; privacy.open = false;
     privacy.append(node('summary', 'Voz y privacidad'), help, deviceNote);
@@ -127,7 +139,7 @@
     const hearExplanation = button('Escuchar explicación', () => {
       if (!usable() || !explanationAnswer.textContent) return;
       state.voiceEnabled = true; state.paused = false; paint(); speakText(explanationAnswer.textContent, explanationAnswer.lang || 'es');
-    }); hearExplanation.disabled = !speechAvailable;
+    }); hearExplanation.disabled = !audioAvailable;
     explanation.append(explanationHeading, explanationQuestion, explanationAnswer, explanationReferences, explanationClarification, hearExplanation);
     if (askQuestion) {
       input.maxLength = 600; input.placeholder = '¿Qué significa batir? ¿Cómo sé si está bien mezclado?';
@@ -143,6 +155,7 @@
     if (conversationOnly) {
       root.className += ' recipe-guide-conversation-only';
       [head, subtitle, source, progress, meter, step, guidance, nav, controls, ingredientPanel].forEach(el => { el.hidden = true; });
+      if (requestSpeech) inputActions.append(deviceVoice);
     }
     container.append(root);
 
@@ -158,10 +171,16 @@
       state.scopeTimer = setTimeout(() => {
         state.scopeTimer = null;
         if (!scopeValid()) { suspend(); return; }
-        if (state.utterance || state.voiceRequest || state.recognition || state.companionRequest || state.companionHistory.length) watchScope();
+        if (state.officialJob || state.utterance || state.voiceRequest || state.recognition || state.companionRequest || state.companionHistory.length) watchScope();
       }, 200);
     }
     function stopSpeech() {
+      const job = state.officialJob; state.officialJob = null;
+      if (job) {
+        job.controller.abort(); clearTimeout(job.timer);
+        if (job.audio) { job.audio.onplaying = null; job.audio.onended = null; job.audio.onerror = null; job.audio.pause(); }
+        if (job.url) window.URL.revokeObjectURL(job.url);
+      }
       state.speechToken++; state.voiceRequest = null; clearTimer('voiceTimer'); clearTimer('audioTimer'); clearTimer('cancelTimer');
       const utterance = state.utterance; state.utterance = null;
       if (utterance) {
@@ -184,11 +203,12 @@
     }
     function suspend() {
       if (state.disposed) return;
-      const hadMedia = Boolean(state.utterance || state.voiceRequest || state.recognition);
+      const hadMedia = Boolean(state.officialJob || state.utterance || state.voiceRequest || state.recognition);
       stopSpeech(); stopRecognition(); cancelCompanion(); clearConversation(); clearTimer('scopeTimer');
       if (hadMedia) { state.paused = true; audioStatus.textContent = 'Guía pausada. Puedes continuar desde este paso.'; micStatus.textContent = ''; paint(); }
     }
     function paint() {
+      deviceVoice.textContent = state.deviceSelected ? 'Usar voz oficial de Roxy' : 'Usar voz del dispositivo';
       progress.textContent = steps.length ? `Paso ${state.index + 1} de ${steps.length}` : 'Pasos no disponibles';
       meter.value = steps.length ? state.index + 1 : 0;
       step.textContent = steps[state.index] || 'Esta ficha no contiene una secuencia completa de pasos legibles.';
@@ -196,7 +216,7 @@
         state.index === steps.length - 1 ? 'Este es el último paso de la fuente. Puedes repetirlo o volver a la receta.' : 'Cuando termines este paso, dime «listo» o toca Siguiente.';
       previous.disabled = !steps.length || state.index === 0; next.disabled = !steps.length || state.index === steps.length - 1;
       next.textContent = steps.length && state.index === steps.length - 1 ? 'Último paso' : 'Listo, siguiente';
-      hear.disabled = !steps.length || !speechAvailable; repeat.disabled = !steps.length; pause.disabled = !steps.length;
+      hear.disabled = !steps.length || !audioAvailable; repeat.disabled = !steps.length; pause.disabled = !steps.length;
       pause.textContent = state.paused ? 'Reanudar' : 'Pausar'; pause.setAttribute('aria-pressed', String(state.paused));
     }
     function move(delta) {
@@ -240,11 +260,48 @@
       if (!usable() || state.paused || !text) return;
       if (!prepareMedia()) return;
       stopSpeech(); stopRecognition(); micStatus.textContent = '';
+      if (requestSpeech && !state.deviceSelected) { void speakOfficial(text, spokenLanguage, kind); return; }
       if (!speechAvailable) { audioStatus.textContent = 'Este navegador no ofrece lectura en voz alta. Puedes continuar con los botones o escribir.'; return; }
       state.voiceRequest = {token:state.speechToken, index:state.index, text, language:spokenLanguage, kind, cancelWaits:0};
       audioStatus.textContent = 'Preparando la voz del dispositivo…';
       watchScope();
       prepareVoice();
+    }
+    async function speakOfficial(text, spokenLanguage, kind) {
+      const job = {controller:new AbortController(), timer:null, audio:null, url:null, started:false};
+      state.officialJob = job;
+      const fresh = () => usable() && state.officialJob === job && !state.paused;
+      const fail = message => {
+        if (!fresh()) return;
+        stopSpeech(); state.voiceEnabled = false; audioStatus.textContent = message;
+      };
+      audioStatus.textContent = 'Preparando la voz oficial de Roxy…';
+      job.timer = setTimeout(() => fail('La voz oficial está tardando. Toca Escuchar para reintentar o elige la voz del dispositivo.'), 25000);
+      watchScope();
+      try {
+        const blob = await requestSpeech({signal:job.controller.signal, step_index:state.index, language:baseLanguage,
+          kind, text:kind === 'step' ? '' : text});
+        if (!fresh()) return;
+        clearTimeout(job.timer);
+        job.url = window.URL.createObjectURL(blob); job.audio = new window.Audio(job.url);
+        job.audio.onplaying = () => {
+          if (!fresh()) return; job.started = true; clearTimeout(job.timer);
+          audioStatus.textContent = 'Voz oficial · Roxy hablando…'; hear.setAttribute('aria-pressed', 'true');
+          job.timer = setTimeout(() => fail('La lectura se interrumpió. Puedes escuchar de nuevo este paso.'), 300000);
+        };
+        job.audio.onended = () => {
+          if (!fresh()) return;
+          if (!job.started) { fail('El audio no comenzó. Toca Escuchar para reproducir la voz oficial.'); return; }
+          stopSpeech(); audioStatus.textContent = 'Lectura terminada. Avanzamos cuando tú lo indiques.';
+        };
+        job.audio.onerror = () => fail('No se pudo reproducir el audio. Toca Escuchar o elige la voz del dispositivo.');
+        job.timer = setTimeout(() => fail('El navegador no inició el audio. Toca Escuchar para reproducir la voz oficial.'), 6000);
+        await job.audio.play();
+      } catch (error) {
+        if (!fresh()) return;
+        fail(error?.name === 'NotAllowedError' ? 'Toca Escuchar para permitir la voz oficial en este navegador.' :
+          error?.message || 'No se pudo conectar la voz oficial. Puedes usar la voz del dispositivo.');
+      }
     }
     function waitForSpeechSlot() {
       const request = state.voiceRequest;
@@ -293,7 +350,7 @@
       const fail = message => { if (!fresh()) return; stopSpeech(); audioStatus.textContent = message; };
       utterance.onstart = () => {
         if (!fresh()) return; started = true; clearTimer('audioTimer');
-        audioStatus.textContent = request.kind === 'step' ? 'Leyendo este paso…' : 'Leyendo la respuesta…'; hear.setAttribute('aria-pressed', 'true');
+        audioStatus.textContent = (requestSpeech && state.deviceSelected ? 'Voz del dispositivo · ' : '') + (request.kind === 'step' ? 'Leyendo este paso…' : 'Leyendo la respuesta…'); hear.setAttribute('aria-pressed', 'true');
         state.audioTimer = setTimeout(() => fail('La lectura tardó demasiado en terminar. El paso se conserva; puedes reintentar Escuchar.'), Math.max(30000, Math.min(1200000, utterance.text.length * 180)));
       };
       utterance.onend = () => {
@@ -308,7 +365,7 @@
       try { speech.speak(utterance); } catch (_) { fail('No se pudo iniciar la lectura. Puedes reintentar Escuchar o continuar por texto.'); }
     }
     function reply(text, replyLanguage = 'es') {
-      response.lang = replyLanguage; response.textContent = text; hearResponse.hidden = !text; hearResponse.disabled = !speechAvailable || !text;
+      response.lang = replyLanguage; response.textContent = text; hearResponse.hidden = !text; hearResponse.disabled = !audioAvailable || !text;
       if (state.voiceEnabled && !state.paused) speakText(text, replyLanguage);
     }
     function prepareMedia() {
@@ -519,10 +576,13 @@
     }};
     if (askQuestion) questionGuides.add(questionGuide);
     mounts.set(container, controller); paint();
-    if (!speechAvailable) audioStatus.textContent = 'Este navegador no ofrece lectura en voz alta. Puedes continuar con los botones o escribir.';
+    if (!audioAvailable) audioStatus.textContent = 'Este navegador no ofrece lectura en voz alta. Puedes continuar con los botones o escribir.';
     if (!Recognition) { talk.disabled = true; micStatus.textContent = 'Comandos de voz no disponibles en este navegador. Puedes escribir.'; }
     if (!scopeValid()) suspend();
-    else if (!conversationOnly) step.focus({preventScroll:false});
+    else if (!conversationOnly) {
+      step.focus({preventScroll:false});
+      if (options.startWithVoice === true) { state.voiceEnabled = true; speakStep(); }
+    }
     return controller;
   }
   function focusActiveQuestion() {

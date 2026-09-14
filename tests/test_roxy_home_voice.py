@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from roxy_os.home_voice import ElevenLabsHomeVoice, HomeVoiceConfig
+from roxy_os.home_voice import ElevenLabsHomeVoice, HomeVoiceConfig, HomeVoiceError
 
 
 class FakeResponse:
@@ -92,6 +92,58 @@ def test_home_voice_rejects_long_steps_before_calling_provider_instead_of_trunca
     assert session.post_calls == []
 
 
+def test_voice_budget_reserves_characters_once_and_cached_replay_is_free(tmp_path):
+    import json
+    from dataclasses import replace
+    config = replace(voice_config(tmp_path), daily_characters=15, daily_requests=1)
+    session = FakeSession()
+    voice = ElevenLabsHomeVoice(config, session=session)
+    voice.synthesize("Paso exacto.", user_id="member-a")
+    voice.synthesize("Paso exacto.", user_id="member-a")
+    usage = json.loads((config.cache_dir / "usage.json").read_text())
+    assert usage["requests"] == 1 and usage["characters"] == len("Paso exacto.")
+    assert "Paso exacto" not in str(usage) and len(session.post_calls) == 1
+    with pytest.raises(HomeVoiceError, match="límite diario"):
+        voice.synthesize("Otro paso.", user_id="member-a")
+    assert len(session.post_calls) == 1
+
+
+def test_voice_budget_corruption_never_resets_or_calls_provider(tmp_path):
+    from roxy_os.home_private_storage import HomePrivateStorageError
+    config = voice_config(tmp_path)
+    config.cache_dir.mkdir()
+    (config.cache_dir / "usage.json").write_text("{broken")
+    session = FakeSession()
+    with pytest.raises(HomePrivateStorageError):
+        ElevenLabsHomeVoice(config, session=session).synthesize("Paso uno.", user_id="member-a")
+    assert not session.post_calls
+    assert (config.cache_dir / "usage.json").read_text() == "{broken"
+
+
+def test_voice_payment_error_is_sanitized_and_reservation_kept(tmp_path):
+    import json
+    import requests
+    class PaymentSession(FakeSession):
+        def post(self, *args, **kwargs):
+            self.post_calls.append((args, kwargs))
+            response = requests.Response(); response.status_code = 401
+            response._content = b'{"detail":{"status":"payment_issue","message":"do-not-expose-provider-secret"}}'
+            raise requests.HTTPError("do-not-expose-provider-secret", response=response)
+    config = voice_config(tmp_path); session = PaymentSession()
+    with pytest.raises(HomeVoiceError) as caught:
+        ElevenLabsHomeVoice(config, session=session).synthesize("Paso uno.", user_id="member-a")
+    assert caught.value.code == "payment_issue"
+    assert "do-not-expose" not in str(caught.value)
+    assert json.loads((config.cache_dir / "usage.json").read_text())["requests"] == 1
+
+
+def test_voice_rejects_path_traversal_before_using_provider(tmp_path):
+    session = FakeSession()
+    with pytest.raises(ValueError):
+        ElevenLabsHomeVoice(voice_config(tmp_path), session=session).synthesize("Paso uno.", user_id="../other-home")
+    assert not session.get_calls and not session.post_calls
+
+
 def test_home_conversation_rejects_missing_home_agent_without_using_shared_agent(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
     from tools import roxy_home_service
@@ -107,3 +159,17 @@ def test_home_conversation_rejects_missing_home_agent_without_using_shared_agent
     assert response.status_code == 503
     assert "exclusivo de Roxy Home" in response.json()["detail"]
     assert "shared-product-agent" not in response.text
+
+
+def test_home_voice_does_not_reset_a_future_usage_ledger(tmp_path):
+    import json
+    config = voice_config(tmp_path)
+    config.cache_dir.mkdir()
+    ledger = config.cache_dir / 'usage.json'
+    ledger.write_text(json.dumps({'date': '2999-01-01', 'requests': 1, 'characters': 10}))
+    before = ledger.read_bytes()
+    session = FakeSession()
+    with pytest.raises(RuntimeError):
+        ElevenLabsHomeVoice(config, session=session).synthesize('Paso intacto.', user_id='member')
+    assert ledger.read_bytes() == before
+    assert session.post_calls == []

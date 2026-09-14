@@ -19,7 +19,7 @@
 .recipe-guide .recipe-guide-step:focus { outline: none; }
 .recipe-guide .recipe-guide-step { scroll-margin-top: 100px; }
 .recipe-guide .recipe-guide-heading .recipe-guide-button { min-height: 44px; padding: 8px 12px; font-size: 12px; }
-.recipe-guide .recipe-guide-navigation { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.4fr); gap: 10px; }
+.recipe-guide .recipe-guide-navigation { display: grid; grid-template-columns: minmax(96px, .8fr) minmax(0, 1.4fr); gap: 10px; }
 .recipe-guide .recipe-guide-controls { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 11px; }
 .recipe-guide .recipe-guide-controls > button { flex: 1 1 auto; }
 .recipe-guide .recipe-guide-status { margin: 12px 0; color: #626044; font-size: 13px; line-height: 1.6; }

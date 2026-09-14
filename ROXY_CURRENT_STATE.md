@@ -1,6 +1,24 @@
 # Roxy Home — estado operativo
 
-## 200 — preparada: receta despejada y herramientas en Más
+## 201 — validada; publicación y audio público pendientes
+
+Comidas y bebidas ofrecen Preparar con Roxy y Ver receta. Preparar abre la guía
+con lectura oficial del primer paso; Ver conserva consulta silenciosa. TTS de
+pasos y respuestas desde servidor Home, sin claves en navegador ni cambios a la
+receta. Cancelación por paso/cierre/identidad/visibilidad, sin avanzar ni iniciar
+temporizadores por audio. Alternativa del dispositivo explícita en guía común.
+ElevenLabs: pago resuelto por Roberto y síntesis real40586bytes; voz histórica
+verificada y configurada en Home, sin copiar claves ni asignar agente compartido.
+Entorno dep-dajmpfdg1s2s73bbuohg Live48.9s sobre877e675. Código201 aún sin publicar.
+3360Python/11PGomitidas y857Node aprobadas;7pruebas posteriores CSS/checker.
+QA sintética: consulta silenciosa, preparación directa comida/bebida,393px sin
+overflow y avance manual café1→2.4789archivos conservados/3758prototipos idénticos.
+Caché y contador persistentes propios:200solicitudes/20000caracteres por día UTC,
+reservas fallidas conservadas y caché reutilizada. Agente general Home pendiente;
+no declarar conversación general ni audio físico en teléfono verificados.
+Informe: `reports/home_release_201_20260913.md`.
+
+## 200 — PUBLICADA: receta despejada y herramientas en Más
 
 Solicitud de Roberto: los seis bloques señalados debajo de Asian Mango Chicken
 Wraps no deben aparecer allí. Fuentes y detalles quedan en el icono de información
@@ -10,7 +28,17 @@ configurado oculto. Ingredientes, preparación, notas, atribución, enlaces orig
 y funciones conservados. Sin cambios a cuentas, recetas, compras ni claves.
 255 pruebas Python dirigidas y 147 Node aprobadas. QA con cuenta sintética local:
 misma receta, panel de información abre/cierra, móvil393px sin overflow, importación
-y fuentes del mundo vuelven a Recetas. Publicación y comprobación pública pendientes.
+y fuentes del mundo vuelven a Recetas. Seis pruebas del checker también aprobadas.
+Publicado877e6758402f8c5ef8e65783792c9f67d05220a8; Render
+dep-dajmgbdckfvc739vb40g completado en53.7s. Health200/ok y seis archivos
+públicos byteidénticos. Pestaña del usuario actualizada: versión200, misma receta,
+cero bloques extra dentro de Recetas y herramientas presentes en Más. Información
+abre/cierra con ambos enlaces de origen. Sesión, preparación y notas conservadas.
+3758 archivos del prototipo byteidénticos; ningún archivo previo eliminado.
+Servidor QA46478 terminado porSIGINT y directorio sintético eliminado al salir;
+pestañas QA4/Render5 cerradas, viewport restablecido y pública3 conservada.
+No redeploy sólo por estas notas. Sigue pendiente la evaluación de validación
+conversacional mencionada en199; esta entrega cambia únicamente la presentación.
 Informe: `reports/home_release_200_20260913.md`.
 
 ## Continuación vigente — 13/09/2026: respuesta real verificada

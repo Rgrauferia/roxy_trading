@@ -115,7 +115,7 @@ from roxy_os.home_recipe_videos import (
     submit_recipe_video,
     sync_recipe_video,
 )
-from roxy_os.home_voice import ElevenLabsHomeVoice, HomeVoiceConfig
+from roxy_os.home_voice import ElevenLabsHomeVoice, HomeVoiceConfig, HomeVoiceError, voice_failure
 from roxy_os.shopping_list import ShoppingListStore, normalize_shopping_user
 from roxy_os.fitness.router import create_fitness_router
 
@@ -163,7 +163,7 @@ async def home_account_storage_error(_request: Request, exc: HomeAccountStorageE
 
 @app.exception_handler(RequestValidationError)
 async def private_account_validation_error(request: Request, exc: RequestValidationError):
-    if request.url.path.startswith("/v1/home-account/") or request.url.path.endswith("/recipe-companion"):
+    if request.url.path.startswith("/v1/home-account/") or request.url.path.endswith(("/recipe-companion", "/recipe-speech")):
         # Pydantic's default error body contains the original input, including
         # passwords/codes. Keep field names and types, never submitted secrets.
         errors = [{"loc": row["loc"], "type": row["type"], "msg": "Revisa este campo."}
@@ -426,19 +426,27 @@ class RecipeCompanionTurn(BaseModel):
     content: str = Field(min_length=1, max_length=1600)
 
 
-class RecipeCompanionRequest(BaseModel):
+class RecipeGuideReference(BaseModel):
     model_config = {"extra": "forbid"}
     source: str = Field(pattern="^(saved|drink|open|myplate)$")
     recipe_id: str = Field(min_length=1, max_length=160)
     recipe_version: str = Field(default="", max_length=64, pattern="^(?:[a-f0-9]{64})?$")
     session_id: str = Field(default="", max_length=100)
     step_index: int = Field(ge=0, le=127, strict=True)
-    question: str = Field(min_length=1, max_length=600)
     language: str = Field(default="es", pattern="^(es|en)$")
+    include_spirit_bases: bool = Field(default=False, strict=True)
+
+
+class RecipeCompanionRequest(RecipeGuideReference):
+    question: str = Field(min_length=1, max_length=600)
     reply_language: str = Field(default="es", pattern="^(es|en)$")
     include_preferences: bool = Field(default=False, strict=True)
-    include_spirit_bases: bool = Field(default=False, strict=True)
     history: list[RecipeCompanionTurn] = Field(default_factory=list, max_length=8)
+
+
+class RecipeSpeechRequest(RecipeGuideReference):
+    kind: str = Field(default="step", pattern="^(step|response)$")
+    text: str = Field(default="", max_length=1200)
 
 
 class RecipeImportCommitRequest(BaseModel):
@@ -4088,7 +4096,7 @@ def _companion_version(context: dict[str, Any]) -> str:
                                     separators=(",", ":")).encode()).hexdigest()
 
 
-def _resolve_companion_recipe(payload: RecipeCompanionRequest, user: str) -> dict[str, Any]:
+def _resolve_companion_recipe(payload: RecipeGuideReference, user: str) -> dict[str, Any]:
     """Resolve IDs through authorized stores, never trust a client recipe body.
 
     External live content is fetched only on an explicit question, stays in this
@@ -4148,6 +4156,48 @@ def _resolve_companion_recipe(payload: RecipeCompanionRequest, user: str) -> dic
         raise HTTPException(409, "Ese paso ya no está disponible. Vuelve a abrir la receta.")
     context["step_index"] = payload.step_index
     return context
+
+
+def _official_voice_response(text: str, user: str) -> Response:
+    config = _home_voice_config()
+    if not config.configured:
+        raise HTTPException(503, {"code": "unconfigured", "message": "Falta asignar la voz oficial de Roxy Home. Puedes usar la voz del dispositivo."})
+    try:
+        audio = ElevenLabsHomeVoice(config).synthesize(text, user_id=user)
+    except HomeVoiceError as exc:
+        raise HTTPException(503, {"code": exc.code, "message": str(exc)}) from None
+    except ValueError:
+        raise HTTPException(422, {"code": "text_limit", "message": "Este texto es demasiado largo para la voz oficial. La voz del dispositivo puede leerlo completo."}) from None
+    except (requests.RequestException, RuntimeError, OSError) as exc:
+        error = voice_failure(exc)
+        raise HTTPException(503, {"code": error.code, "message": str(error)}) from None
+    return FileResponse(audio, media_type="audio/mpeg", filename="roxy-voz.mp3", headers={"Cache-Control": "private, no-store"})
+
+
+@app.post("/v1/home-food/{user_id}/recipe-speech")
+def speak_home_recipe_guide(user_id: str, payload: RecipeSpeechRequest, request: Request,
+                            auth: AuthContext = Depends(_authenticate)) -> Response:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    member = _recipe_profile_member(request, auth)
+    if not _account_same_origin(request):
+        raise HTTPException(403, "Activa la voz desde la guía de Roxy Home.")
+    if payload.kind == "step" and payload.text:
+        raise HTTPException(422, "La lectura del paso usa el texto original del servidor.")
+    if payload.kind == "response" and not payload.text.strip():
+        raise HTTPException(422, "No hay una respuesta para leer.")
+    context = _resolve_companion_recipe(payload, user)
+    # Step text is canonical. Response mode reads only the displayed reply,
+    # never treats it as a recipe edit, model instruction or household action.
+    text = context["steps"][payload.step_index] if payload.kind == "step" else payload.text
+    response = _official_voice_response(text, member["id"])
+    current_member = _account_store().member(member["id"])
+    if (not current_member or current_member.get("session_version", 0) != auth.session_version
+            or current_member.get("storage_user_id") != auth.storage_user_id):
+        raise HTTPException(409, "La sesión cambió. Vuelve a abrir la receta.")
+    if payload.source == "saved" and _resolve_companion_recipe(payload, user) != context:
+        raise HTTPException(409, "El paso cambió. Vuelve a abrir la receta.")
+    return response
 
 
 @app.post("/v1/home-food/{user_id}/recipe-companion")
@@ -5001,14 +5051,7 @@ def speak_home_cooking_step(user_id: str, session_id: str, request: Request, aut
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Sesión de cocina no encontrada") from exc
     text = "Receta terminada. Buen provecho." if detail["session"].get("status") == "COMPLETED" else f"Paso {detail['step_number']}. {detail['current_step']}"
-    config = _home_voice_config()
-    if not config.configured:
-        raise HTTPException(status_code=503, detail="Falta conectar la voz oficial de Roxy Home")
-    try:
-        audio_path = ElevenLabsHomeVoice(config).synthesize(text, user_id=user)
-    except (requests.RequestException, RuntimeError, ValueError) as exc:
-        raise HTTPException(status_code=502, detail="No se pudo generar la voz oficial de Roxy") from exc
-    return FileResponse(audio_path, media_type="audio/mpeg", filename="roxy-paso.mp3", headers={"Cache-Control": "private, max-age=31536000, immutable"})
+    return _official_voice_response(text, user)
 
 
 @app.post("/v1/home-food/{user_id}/cooking-sessions/{session_id}")

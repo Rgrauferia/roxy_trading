@@ -100,13 +100,13 @@ async function start(h, panel, mock, options = {}) {
 const dialog = panel => all(panel, 'dialog')[0];
 
 for (const alcoholic of [false, true]) test(`drink companion carries the exact recipe hash and adult choice: ${alcoholic}`, async () => {
-  const row = rows[alcoholic ? 4 : 0], requests = [], h = harness({guide:true}), panel = h.container(), mock = server(payload([row]));
+  const row = rows[alcoholic ? 4 : 0], requests = [], h = harness({guide:true, voice:false}), panel = h.container(), mock = server(payload([row]));
   await start(h, panel, mock, {companion:params => { requests.push(params); return {answer:'Mueve la mezcla con suavidad.', supporting_steps:[1], needs_clarification:false}; }});
   if (alcoholic) {
     await category(panel, 'cocktail').click(); const check = all(dialog(panel), 'input')[0]; check.checked = true;
     await check.emit('change'); await button(panel, 'Ver cócteles con alcohol').click();
   }
-  await button(panel, 'Preparar bebida').click(); await button(panel, 'Paso a paso con Roxy').click();
+  await button(panel, 'Ver receta').click(); await button(panel, 'Paso a paso con Roxy').click();
   assert.equal(requests.length, 0);
   const form = byClass(panel, 'recipe-guide-command-form')[0], input = all(form, 'input')[0]; input.value = '¿Qué significa mezclar?'; await form.emit('submit');
   assert.equal(requests.length, 1); const request = requests[0];
@@ -122,7 +122,7 @@ for (const alcoholic of [false, true]) test(`drink companion carries the exact r
 test('closing a drink cancels companion context and a language switch starts a fresh conversation', async () => {
   const pending = deferred(), requests = [], h = harness({guide:true}), panel = h.container(), mock = server(payload(rows.slice(0,1)));
   await start(h, panel, mock, {companion:params => { requests.push(params); return requests.length === 1 ? pending.promise : {answer:'Mix gently.', supporting_steps:[1], needs_clarification:false}; }});
-  await button(panel, 'Preparar bebida').click(); await button(panel, 'Paso a paso con Roxy').click();
+  await button(panel, 'Ver receta').click(); await button(panel, 'Paso a paso con Roxy').click();
   let form = byClass(panel, 'recipe-guide-command-form')[0]; all(form, 'input')[0].value = '¿Cómo mezclo esto?'; await form.emit('submit');
   await button(panel, 'Ver original en inglés').click(); assert.equal(requests[0].signal.aborted, true);
   pending.resolve({answer:'Respuesta del idioma anterior', supporting_steps:[1], needs_clarification:false}); await settle();
@@ -131,9 +131,9 @@ test('closing a drink cancels companion context and a language switch starts a f
   assert.equal(requests[1].language, 'en'); assert.equal(requests[1].history.length, 0); assert.equal(requests[1].include_preferences, false);
 });
 
-test('Roxy guide receives literal bilingual drinks, preserves the reading position and requires explicit listening', async () => {
+test('Roxy guide receives literal bilingual drinks, preserves position and starts narration when preparing', async () => {
   const h = harness({guide:true}), panel = h.container(), mock = server(payload(rows.slice(0, 1)));
-  await start(h, panel, mock); await button(panel, 'Preparar bebida').click();
+  await start(h, panel, mock); await button(panel, 'Ver receta').click();
   assert.equal(h.guideMounts.length, 0); assert.equal(h.speechCalls.length, 0);
   assert.equal(button(panel, 'Leer paso a paso'), undefined);
   await button(panel, 'Paso a paso con Roxy').click();
@@ -143,16 +143,17 @@ test('Roxy guide receives literal bilingual drinks, preserves the reading positi
   assert.equal(first.options.isCurrent(), true); assert.equal(first.options.initialStep, 0);
   assert.equal(byClass(panel, 'recipe-guide-step')[0].textContent, rows[0].steps_es[0]);
   assert.equal(byClass(panel, 'drinks-recipe-body')[0].hidden, true);
-  await button(panel, 'Listo, siguiente').click(); assert.equal(h.speechCalls.length, 0);
+  assert.equal(first.options.startWithVoice, true); assert.equal(h.speechCalls.filter(c=>c.type==='speak').length, 1);
+  await button(panel, 'Listo, siguiente').click(); assert.equal(h.speechCalls.filter(c=>c.type==='speak').length, 2);
   await button(panel, 'Ver original en inglés').click();
   assert.equal(first.disposed, true); assert.equal(h.guideMounts.length, 2);
   const original = h.guideMounts[1];
   assert.equal(original.options.initialStep, 1); assert.equal(original.options.language, 'en'); assert.equal(original.options.title, rows[0].title);
   assert.deepEqual(original.options.steps, rows[0].steps); assert.deepEqual(original.options.ingredients, rows[0].ingredients);
-  assert.equal(byClass(panel, 'recipe-guide-step')[0].textContent, rows[0].steps[1]); assert.equal(h.speechCalls.length, 0);
+  assert.equal(byClass(panel, 'recipe-guide-step')[0].textContent, rows[0].steps[1]); assert.equal(h.speechCalls.filter(c=>c.type==='speak').length, 2);
   await button(panel, 'Escuchar este paso').click(); assert.equal(h.speechCalls.at(-1).utterance.text, rows[0].steps[1]); assert.equal(h.speechCalls.at(-1).utterance.lang, 'en');
   await button(panel, 'Ver traducción al español').click(); assert.equal(original.disposed, true); assert.equal(h.speechCalls.at(-1).type, 'cancel');
-  assert.equal(h.speechCalls.filter(call => call.type === 'speak').length, 1, 'changing language does not automatically enable another voice');
+  assert.equal(h.speechCalls.filter(call => call.type === 'speak').length, 3, 'changing language does not automatically enable another voice');
   assert.equal(h.guideMounts[2].options.initialStep, 1); assert.equal(byClass(panel, 'recipe-guide-step')[0].textContent, rows[0].steps_es[1]);
   await button(panel, 'Volver a la receta').click(); assert.equal(byClass(panel, 'recipe-guide').length, 0);
   assert.equal(byClass(panel, 'drinks-recipe-body')[0].hidden, false); assert.equal(button(panel, 'Paso a paso con Roxy').hidden, false);
@@ -162,8 +163,8 @@ test('Roxy guide receives literal bilingual drinks, preserves the reading positi
 for (const mode of ['dialog', 'native_close', 'inactive', 'hidden', 'identity', 'document', 'scope', 'recipe', 'ancestor']) test(`Roxy drink guide disposes owned speech on ${mode}`, async () => {
   const h = harness({guide:true}), panel = h.container(), mock = server(payload(rows.slice(0, 2)));
   const options = {user:'household/a', identity:'member-a', api:mock.api, isCurrent:() => true};
-  await start(h, panel, mock, options); const openers = all(panel, 'button').filter(el => el.textContent === 'Preparar bebida');
-  await openers[0].click(); await button(panel, 'Paso a paso con Roxy').click(); await button(panel, 'Escuchar este paso').click();
+  await start(h, panel, mock, options); const openers = all(panel, 'button').filter(el => el.textContent === 'Ver receta');
+  await openers[0].click(); await button(panel, 'Paso a paso con Roxy').click();
   const mount = h.guideMounts[0], oldNext = button(panel, 'Listo, siguiente');
   if (mode === 'dialog') await button(panel, 'Cerrar bebida').click();
   if (mode === 'native_close') { dialog(panel).close(); await dialog(panel).emit('close'); }
@@ -184,7 +185,7 @@ test('Roxy drink guide keeps alcohol and allergy warnings visible while source c
   const h = harness({guide:true, voice:false}), panel = h.container(), mock = server(payload([row]));
   await start(h, panel, mock); await category(panel, 'cocktail').click();
   const check = all(dialog(panel), 'input')[0]; check.checked = true; await check.emit('change'); await button(panel, 'Ver cócteles con alcohol').click();
-  await button(panel, 'Preparar bebida').click(); await button(panel, 'Paso a paso con Roxy').click();
+  await button(panel, 'Ver receta').click(); await button(panel, 'Paso a paso con Roxy').click();
   assert.equal(byClass(panel, 'drinks-alcohol-note')[0].parent.tagName, 'DIV');
   const notes = byClass(dialog(panel), 'drinks-editorial-notes');
   assert.equal(notes.find(el => el.textContent.includes('alergias')).parent.tagName, 'DIV');
@@ -314,7 +315,7 @@ test('alcohol is excluded from search until explicit cocktail selection and chec
 });
 
 test('dialog retains exact quantities, full ordered steps, credits and reversible original language', async () => {
-  const h = harness(), panel = h.container(), mock = server(payload(rows.slice(0,1))); await start(h, panel, mock); const opener = button(panel, 'Preparar bebida'); await opener.click();
+  const h = harness(), panel = h.container(), mock = server(payload(rows.slice(0,1))); await start(h, panel, mock); const opener = button(panel, 'Ver receta'); await opener.click();
   const d = dialog(panel); assert.equal(d.open, true); assert.ok(d.getAttribute('aria-labelledby')); assert.equal(d.getAttribute('aria-modal'), 'true');
   assert.deepEqual(byClass(d, 'drinks-ingredients')[0].children.map(el => el.textContent), rows[0].ingredients_es);
   assert.deepEqual(byClass(d, 'drinks-steps')[0].children.map(el => el.textContent), rows[0].steps_es);
@@ -327,7 +328,7 @@ test('dialog retains exact quantities, full ordered steps, credits and reversibl
 });
 
 test('reader is bounded and optional device speech reads the exact displayed step, never starts automatically', async () => {
-  const h = harness(), panel = h.container(), mock = server(payload(rows.slice(0,1))); await start(h, panel, mock); await button(panel, 'Preparar bebida').click(); const d = dialog(panel);
+  const h = harness(), panel = h.container(), mock = server(payload(rows.slice(0,1))); await start(h, panel, mock); await button(panel, 'Ver receta').click(); const d = dialog(panel);
   await button(d, 'Leer paso a paso').click(); assert.equal(h.speechCalls.length, 0); assert.equal(button(d, 'Paso anterior').disabled, true);
   await button(d, 'Escuchar este paso').click(); assert.equal(h.speechCalls[0].utterance.text, rows[0].steps_es[0]); assert.equal(h.speechCalls[0].utterance.lang, 'es-US');
   await button(d, 'Paso siguiente').click(); assert.equal(h.speechCalls.at(-1).type, 'cancel'); assert.equal(button(d, 'Paso siguiente').disabled, true);
@@ -337,7 +338,7 @@ test('reader is bounded and optional device speech reads the exact displayed ste
 });
 
 test('device without speech keeps a complete usable text reader', async () => {
-  const h = harness({voice:false}), panel = h.container(), mock = server(payload(rows.slice(0,1))); await start(h, panel, mock); await button(panel, 'Preparar bebida').click();
+  const h = harness({voice:false}), panel = h.container(), mock = server(payload(rows.slice(0,1))); await start(h, panel, mock); await button(panel, 'Ver receta').click();
   await button(panel, 'Leer paso a paso').click(); assert.equal(button(panel, 'Escuchar este paso'), undefined); assert.equal(byClass(panel, 'drinks-reader-step')[0].textContent, rows[0].steps_es[0]);
 });
 
@@ -352,7 +353,7 @@ for (const mode of ['inactive', 'hidden', 'identity', 'document']) test(`pending
 
 test('leaving the module closes detail, stops its speech and purges recipes and transient adult choice', async () => {
   const h = harness(), panel = h.container(), mock = server(); await start(h, panel, mock); await category(panel, 'cocktail').click();
-  const check = all(dialog(panel), 'input')[0]; check.checked = true; await check.emit('change'); await button(panel, 'Ver cócteles con alcohol').click(); await button(panel, 'Preparar bebida').click();
+  const check = all(dialog(panel), 'input')[0]; check.checked = true; await check.emit('change'); await button(panel, 'Ver cócteles con alcohol').click(); await button(panel, 'Ver receta').click();
   await button(panel, 'Leer paso a paso').click(); await button(panel, 'Escuchar este paso').click(); h.setActive(panel, false);
   assert.equal(h.speechCalls.at(-1).type, 'cancel'); assert.equal(dialog(panel).open, false); assert.equal(byClass(panel, 'drinks-steps').length, 0); assert.equal(byClass(panel, 'drinks-card').length, 0);
   h.setActive(panel, true); await button(panel, 'Explorar bebidas').click(); await category(panel, 'cocktail').click(); assert.ok(button(panel, 'Ver cócteles con alcohol').disabled); assert.deepEqual(h.storageWrites, []);
@@ -367,7 +368,7 @@ test('returning to drinks clears an old search instead of making the catalogue a
 });
 
 test('Escape closes native dialog, purges its body and restores the invoking card focus', async () => {
-  const h = harness(), panel = h.container(), mock = server(payload(rows.slice(0,1))); await start(h, panel, mock); const opener = button(panel, 'Preparar bebida'); await opener.click();
+  const h = harness(), panel = h.container(), mock = server(payload(rows.slice(0,1))); await start(h, panel, mock); const opener = button(panel, 'Ver receta'); await opener.click();
   await dialog(panel).emit('cancel'); assert.equal(dialog(panel).open, false); assert.equal(byClass(panel, 'drinks-steps').length, 0); assert.equal(h.activeElement, opener);
 });
 
@@ -396,7 +397,7 @@ for (const mutation of [
 });
 
 test('partial Spanish translation fails closed instead of claiming a complete bilingual detail', async () => {
-  const row = {...rows[0], steps_es:['Only one translated step']}, h = harness(), panel = h.container(), mock = server(payload([row])); await start(h, panel, mock); await button(panel, 'Preparar bebida').click();
+  const row = {...rows[0], steps_es:['Only one translated step']}, h = harness(), panel = h.container(), mock = server(payload([row])); await start(h, panel, mock); await button(panel, 'Ver receta').click();
   assert.equal(byClass(panel, 'drinks-steps').length, 0); assert.equal(button(panel, 'Reintentar esta bebida').hidden, false); assert.equal(button(panel, 'Ver original en inglés'), undefined);
 });
 
@@ -412,7 +413,7 @@ test('published selection renders each Spanish and original source line without 
     if (row.alcoholic) {
       await category(panel, 'cocktail').click(); const check = all(dialog(panel), 'input')[0]; check.checked = true; await check.emit('change'); await button(panel, 'Ver cócteles con alcohol').click();
     }
-    assert.equal(byClass(panel, 'drinks-card').length, 1, row.id); await button(panel, 'Preparar bebida').click();
+    assert.equal(byClass(panel, 'drinks-card').length, 1, row.id); await button(panel, 'Ver receta').click();
     assert.deepEqual(byClass(panel, 'drinks-ingredients')[0].children.map(el => el.textContent), row.ingredients_es, row.id);
     assert.deepEqual(byClass(panel, 'drinks-steps')[0].children.map(el => el.textContent), row.steps_es, row.id);
     await button(panel, 'Ver original en inglés').click();
@@ -432,7 +433,7 @@ test('200 lightweight summaries need only one list request, 24 DOM cards, and no
   assert.equal(byClass(panel, 'drinks-card').length, 24); assert.equal(byClass(panel, 'drinks-steps').length, 0);
   await button(panel, 'Más bebidas').click(); assert.equal(mock.calls.length, 1);
   const search = all(panel, 'input')[0]; search.value = 'Grande 198'; await all(panel, 'form')[0].emit('submit');
-  assert.equal(byClass(panel, 'drinks-card').length, 1); await button(panel, 'Preparar bebida').click();
+  assert.equal(byClass(panel, 'drinks-card').length, 1); await button(panel, 'Ver receta').click();
   assert.equal(mock.calls.length, 2); assert.equal(mock.calls[1].path, '/v1/home-food/household%2Fa/drinks/large-198?include_spirit_bases=true');
 });
 
@@ -445,7 +446,7 @@ test('selecting a category clears an old title query so its visible count matche
 
 test('only the selected detail loads; duplicate opening is coalesced and close removes its body', async () => {
   const pending = deferred(), h = harness(), panel = h.container(), mock = server(payload(), (n) => n === 2 ? pending.promise : undefined);
-  await start(h, panel, mock); const opener = button(panel, 'Preparar bebida'); await opener.click(); await opener.click();
+  await start(h, panel, mock); const opener = button(panel, 'Ver receta'); await opener.click(); await opener.click();
   assert.equal(mock.calls.length, 2); assert.equal(dialog(panel).getAttribute('aria-busy'), 'true'); assert.equal(byClass(panel, 'drinks-steps').length, 0);
   pending.resolve(fullResponse(rows[0])); await settle(); assert.equal(byClass(panel, 'drinks-steps').length, 1); assert.equal(dialog(panel).getAttribute('aria-busy'), 'false');
   await button(panel, 'Cerrar bebida').click(); assert.equal(byClass(panel, 'drinks-steps').length, 0);
@@ -454,14 +455,14 @@ test('only the selected detail loads; duplicate opening is coalesced and close r
 
 test('detail failure keeps a retryable dialog without fabricating a preparation', async () => {
   const h = harness(), panel = h.container(), mock = server(payload(), n => n === 2 ? Promise.reject(new Error('unavailable')) : undefined);
-  await start(h, panel, mock); await button(panel, 'Preparar bebida').click(); assert.equal(dialog(panel).open, true);
+  await start(h, panel, mock); await button(panel, 'Ver receta').click(); assert.equal(dialog(panel).open, true);
   assert.equal(byClass(panel, 'drinks-steps').length, 0); assert.equal(button(panel, 'Reintentar esta bebida').hidden, false);
   await button(panel, 'Reintentar esta bebida').click(); assert.equal(mock.calls.length, 3); assert.deepEqual(byClass(panel, 'drinks-steps')[0].children.map(el => el.textContent), rows[0].steps_es);
 });
 
 test('a 12 second detail timeout ignores a late result and allows deliberate retry', async () => {
   const pending = deferred(), h = harness(), panel = h.container(), mock = server(payload(), n => n === 2 ? pending.promise : undefined);
-  await start(h, panel, mock); await button(panel, 'Preparar bebida').click(); await h.tick(12000);
+  await start(h, panel, mock); await button(panel, 'Ver receta').click(); await h.tick(12000);
   assert.equal(mock.calls[1].options.signal.aborted, true); assert.ok(dialog(panel).textContent.includes('Esta bebida tardó demasiado'));
   pending.resolve(fullResponse(rows[0])); await settle(); assert.equal(byClass(panel, 'drinks-steps').length, 0);
   await button(panel, 'Reintentar esta bebida').click(); assert.equal(byClass(panel, 'drinks-steps').length, 1);
@@ -470,7 +471,7 @@ test('a 12 second detail timeout ignores a late result and allows deliberate ret
 for (const mode of ['close', 'query', 'page', 'category', 'inactive', 'hidden', 'identity', 'document', 'isCurrent']) test(`late detail cannot paint after ${mode}`, async () => {
   let identityIsCurrent = true;
   const pending = deferred(), h = harness(), panel = h.container(), mock = server(payload(), n => n === 2 ? pending.promise : undefined);
-  await start(h, panel, mock, {isCurrent:() => identityIsCurrent}); await button(panel, 'Preparar bebida').click();
+  await start(h, panel, mock, {isCurrent:() => identityIsCurrent}); await button(panel, 'Ver receta').click();
   if (mode === 'close') await button(panel, 'Cerrar bebida').click();
   if (mode === 'query') { all(panel, 'input')[0].value = 'drink 58'; await all(panel, 'form')[0].emit('submit'); }
   if (mode === 'page') await button(panel, 'Más bebidas').click();
@@ -492,7 +493,7 @@ for (const mutation of [
   value => { value.can_add_to_shopping = true; }, value => { value.audience = 'pet'; }, value => { value.drink.raw_source = '{}'; }
 ]) test(`detail is tied to summary and allowed actions: ${mutation.toString()}`, async () => {
   const value = fullResponse(rows[0]); mutation(value); const h = harness(), panel = h.container(), mock = server(payload(), n => n === 2 ? value : undefined);
-  await start(h, panel, mock); await button(panel, 'Preparar bebida').click(); assert.equal(byClass(panel, 'drinks-steps').length, 0); assert.equal(button(panel, 'Reintentar esta bebida').hidden, false);
+  await start(h, panel, mock); await button(panel, 'Ver receta').click(); assert.equal(byClass(panel, 'drinks-steps').length, 0); assert.equal(button(panel, 'Reintentar esta bebida').hidden, false);
 });
 
 const baseSelect = panel => all(byClass(panel, 'drinks-spirit-filter')[0], 'select')[0];
@@ -543,7 +544,7 @@ test('leaving the module clears selected base, query, adult choice and base labe
 
 test('changing base cancels a pending detail and ignores its stale result', async () => {
   const pending = deferred(), h = harness(), panel = h.container(), data = payload(mixedCocktails()), mock = server(data, n => n === 2 ? pending.promise : undefined);
-  await start(h, panel, mock); await acceptCocktails(panel); await button(panel, 'Preparar bebida').click();
+  await start(h, panel, mock); await acceptCocktails(panel); await button(panel, 'Ver receta').click();
   const select = baseSelect(panel); select.value = 'gin'; await select.emit('change'); assert.equal(mock.calls[1].options.signal.aborted, true);
   pending.resolve(fullResponse(mixedCocktails()[1])); await settle(); assert.equal(dialog(panel).open, false); assert.equal(byClass(panel, 'drinks-steps').length, 0);
 });
@@ -562,13 +563,25 @@ test('a nonalcoholic summary cannot be assigned an alcoholic base', async () => 
 for (const bad of [undefined, null, 'gin', [], ['rum'], ['gin','gin'], ['unknown'], [1]]) test(`detail cannot change or omit its summary base metadata: ${JSON.stringify(bad)}`, async () => {
   const row = rows[4], value = fullResponse(row); if (bad === undefined) delete value.drink.spirit_bases; else value.drink.spirit_bases = bad;
   const h = harness(), panel = h.container(), mock = server(payload([row]), n => n === 2 ? value : undefined);
-  await start(h, panel, mock); await acceptCocktails(panel); await button(panel, 'Preparar bebida').click();
+  await start(h, panel, mock); await acceptCocktails(panel); await button(panel, 'Ver receta').click();
   assert.equal(byClass(panel, 'drinks-steps').length, 0); assert.equal(button(panel, 'Reintentar esta bebida').hidden, false);
 });
 
 test('multi-base detail accepts the same canonical set in a different order, never inventing ABV', async () => {
   const row = {...rows[4], spirit_bases:['gin','vodka']}, value = fullResponse(row); value.drink.spirit_bases = ['vodka','gin'];
   const h = harness(), panel = h.container(), mock = server(payload([row]), n => n === 2 ? value : undefined);
-  await start(h, panel, mock); await acceptCocktails(panel); await button(panel, 'Preparar bebida').click();
+  await start(h, panel, mock); await acceptCocktails(panel); await button(panel, 'Ver receta').click();
   assert.equal(byClass(panel, 'drinks-steps').length, 1); assert.ok(panel.textContent.includes('no indica su graduación alcohólica'));
+});
+
+test('drink card preparation immediately requests the official voice for the exact Spanish first step', async () => {
+  const h=harness({guide:true}), panel=h.container(), spoken=[], pending=deferred(), mock=server(payload(rows.slice(0,1)));
+  await start(h,panel,mock,{speech:params=>{spoken.push(params);return pending.promise;}});
+  await button(panel,'Preparar con Roxy').click(); assert.equal(h.guideMounts.length,1);
+  assert.equal(spoken.length,1); assert.equal(spoken[0].source,'drink'); assert.equal(spoken[0].recipe_id,rows[0].id);
+  assert.equal(spoken[0].recipe_version,rows[0].source_sha256); assert.equal(spoken[0].step_index,0);
+  assert.equal(spoken[0].language,'es'); assert.equal(spoken[0].kind,'step'); assert.equal(spoken[0].text,'');
+  assert.equal(h.speechCalls.filter(call=>call.type==='speak').length,0);
+  await button(panel,'Volver a la receta').click(); assert.equal(spoken[0].signal.aborted,true);
+  assert.deepEqual(h.storageWrites,[]);
 });

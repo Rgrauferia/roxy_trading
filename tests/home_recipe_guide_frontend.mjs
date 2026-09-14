@@ -34,12 +34,19 @@ const response = parent => byClass(parent, 'recipe-guide-response').textContent;
 const progress = parent => byClass(parent, 'recipe-guide-progress').textContent;
 const esVoice = {lang:'es-ES', name:'Spanish device', localService:true};
 const enVoice = {lang:'en-US', name:'English device', localService:true};
-function harness({tts = true, microphone = true, availableVoices = [esVoice, enVoice], speakThrows = false, recognitionThrows = false, deferredCancel = false} = {}) {
+function harness({tts = true, microphone = true, availableVoices = [esVoice, enVoice], speakThrows = false, recognitionThrows = false, deferredCancel = false, officialPlayReject = false} = {}) {
   let now = 0, timerSequence = 0, list = availableVoices;
   const timers = new Map(), calls = [], microphones = [], observers = [], forbidden = [];
   const document = new Target(); document.hidden = false; document.body = new Element('body'); document.body.isRoot = true;
   document.documentElement = document.body; document.createElement = tag => new Element(tag);
   const window = new Target();
+  const audios = [], revoked = [];
+  window.URL = {createObjectURL:() => `blob:synthetic-${audios.length}`, revokeObjectURL:url => revoked.push(url)};
+  window.Audio = class {
+    constructor(url) { this.url = url; this.paused = false; audios.push(this); }
+    pause() { this.paused = true; }
+    async play() { if (officialPlayReject) throw Object.assign(new Error('gesture'), {name:'NotAllowedError'}); }
+  };
   const speech = new Target(); speech.speaking = false; speech.pending = false;
   speech.getVoices = () => list;
   speech.speak = utterance => { calls.push({type:'speak', utterance}); if (speakThrows) throw new Error('device failed'); speech.pending = true; };
@@ -68,7 +75,7 @@ function harness({tts = true, microphone = true, availableVoices = [esVoice, enV
   const endAudio = () => { speech.pending = false; speech.speaking = false; latestUtterance().onend?.(); };
   const micResult = (text, {final = true, index = 0} = {}) => { const result = [{transcript:text}]; result.isFinal = final; const results = []; results[index] = result; microphones.at(-1).onresult?.({resultIndex:index, results}); };
   const mutation = () => observers.forEach(observer => { if (observer.connected) observer.callback([]); });
-  return {mount, container, document, window, speech, calls, microphones, observers, forbidden, timers, tick, command, latestUtterance, startAudio, endAudio, micResult, mutation,
+  return {mount, container, document, window, speech, calls, microphones, observers, forbidden, timers, tick, command, latestUtterance, startAudio, endAudio, micResult, mutation, audios, revoked,
     setVoices(value) { list = value; speech.fire('voiceschanged'); }, visibility(value) { document.hidden = value; document.fire('visibilitychange'); }};
 }
 
@@ -698,4 +705,49 @@ test('focusActiveQuestion chooses the most recently mounted usable chat and skip
   const secondInput = byTag(other, 'input')[0]; assert.equal(h.window.RoxyRecipeGuide.focusActiveQuestion(), true); assert.equal(secondInput.focused, true); assert.notEqual(firstInput.focused, true);
   newer.setActive(false); firstInput.focused = false; assert.equal(h.window.RoxyRecipeGuide.focusActiveQuestion(), true); assert.equal(firstInput.focused, true);
   h.mount(); assert.equal(h.window.RoxyRecipeGuide.focusActiveQuestion(), false); newer.dispose(); assert.equal(h.window.RoxyRecipeGuide.focusActiveQuestion(), false);
+});
+
+const settleVoice = async () => { for (let i=0;i<8;i++) await Promise.resolve(); };
+test('official narration is explicit, scoped and reports speaking only when the audio plays', async () => {
+  const requests=[], h=harness({tts:false}); h.mount({requestSpeech:async p=>{requests.push(p);return {};}});
+  assert.equal(requests.length,0); assert.equal(button(h.container,'Escuchar este paso').disabled,false);
+  button(h.container,'Escuchar este paso').click(); await settleVoice();
+  assert.equal(requests.length,1); assert.equal(requests[0].kind,'step'); assert.equal(requests[0].text,'');
+  assert.equal(requests[0].step_index,0); assert.equal(requests[0].language,'es');
+  assert.equal(h.audios.length,1); assert.equal(h.calls.length,0); assert.doesNotMatch(status(h.container),/hablando/);
+  h.audios[0].onplaying(); assert.match(status(h.container),/Voz oficial.*hablando/);
+  h.audios[0].onended(); assert.match(status(h.container),/Lectura terminada/);
+  assert.equal(progress(h.container),'Paso 1 de 3'); assert.equal(h.revoked.length,1); assert.equal(h.microphones.length,0);
+});
+for (const action of ['close','hide','pause']) test(`late official audio is discarded after ${action}`,async()=>{
+  let resolve;const requests=[], h=harness();const guide=h.mount({requestSpeech:p=>{requests.push(p);return new Promise(r=>{resolve=r;});}});
+  button(h.container,'Escuchar este paso').click();
+  if(action==='close')guide.dispose();if(action==='hide')h.visibility(true);if(action==='pause')button(h.container,'Pausar').click();
+  assert.equal(requests[0].signal.aborted,true);resolve({});await settleVoice();
+  assert.equal(h.audios.length,0);assert.equal(h.calls.length,0);
+});
+test('official failure does not silently change voices or retry when advancing',async()=>{
+  let count=0;const h=harness();h.mount({startWithVoice:true,requestSpeech:async()=>{count++;throw new Error('La voz oficial está pausada por un pago pendiente en ElevenLabs.');}});
+  await settleVoice();assert.match(status(h.container),/pago pendiente/);assert.equal(h.calls.length,0);
+  button(h.container,'Listo, siguiente').click();await settleVoice();assert.equal(count,1);
+  button(h.container,'Usar voz del dispositivo').click();assert.equal(h.latestUtterance().text,'Cocina durante 15 minutos.');
+  h.startAudio();assert.match(status(h.container),/Voz del dispositivo/);assert.equal(count,1);
+});
+test('official autoplay rejection releases audio and keeps a manual retry available',async()=>{
+  const h=harness({officialPlayReject:true});h.mount({startWithVoice:true,requestSpeech:async()=>({})});await settleVoice();
+  assert.match(status(h.container),/Toca Escuchar/);assert.equal(h.revoked.length,1);assert.equal(h.audios[0].paused,true);
+  assert.equal(h.calls.length,0);assert.equal(button(h.container,'Escuchar este paso').disabled,false);
+});
+test('changing steps cancels the old audio request and speaks only the newest step',async()=>{
+  const requests=[], pending=[];const h=harness();h.mount({startWithVoice:true,requestSpeech:p=>{requests.push(p);return new Promise(resolve=>pending.push(resolve));}});
+  button(h.container,'Listo, siguiente').click();assert.equal(requests.length,2);assert.equal(requests[0].signal.aborted,true);
+  assert.equal(requests[1].step_index,1);pending[0]({});await settleVoice();assert.equal(h.audios.length,0);
+  pending[1]({});await settleVoice();assert.equal(h.audios.length,1);h.audios[0].onplaying();assert.match(status(h.container),/oficial/);
+  h.visibility(true);assert.equal(h.audios[0].paused,true);assert.equal(h.revoked.length,1);
+});
+test('official speech reads the displayed explanation without sharing preference fields',async()=>{
+  const requests=[],h=harness();h.mount({startWithVoice:true,requestSpeech:async p=>{requests.push(p);return {};},askQuestion:async()=>({answer:'Bate con suavidad para mezclar.',supporting_steps:[1],needs_clarification:false})});
+  await settleVoice();h.command('¿Qué significa batir?');await settleVoice();
+  assert.equal(requests.at(-1).kind,'response');assert.equal(requests.at(-1).text,'Bate con suavidad para mezclar.');
+  assert.equal(Object.hasOwn(requests.at(-1),'include_preferences'),false);assert.equal(Object.hasOwn(requests.at(-1),'history'),false);
 });

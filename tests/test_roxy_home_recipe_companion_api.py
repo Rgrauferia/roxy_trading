@@ -48,6 +48,72 @@ def preferences():
             "allergies": [], "other_allergies": "", "dislikes": [], "max_minutes": None, "skill": "beginner"}
 
 
+def speech_request(setup, **changes):
+    client, _, _, _, _, payload, headers = setup
+    body = {key: value for key, value in payload.items() if key != "question"}
+    return client.post("/v1/home-food/companion-test/recipe-speech", json={**body, **changes}, headers=headers)
+
+
+def test_official_guide_voice_uses_canonical_step_and_member_scope(setup, monkeypatch):
+    from fastapi.responses import Response
+    calls = []
+    monkeypatch.setattr(service, "_official_voice_response", lambda text, user: (calls.append((text, user)) or Response(b"synthetic-audio", media_type="audio/mpeg")))
+    result = speech_request(setup)
+    assert result.status_code == 200
+    assert result.headers["content-type"] == "audio/mpeg"
+    assert "no-store" in result.headers["cache-control"]
+    assert calls == [(service.drink_detail("vietnamese-coffee")["drink"]["steps_es"][0], setup[2]["id"])]
+    assert not setup[4], "Narration does not invoke OpenAI"
+
+
+def test_official_guide_voice_can_read_a_displayed_reply_without_editing_recipe(setup, monkeypatch):
+    from fastapi.responses import Response
+    calls = []
+    before = service.drink_detail("vietnamese-coffee")
+    monkeypatch.setattr(service, "_official_voice_response", lambda text, user: (calls.append(text) or Response(b"audio", media_type="audio/mpeg")))
+    assert speech_request(setup, kind="response", text="El phin es el filtro de esta receta.").status_code == 200
+    assert calls == ["El phin es el filtro de esta receta."]
+    assert service.drink_detail("vietnamese-coffee") == before
+    assert not setup[4]
+
+
+@pytest.mark.parametrize("change", [{"text": "Injected step"}, {"kind": "response", "text": " "},
+                                    {"kind": "response", "text": "private" * 201}, {"step_index": 127},
+                                    {"recipe_version": "0" * 64}, {"kind": "arbitrary"}, {"include_preferences": True}])
+def test_voice_rejects_invalid_or_stale_scope_before_synthesis(setup, monkeypatch, change):
+    calls = []
+    monkeypatch.setattr(service, "_official_voice_response", lambda *args: calls.append(args))
+    result = speech_request(setup, **change)
+    assert result.status_code in (409, 422)
+    assert not calls
+    assert "Injected step" not in result.text and "privateprivate" not in result.text
+
+
+def test_official_voice_requires_origin_and_current_member_and_keeps_trial_gate(setup, monkeypatch):
+    calls = []
+    monkeypatch.setattr(service, "_official_voice_response", lambda *args: calls.append(args))
+    client, _, _, other, _, payload, headers = setup
+    body = {k: v for k, v in payload.items() if k != "question"}
+    path = "/v1/home-food/companion-test/recipe-speech"
+    for changed in ({}, {**headers, "Origin": "https://evil.test"}, {**headers, "X-Roxy-Recipe-Member": other["id"]}):
+        assert client.post(path, json=body, headers=changed).status_code in (403, 409)
+    assert trial_access_mode("POST", path) == "unavailable"
+    assert not calls
+
+
+def test_official_voice_discards_audio_after_account_revocation(setup, monkeypatch):
+    from fastapi.responses import Response
+    client, accounts, member, _, _, _, _ = setup
+    original = service._account_store
+    def revoke(*_):
+        monkeypatch.setattr(service, "_account_store", lambda: SimpleNamespace(member=lambda _id: None))
+        return Response(b"should-not-be-served", media_type="audio/mpeg")
+    monkeypatch.setattr(service, "_official_voice_response", revoke)
+    result = speech_request(setup)
+    assert result.status_code == 409
+    assert "should-not-be-served" not in result.text
+
+
 def test_exact_source_step_without_other_household_context(setup):
     client, accounts, a, b, calls, payload, _ = setup
     accounts.update_recipe_profile(a["id"], profile=preferences(), expected_revision=0)

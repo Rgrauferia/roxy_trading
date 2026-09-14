@@ -3,10 +3,10 @@
   "updated_on": "2026-09-13",
   "deployment_branch": "codex/roxy-home-nfc",
   "public_url": "https://roxy-home.onrender.com/lista#recetas",
-  "last_verified_public_version": 199,
-  "deployed_implementation_commit": "190ead3a3bef890ba1d62ca44763df1e2c404f2a",
-  "candidate_version": 200,
-  "candidate_status": "200_verified_locally_publication_pending",
+  "last_verified_public_version": 200,
+  "deployed_implementation_commit": "877e6758402f8c5ef8e65783792c9f67d05220a8",
+  "candidate_version": 201,
+  "candidate_status": "201_validated_ready_to_publish",
   "candidate_199": {
     "published": true,
     "implementation_commit": "4652e5200594401ed719cf7c928a8ade2010e97a",
@@ -734,7 +734,7 @@
     "Aderezo César photo showed a salad; quarantine until an exact replacement is visually reviewed",
     "Only five manufacturer ingredient panels screened; restrictions fail closed, not clinical allergy clearance"
   ],
-  "next_step": "Publish candidate 200 and verify public recipe view, info access and relocated kitchen tools. Preserve existing recipes, prototypes and household data. The separate recipe-answer validation follow-up from 199 remains pending.",
+  "next_step": "201 implementation: verify food/drink direct preparation and official ElevenLabs playback in production, then record evidence. Preserve recipes, household records and prototypes. General Home voice agent remains unconfigured; separate 199 validation evaluation remains pending.",
   "launch": {
     "five_day_web_beta": "requested_not_scheduled",
     "app_store": "target_next_month_not_guaranteed",
@@ -978,13 +978,39 @@
     }
   },
   "candidate_200": {
-    "published": false,
+    "published": true,
     "scope": "Move six selected source/tools blocks out of recipe view; information icon at heading and full tools under More; hide unavailable provider placeholder. Preserve original recipes and actions.",
     "tests_python": "255 targeted tests passed; one PWA marker assertion updated and rerun successfully after version bump",
     "tests_node": 147,
     "qa": "Synthetic local account, Asian Mango Chicken Wraps, information opens/closes, 393px page has no horizontal overflow, import and world-source links return to Recipes",
     "production_user_data_modified": false,
     "report": "reports/home_release_200_20260913.md",
-    "next_step": "Publish candidate 200 and verify public recipe view, info access and relocated kitchen tools. Preserve existing recipes, prototypes and household data. The separate recipe-answer validation follow-up from 199 remains pending."
+    "next_step": "200 published and verified in the user browser: selected recipe has no extra bottom source/tool blocks; information and relocated tools work. Continue the separate 199 recipe-answer validation/recovery evaluation when requested. Preserve household data, original recipes and prototypes; full voice, reviewed Spanish catalogue, fitness and real signup remain incomplete.",
+    "implementation_commit": "877e6758402f8c5ef8e65783792c9f67d05220a8",
+    "render_deploy": "dep-dajmgbdckfvc739vb40g",
+    "render_seconds": 53.7,
+    "public_proof": "Health200/ok and six exact asset matches. User tab3 session retained/meta200, Asian Mango Chicken Wraps original directions and notes retained, zero extra tool blocks under recipes, tools located under More, info opens/closes with original and Spanish source links.",
+    "preservation": "No preexisting files missing; 3758 prototype files byte-identical to initial manifest. Only intended assets/tests/continuity changed.",
+    "cleanup": "QA46478 SIGINT, exact synthetic directory automatically removed; QA4 and Render5 tabs closed; viewport reset; user tab3 marked deliverable.",
+    "tests_checker": 6
+  },
+  "candidate_201": {
+    "published": false,
+    "scope": "Consistent Prepare with Roxy food/drink actions; official recipe step/reply TTS; explicit device choice and cancellation; bounded Home voice ledger.",
+    "environment_deploy": "dep-dajmpfdg1s2s73bbuohg",
+    "environment_seconds": 48.9,
+    "payment_recovery_verified": "User resolved ElevenLabs payment; bounded real synthesis 40586bytes.",
+    "report": "reports/home_release_201_20260913.md",
+    "next_step": "201 implementation: verify food/drink direct preparation and official ElevenLabs playback in production, then record evidence. Preserve recipes, household records and prototypes. General Home voice agent remains unconfigured; separate 199 validation evaluation remains pending.",
+    "production_user_data_modified": false,
+    "tests_python": {
+      "passed": 3360,
+      "skipped_postgresql": 11,
+      "seconds": 123.53
+    },
+    "tests_node": 857,
+    "tests_after_css": 7,
+    "qa": "Synthetic account: silent view, direct food and drink preparation, controlled unconfigured TTS, coffee manual step1to2,393px nooverflow. QA7 CDP timeout onreload;8recovered same account.",
+    "preservation": "4789 preexisting files present;3758prototype files byteidentical"
   }
 }
