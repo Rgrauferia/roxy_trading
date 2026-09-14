@@ -184,9 +184,16 @@ def test_catalog_api_returns_fixed_originals_and_attributed_images_without_priva
     response = api.client.get(PREFIX + "/exercises")  # No consent, profile or member assertion required.
     assert response.status_code == 200
     value = response.json()
-    assert value["count"] == len(value["entries"]) == 21
+    assert value["count"] == len(value["entries"]) == 25
     assert {entry["id"] for entry in value["entries"]} == set(expected)
-    assert sum(len(entry["images"]) for entry in value["entries"]) == 44
+    original_ids = {f"wger-{identifier}" for identifier in (
+        91, 92, 95, 135, 272, 365, 366, 572, 75, 84, 152, 171, 185, 197,
+        206, 246, 257, 513, 537, 566, 567,
+    )}
+    assert original_ids <= set(expected)
+    assert set(expected) - original_ids == {"wger-458", "wger-475", "wger-957", "wger-1551"}
+    assert sum(len(entry["images"]) for entry in value["entries"] if entry["id"] in original_ids) == 44
+    assert sum(len(entry["images"]) for entry in value["entries"]) == 48
     assert value["status"] == "education_only_professional_review_pending"
     assert value["review_status"] == "pending_professional_review"
     assert value["clinical_approval"] is False and value["can_activate_training"] is False

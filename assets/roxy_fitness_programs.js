@@ -82,10 +82,10 @@
   const button = (label, action, className = 'fxp-button') => { const el = element('button', label, className); el.type = 'button'; el.addEventListener('click', action); return el; };
   const link = (label, href) => { const el = element('a', label); el.href = href; el.target = '_blank'; el.rel = 'noopener noreferrer'; el.referrerPolicy = 'no-referrer'; return el; };
   const current = (owner, token) => state === owner && active && !document.hidden && token === owner.generation;
-  function stopReaderVoice(owner) { if(owner.voiceActive){scope.RoxyHomeTour?.stop();owner.voiceActive=false;} }
+  function stopReaderVoice(owner) { if(owner.voiceOwned||owner.voiceActive)scope.RoxyHomeTour?.stop();owner.voiceOwned=false;owner.voiceActive=false; }
   function cancel(owner) { stopReaderVoice(owner); owner.controller?.abort(); owner.controller = null; owner.generation++; owner.busy = false; }
-  function purge(owner) { cancel(owner); owner.catalog = null; owner.program = null; owner.agenda = null; owner.selectedId = ''; owner.selectedDate = ''; owner.reader = false; owner.movement = 0; owner.language = 'es'; owner.error = ''; owner.notice = ''; owner.days = []; owner.start = todayInZone(owner.timezone); owner.revalidating = false; }
-  function focus(owner, selector) { const el = owner.root.querySelector(selector); el?.focus({preventScroll:true}); el?.scrollIntoView?.({block:'start', behavior:'auto'}); }
+  function purge(owner) { cancel(owner); owner.catalog = null; owner.program = null; owner.agenda = null; owner.selectedId = ''; owner.selectedDate = ''; owner.reader = false; owner.movement = 0; owner.instruction = 0; owner.language = 'es'; owner.error = ''; owner.notice = ''; owner.days = []; owner.start = todayInZone(owner.timezone); owner.revalidating = false; }
+  function focus(owner, selector) { const el = owner.root.querySelector(selector); el?.focus({preventScroll:true}); (el?.closest?.('.fx-session-cinema')||el)?.scrollIntoView?.({block:'start', behavior:'auto'}); }
   async function request(owner, path) {
     const controller = new AbortController(); owner.controller = controller;
     let timer;
@@ -106,7 +106,7 @@
   async function loadProgram(owner, id) {
     if (!current(owner, owner.generation)) return;
     const summary = owner.catalog?.find(row => row.id === id); if (!summary) return;
-    cancel(owner); const token = owner.generation; owner.selectedId = id; owner.program = null; owner.agenda = null; owner.reader = false; owner.movement = 0; owner.language = 'es'; owner.days = []; owner.busy = true; owner.error = ''; owner.notice = ''; draw(owner);
+    cancel(owner); const token = owner.generation; owner.selectedId = id; owner.program = null; owner.agenda = null; owner.reader = false; owner.movement = 0; owner.instruction = 0; owner.language = 'es'; owner.days = []; owner.busy = true; owner.error = ''; owner.notice = ''; draw(owner);
     try { const result = await request(owner, `${PREFIX}/${encodeURIComponent(id)}`); if (!current(owner, token)) return; owner.program = validateDetail(result, summary); }
     catch (error) { if (current(owner, token) && error.name !== 'AbortError') owner.error = error.message; }
     finally { if (current(owner, token)) { owner.busy = false; draw(owner); focus(owner, '.fxp-program-title'); } }
@@ -149,7 +149,7 @@
     const title = element('h3', program[`title_${locale}`], 'fxp-program-title'); title.tabIndex = -1;
     description.append(title, element('p', locale === 'es' ? 'Adaptación al español de Roxy, sin aval de la entidad que publicó el original.' : 'Texto original en inglés. Copia fechada, no revisión clínica de Roxy.', 'fxp-caption'), button(locale === 'es' ? 'Ver original en inglés' : 'Ver adaptación en español', () => { if (!current(owner, owner.generation)) return; owner.language = locale === 'es' ? 'en' : 'es'; draw(owner); focus(owner, owner.reader ? '.fxp-reader-title' : '.fxp-program-title'); }, 'fxp-button fxp-quiet'), element('p', 'Duración total no indicada por la fuente. No afirmamos que quepa en tu tiempo disponible.', 'fxp-caption'));
     const attributionNotice = element('div', null, 'fxp-reader-attribution'); attributionNotice.append(element('p', program[`attribution_${locale}`], 'fxp-caption'), link('Open Government Licence v3', program.license_url)); if (locale === 'en') attributionNotice.append(link('Original NHS', program.source_url)); description.append(attributionNotice);
-    const intro = element('details', null, 'fxp-source-intro'); intro.lang = locale; intro.append(element('summary', 'Antes de usar esta guía')); program[`intro_${locale}`].forEach(line => intro.append(element('p', line))); intro.open = !owner.agenda; description.append(intro, button('Ver movimientos de la guía', () => { if (!current(owner, owner.generation)) return; owner.reader = true; owner.movement = 0; drawAgenda(owner); focus(owner, '.fxp-reader-title'); })); configuration.append(description);
+    const intro = element('details', null, 'fxp-source-intro'); intro.lang = locale; intro.append(element('summary', 'Antes de usar esta guía')); program[`intro_${locale}`].forEach(line => intro.append(element('p', line))); intro.open = !owner.agenda; description.append(intro, button('Ver movimientos de la guía', () => { if (!current(owner, owner.generation)) return; owner.reader = true; owner.movement = 0; owner.instruction = 0; drawAgenda(owner); focus(owner, '.fxp-reader-title'); })); configuration.append(description);
     const form = element('form', null, 'fxp-form'); form.setAttribute('aria-label', 'Organizar una semana educativa');
     const fields = element('div', null, 'fxp-fields');
     const startLabel = element('label', 'Fecha inicial'), start = element('input'); start.type = 'date'; start.value = owner.start; start.required = true; start.setAttribute('aria-label', 'Fecha inicial'); start.addEventListener('change', () => { owner.start = start.value; invalidateAgenda(owner); }); startLabel.append(start);
@@ -176,7 +176,7 @@
     const days = element('div', null, 'fxp-dates'); days.setAttribute('aria-label', 'Fechas de tu agenda');
     owner.agenda.forEach(day => { const select = button('', () => { owner.selectedDate = day.date; owner.reader = false; drawAgenda(owner); focus(owner, '.fxp-day-title'); }, 'fxp-date'); select.setAttribute('aria-label', `${day.date}: ${day.chosen ? 'guía elegida' : 'sin actividad reservada'}${day.date === today ? ', hoy' : ''}`); select.setAttribute('aria-pressed', String(owner.selectedDate === day.date)); if (day.date === today) select.setAttribute('aria-current', 'date'); select.append(element('small', day.label), element('strong', String(day.number)), element('span', day.chosen ? 'Guía' : 'Libre')); days.append(select); }); root.append(days);
     const day = owner.agenda.find(row => row.date === owner.selectedDate) || owner.agenda[0], panel = element('section', null, 'fxp-day-detail'), title = element('h4', `${day.label} · ${day.date}`, 'fxp-day-title'); title.tabIndex = -1; panel.append(title);
-    if (day.chosen) panel.append(element('strong', owner.program.title_es), element('p', 'Elegido por ti · guía educativa, no sesión activada.'), button('Ver guía del día', () => { owner.reader = true; owner.movement = 0; drawAgenda(owner); focus(owner, '.fxp-reader-title'); }, 'fxp-button fxp-primary'));
+    if (day.chosen) panel.append(element('strong', owner.program.title_es), element('p', 'Elegido por ti · guía educativa, no sesión activada.'), button('Ver guía del día', () => { owner.reader = true; owner.movement = 0; owner.instruction = 0; drawAgenda(owner); focus(owner, '.fxp-reader-title'); }, 'fxp-button fxp-primary'));
     else panel.append(element('p', 'No reservaste una actividad para este día. Un día libre no significa que Roxy haya prescrito descanso.'));
     if (day.chosen && typeof owner.scheduleActivity === 'function') {
       panel.append(button('Reservar actividad en Home', () => {
@@ -187,30 +187,64 @@
     const downloads = element('div', null, 'fxp-downloads'); downloads.append(button('Descargar agenda .ics', () => { if (current(owner, owner.generation) && owner.agenda) download(owner, calendarText(owner.agenda), 'text/calendar;charset=utf-8', 'agenda-personal-roxy.ics'); }), button('Descargar guía TXT', () => { if (current(owner, owner.generation) && owner.program) download(owner, guideText(owner.program, owner.language), 'text/plain;charset=utf-8', `${owner.program.id}-${owner.language}.txt`); })); root.append(downloads, element('p', 'El archivo sólo incluye eventos de día completo «Actividad personal», marcados privados y sin alarmas. Tú decides si lo importas; el calendario de destino controla quién puede verlos. No incluye el programa ni datos de salud.', 'fxp-caption'));
     if (owner.reader) drawReader(owner, root);
   }
+  // Both real readers share this source-only stage. It never schedules, advances
+  // automatically, prescribes a dose, or describes the ambient image as technique.
+  function renderSessionScene(options, ui) {
+    const {program, movement, language, titleClass, instructionsClass, onInstruction} = options;
+    const {element, button} = ui, exercise = program.exercises[movement], lines = exercise[`instructions_${language}`];
+    const selected = Math.min(Math.max(Number.isInteger(options.instruction) ? options.instruction : 0, 0), lines.length - 1);
+    const stage = element('div', null, 'fx-session-stage');
+    const atmosphere = element('p', 'Escena de compañía · guía escrita', 'fx-session-image-note');stage.append(atmosphere);
+    const story = element('div', null, 'fx-session-story');
+    story.append(element('p', `Movimiento ${movement + 1} de ${program.exercises.length} · ${language === 'es' ? 'Adaptación en español' : 'Original en inglés'}`, 'fx-session-eyebrow'));
+    const title = element('h3', exercise[`name_${language}`], titleClass);title.tabIndex = -1;story.append(title, element('p', program[`title_${language}`], 'fx-session-program'));
+    const cue = element('div', null, 'fx-session-cue');cue.lang = language;
+    cue.append(element('p', `Indicación ${selected + 1} de ${lines.length}`, 'fx-session-cue-count'));
+    const line = element('p', lines[selected], 'fx-session-current-instruction');line.tabIndex = -1;line.setAttribute('aria-live', 'polite');cue.append(line);story.append(cue);
+    const steps = element('nav', null, 'fx-session-steps');steps.setAttribute('aria-label', 'Indicaciones del movimiento');
+    lines.forEach((_, index) => {const step = button(String(index + 1), () => onInstruction(index), 'fx-session-step');step.setAttribute('aria-label', `Ir a la indicación ${index + 1}`);step.setAttribute('aria-pressed', String(index === selected));if(index === selected)step.setAttribute('aria-current', 'step');steps.append(step);});story.append(steps);
+    const controls = element('div', null, 'fx-session-cue-controls');
+    const previous = button('Indicación anterior', () => onInstruction(selected - 1), 'fx-session-button fx-session-quiet'), next = button('Siguiente indicación', () => onInstruction(selected + 1), 'fx-session-button');
+    previous.disabled = selected === 0;next.disabled = selected === lines.length - 1;controls.append(previous, next);story.append(controls);
+    story.append(element('p', 'Tú marcas el ritmo. Avanza cuando estés listo.', 'fx-session-pace'));
+    stage.append(story);
+    const source = element('details', null, 'fx-session-all-instructions');source.append(element('summary', 'Ver todas las indicaciones de este movimiento'));
+    const paragraphs = element('div', null, instructionsClass);paragraphs.lang = language;lines.forEach(text => paragraphs.append(element('p', text)));source.append(paragraphs);
+    return {stage, source};
+  }
   function drawReader(owner, root) {
-    const program = owner.program, exercise = program.exercises[owner.movement], locale = owner.language, reader = element('section', null, 'fxp-reader');
-    const title = element('h3', exercise[`name_${locale}`], 'fxp-reader-title'); title.tabIndex = -1;
-    reader.append(element('p', `Movimiento ${owner.movement + 1} de ${program.exercises.length} · ${locale === 'es' ? 'Adaptación en español' : 'Original en inglés'}`, 'fxp-eyebrow'), title);
-    reader.append(button(locale === 'es' ? 'Ver original en inglés' : 'Ver adaptación en español', () => { if (!current(owner, owner.generation)) return; owner.language = locale === 'es' ? 'en' : 'es'; draw(owner); focus(owner, '.fxp-reader-title'); }, 'fxp-button fxp-quiet'));
-    reader.append(element('p', 'Guía general, no evaluación individual. Si sientes dolor, detén el movimiento.', 'fxp-caption'));
+    const program = owner.program, locale = owner.language, reader = element('section', null, 'fxp-reader fx-session-cinema');
+    reader.setAttribute('data-fx-reading', 'true');reader.setAttribute('aria-label', 'Guía de movimiento con Roxy');
+    const setInstruction = index => {if(!current(owner, owner.generation)||index < 0||index >= program.exercises[owner.movement][`instructions_${owner.language}`].length)return;stopReaderVoice(owner);owner.instruction = index;drawAgenda(owner);focus(owner, '.fx-session-current-instruction');};
+    const scene = renderSessionScene({program,movement:owner.movement,language:locale,instruction:owner.instruction,titleClass:'fxp-reader-title',instructionsClass:'fxp-instructions',onInstruction:setInstruction}, {element,button});
+    reader.append(scene.stage);
+    const content = element('div', null, 'fx-session-support');
+    content.append(element('p', 'Guía general, no evaluación individual. Si sientes dolor, detén el movimiento.', 'fxp-caption fx-session-safety'));
+    const intro = element('details', null, 'fx-session-intro');intro.lang = locale;intro.append(element('summary', 'Antes de empezar'));program[`intro_${locale}`].forEach(line => intro.append(element('p', line)));intro.open = owner.movement === 0 && !owner.instruction;content.append(intro, scene.source);
+    const controls = element('div', null, 'fx-session-transport');controls.setAttribute('aria-label', 'Controles de la guía');
+    const previous = button('Movimiento anterior', () => {if(current(owner, owner.generation)&&owner.movement > 0){owner.movement--;owner.instruction = 0;drawAgenda(owner);focus(owner, '.fxp-reader-title');}}, 'fxp-button fx-session-button fx-session-quiet');
+    const next = button('Movimiento siguiente', () => {if(current(owner, owner.generation)&&owner.movement < program.exercises.length - 1){owner.movement++;owner.instruction = 0;drawAgenda(owner);focus(owner, '.fxp-reader-title');}}, 'fxp-button fx-session-button');
+    previous.disabled = owner.movement === 0;next.disabled = owner.movement === program.exercises.length - 1;controls.append(previous);
     if(scope.RoxyHomeTour){
-      const voiceStatus=element('p','Voz oficial de Roxy · español','fxp-caption');voiceStatus.setAttribute('role','status');
-      const voiceHost=element('div',null,'fxp-voice-host');
-      const voice=button('Escuchar movimiento en español',()=>{
-        if(!current(owner,owner.generation))return;
-        if(owner.voiceActive&&scope.RoxyHomeTour.isPlaying()){stopReaderVoice(owner);return;}
-        owner.voiceActive=true;
-        void scope.RoxyHomeTour.speak(`fitness:${program.id.replace('gentle-','')}:${owner.movement}`,(state,message)=>{
-          if(!current(owner,owner.generation)||voice.isConnected===false)return;
-          owner.voiceActive=['loading','playing','ready'].includes(state);voiceStatus.textContent=message;
-          voice.textContent=owner.voiceActive?'Pausar voz':'Escuchar movimiento en español';
-        },voiceHost);
-      });
-      reader.append(voice,voiceStatus,voiceHost);
+      const voiceStatus = element('p', 'Voz oficial de Roxy · lectura del movimiento completo en español', 'fxp-caption fx-session-voice-status');voiceStatus.setAttribute('role', 'status');
+      const voiceHost = element('div', null, 'fxp-voice-host fx-session-voice-host');
+      const play = () => {
+        if(!current(owner, owner.generation))return;stopReaderVoice(owner);owner.voiceActive = true;owner.voiceOwned = true;
+        void scope.RoxyHomeTour.speak(`fitness:${program.id.replace('gentle-', '')}:${owner.movement}`, (phase, message) => {
+          if(!current(owner, owner.generation)||voice.isConnected === false)return;
+          owner.voiceActive = ['loading','playing','ready'].includes(phase);if(['ended','error'].includes(phase))owner.voiceOwned = false;voiceStatus.textContent = message;
+          voice.textContent = owner.voiceActive ? 'Pausar voz' : 'Escuchar movimiento en español';
+        }, voiceHost);
+      };
+      const voice = button('Escuchar movimiento en español', () => {if(!current(owner, owner.generation))return;if(owner.voiceActive){stopReaderVoice(owner);voice.textContent = 'Escuchar movimiento en español';voiceStatus.textContent = 'Voz oficial pausada';}else play();}, 'fxp-button fx-session-button fx-session-voice');
+      controls.append(voice, button('Repetir voz', play, 'fxp-button fx-session-button fx-session-quiet'));content.append(voiceStatus, voiceHost);
     }
-    const paragraphs = element('div', null, 'fxp-instructions'); paragraphs.lang = locale; exercise[`instructions_${locale}`].forEach(line => paragraphs.append(element('p', line))); reader.append(paragraphs);
-    const attribution = element('footer', null, 'fxp-reader-attribution'); attribution.append(element('p', program[`attribution_${locale}`], 'fxp-caption'), element('p', `Original: ${program.source_version} · consultado ${program.checked_on}`, 'fxp-caption'), link('Open Government Licence v3', program.license_url)); if (locale === 'en') attribution.append(link('Original NHS', program.source_url)); reader.append(attribution);
-    const controls = element('div', null, 'fxp-reader-controls'), previous = button('Movimiento anterior', () => { if (owner.movement > 0) { owner.movement--; drawAgenda(owner); focus(owner, '.fxp-reader-title'); } }), next = button('Movimiento siguiente', () => { if (owner.movement < program.exercises.length - 1) { owner.movement++; drawAgenda(owner); focus(owner, '.fxp-reader-title'); } }); previous.disabled = owner.movement === 0; next.disabled = owner.movement === program.exercises.length - 1; controls.append(previous, next); reader.append(controls, button('Cerrar guía', () => { owner.reader = false; drawAgenda(owner); focus(owner, '.fxp-day-title'); }, 'fxp-button fxp-quiet')); root.append(reader);
+    controls.append(next);reader.append(controls, content);
+    const attribution = element('footer', null, 'fxp-reader-attribution fx-session-credit');
+    attribution.append(button(locale === 'es' ? 'Ver original en inglés' : 'Ver adaptación en español', () => {if(!current(owner, owner.generation))return;owner.language = locale === 'es' ? 'en' : 'es';draw(owner);focus(owner, '.fxp-reader-title');}, 'fxp-button fx-session-button fx-session-quiet'));
+    attribution.append(element('p', program[`attribution_${locale}`], 'fxp-caption'), element('p', `Original: ${program.source_version} · consultado ${program.checked_on}`, 'fxp-caption'), link('Open Government Licence v3', program.license_url), link('Procedencia del original en inglés', program.source_url), link('Condiciones de la fuente', program.terms_url));
+    if(locale === 'es')program.notes_es.forEach(line => attribution.append(element('p', line, 'fxp-caption')));
+    reader.append(attribution, button('Cerrar guía', () => {if(!current(owner, owner.generation))return;owner.reader = false;drawAgenda(owner);focus(owner, owner.agenda ? '.fxp-day-title' : '.fxp-program-title');}, 'fxp-button fx-session-button fx-session-exit'));root.append(reader);
   }
   function mount(node, options = {}) {
     if (!node) return;
@@ -239,8 +273,8 @@
       owner.revalidating = false; draw(owner); if (!owner.catalog) void loadCatalog(owner); else if (owner.selectedId && !owner.program) void loadProgram(owner, owner.selectedId);
     } catch (error) { if (current(owner, token)) { purge(owner); owner.error = 'No pudimos confirmar la sesión. La agenda no se mostrará hasta volver a consultar.'; draw(owner); } }
   }
-  scope.RoxyFitnessPrograms = {mount, setActive, clear};
+  scope.RoxyFitnessPrograms = {mount, setActive, clear, validateCatalog, validateDetail, renderSessionScene};
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (!state) return; if (document.hidden) { cancel(state); state.reader = false; state.revalidating = true; draw(state); } else if (active) void resume(state); });
   scope.addEventListener?.('pagehide', clear);
-  if (typeof module !== 'undefined') module.exports = {todayInZone, agendaDates, validZone, validateCatalog, validateDetail, calendarText, guideText, safeURL};
+  if (typeof module !== 'undefined') module.exports = {todayInZone, agendaDates, validZone, validateCatalog, validateDetail, calendarText, guideText, safeURL, renderSessionScene};
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -31,8 +31,8 @@ const all = (el, tag) => descendants(el).filter(child => child.tagName===tag.toU
 const classes = (el,name) => descendants(el).filter(child => String(child.className||'').split(/\s+/).includes(name));
 const button = (el,label) => all(el,'button').find(child => child.textContent===label);
 const attr = (el,name,value) => descendants(el).find(child => child.getAttribute(name)===value);
-function harness(intercept) {
-  const calls=[],listeners={},windowEvents={},downloads=[],blobs=[],writes=[],timers=new Map(); let timerId=0,now=0;
+function harness(intercept, options = {}) {
+  const calls=[],listeners={},windowEvents={},downloads=[],blobs=[],writes=[],voices=[],voiceCallbacks=[],timers=new Map(); let timerId=0,now=0,voiceStops=0;
   class Element {
     constructor(tag){this.tagName=tag.toUpperCase();this.children=[];this.listeners={};this.attrs={};this.parent=null;this._text='';this.value='';}
     get textContent(){return this._text+this.children.map(child=>child.textContent).join('');}
@@ -61,12 +61,12 @@ function harness(intercept) {
       const overridden=intercept?.(calls.length,path,options);if(overridden!==undefined)return await overridden;
       if(path==='/api/fitness/v1/status')return {ok:true,status:200,json:async()=>({personal_login:true,member_id:'member-a'})};
       const program=full.find(row=>path.endsWith('/'+row.id));const payload=path==='/api/fitness/v1/programs'?catalog(full):detail(program);return {ok:true,status:200,json:async()=>clone(payload)};
-    }};context.window=context;vm.runInNewContext(source,context);
+    }};if(options.voice)context.RoxyHomeTour={stop(){voiceStops++;},speak:async(key,callback)=>{voices.push(key);voiceCallbacks.push(callback);callback('loading','Preparando la voz oficial de Roxy…');}};context.window=context;vm.runInNewContext(source,context);
   const container=()=>{const el=new Element('div');body.append(el);return el;};
   const root=container();
   const tick=async ms=>{const end=now+ms;for(;;){const entry=[...timers].filter(([,row])=>row.due<=end).sort((a,b)=>a[1].due-b[1].due)[0];if(!entry)break;const [id,row]=entry;timers.delete(id);now=row.due;row.fn();await settle();}now=end;await settle();};
   const visibility=async hidden=>{document.hidden=hidden;listeners.visibilitychange();await settle();};
-  return {...context.RoxyFitnessPrograms,root,container,body,calls,downloads,blobs,writes,windowEvents,tick,visibility};
+  return {...context.RoxyFitnessPrograms,root,container,body,calls,downloads,blobs,writes,voices,voiceCallbacks,get voiceStops(){return voiceStops;},windowEvents,tick,visibility};
 }
 async function mounted(h,view='week'){h.mount(h.root,{identity:'member-a',timezone:'America/New_York',view});await settle();}
 async function choose(h,index=0){await attr(h.root,'aria-label',`Ver programa: ${full[index].title_es}`).click();}
@@ -177,4 +177,29 @@ test('shared access can read guides but cannot restore an unbound hidden agenda'
 });
 test('module exit and pagehide discard agenda; remount does not inherit previous day choices',async()=>{
   const h=harness();await mounted(h);await choose(h);await arrange(h);h.setActive(false);assert.equal(h.root.textContent,'');h.setActive(true);await settle();await choose(h);assert.equal(all(h.root,'input').filter(i=>i.name==='agenda_day'&&i.checked).length,0);h.windowEvents.pagehide();assert.equal(h.root.textContent,'');
+});
+
+
+test('cinematic guide uses exact source steps, retains complete text and changes only on explicit actions',async()=>{
+  const h=harness();await mounted(h);await choose(h);await button(h.root,'Ver movimientos de la guía').click();
+  let reader=classes(h.root,'fx-session-cinema')[0];assert.equal(reader.getAttribute('data-fx-reading'),'true');
+  assert.equal(classes(reader,'fx-session-current-instruction')[0].textContent,full[0].exercises[0].instructions_es[0]);
+  assert.equal(button(reader,'Indicación anterior').disabled,true);assert.match(reader.textContent,/Escena de compañía · guía escrita/);
+  assert.deepEqual(all(classes(reader,'fxp-instructions')[0],'p').map(p=>p.textContent),full[0].exercises[0].instructions_es);
+  assert.equal(all(reader,'video').length,0);assert.doesNotMatch(reader.textContent,/Ver demostración|calorías quemadas/);
+  await button(reader,'Siguiente indicación').click();reader=classes(h.root,'fx-session-cinema')[0];
+  assert.equal(classes(reader,'fx-session-current-instruction')[0].textContent,full[0].exercises[0].instructions_es[1]);assert.equal(button(reader,'Siguiente indicación').disabled,true);
+  assert.equal(classes(reader,'fx-session-current-instruction')[0].focused,true);
+  await button(reader,'Ver original en inglés').click();reader=classes(h.root,'fx-session-cinema')[0];assert.equal(classes(reader,'fx-session-current-instruction')[0].textContent,full[0].exercises[0].instructions_en[1]);
+  await button(reader,'Movimiento siguiente').click();reader=classes(h.root,'fx-session-cinema')[0];assert.match(reader.textContent,/Indicación 1 de 1/);assert.match(reader.textContent,/Movimiento 2 de 2/);
+  assert.equal(h.calls.length,2);assert.deepEqual(h.writes,[]);await button(reader,'Cerrar guía').click();assert.equal(classes(h.root,'fx-session-cinema').length,0);
+});
+test('cinematic voice is explicit, repeat restarts the same source key, loading can stop, and late callbacks cannot revive it',async()=>{
+  const h=harness(undefined,{voice:true});await mounted(h);await choose(h);await button(h.root,'Ver movimientos de la guía').click();assert.deepEqual(h.voices,[]);
+  await button(h.root,'Escuchar movimiento en español').click();assert.deepEqual(h.voices,['fitness:strength:0']);
+  await button(h.root,'Pausar voz').click();assert.equal(h.voiceStops,1);assert.ok(button(h.root,'Escuchar movimiento en español'));
+  await button(h.root,'Repetir voz').click();assert.deepEqual(h.voices,['fitness:strength:0','fitness:strength:0']);
+  const oldCallback=h.voiceCallbacks.at(-1);await button(h.root,'Siguiente indicación').click();assert.equal(h.voiceStops,2);oldCallback('playing','Late old audio');assert.doesNotMatch(h.root.textContent,/Late old audio/);
+  await button(h.root,'Repetir voz').click();assert.equal(h.voices.at(-1),'fitness:strength:0');await button(h.root,'Movimiento siguiente').click();await button(h.root,'Repetir voz').click();assert.equal(h.voices.at(-1),'fitness:strength:1');
+  const stopCount=h.voiceStops;await button(h.root,'Cerrar guía').click();assert.equal(h.voiceStops,stopCount+1);assert.equal(classes(h.root,'fx-session-cinema').length,0);assert.deepEqual(h.writes,[]);
 });

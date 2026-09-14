@@ -47,6 +47,17 @@ class DayAvailability(StrictModel):
         return self
 
 
+class ConfirmedTrainingRequirements(StrictModel):
+    equipment: list[Literal["bodyweight", "chair", "wall", "dumbbells", "bench", "mat"]] = Field(max_length=6)
+    capabilities: list[Literal["standing", "sit_to_stand", "hip_hinge", "free_weights", "bench_transfer", "floor_transfer", "kneeling"]] = Field(max_length=7)
+
+    @model_validator(mode="after")
+    def unique_choices(self):
+        if len(set(self.equipment)) != len(self.equipment) or len(set(self.capabilities)) != len(self.capabilities):
+            raise ValueError("No repitas las confirmaciones de material o movimiento.")
+        return self
+
+
 class FitnessProfileInput(StrictModel):
     # Null is unknown, never interpreted as an adult or an absence of risk.
     age_band: Literal["18_29", "30_44", "45_64", "65_plus"] | None = None

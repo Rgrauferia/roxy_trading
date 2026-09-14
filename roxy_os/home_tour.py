@@ -85,10 +85,12 @@ EXTRA_SCRIPTS = {
 
 
 def catalogue():
-    return {"version": VERSION, "chapters": deepcopy(CHAPTERS)}
+    return {"version": VERSION, "chapters": deepcopy(CHAPTERS), "world": deepcopy(WORLD)}
 
 
 def speech_for(key):
+    if key in WORLD_SPEECH:
+        return WORLD_SPEECH[key]
     match = re.fullmatch(r"fitness:(strength|balance|flexibility):([0-9])", key or "")
     if match:
         from roxy_os.fitness.programs import program_detail
@@ -113,3 +115,32 @@ def normalize_progress(value):
     if value["chapter"] not in {row["id"] for row in CHAPTERS}:
         raise ValueError("El capítulo no es válido.")
     return deepcopy(value)
+
+
+# Scene narration never interpolates names, choices or household records.
+WORLD_SPEECH = {
+    "world-name": "Bienvenido a casa. Soy Roxy. Vamos a darle tu toque a este hogar mientras lo recorremos. Primero, ¿cómo te gustaría que te llame? Escribe tu nombre aquí conmigo.",
+    "world-theme": "Mira cómo cambia el ambiente. Elige el color con el que te sientas más en casa. Puedes probarlos antes de decidir.",
+    "world-voice": "También puedo adaptarme a tu ritmo. ¿Prefieres que vaya al grano, que te acompañe con cercanía o que explique cada detalle? Mi voz seguirá siendo la misma.",
+    "world-avatar": "Ahora elige cómo quieres verme en los accesos de Home. Encontrarás mi imagen de anfitriona, mi retrato de cocina, mi imagen profesional o un símbolo sencillo. Mi voz y mi identidad se mantienen.",
+    "world-review": "Así va quedando tu Home. Revisa tu nombre, el ambiente y mi forma de responder. Al guardar, estas elecciones se aplican a tu perfil. Puedes cambiarlas después.",
+    "world-map": "Esta es nuestra casa. Podemos empezar en la cocina, visitar el jardín, conocer a tus mascotas o reservar un momento para ti. Elige un espacio y vamos juntos.",
+    "world-recipes": "Ven a la cocina. Antes de escoger una receta, podemos conocer tus sabores. Toca el cuaderno para decirme lo que te gusta. También podemos abrir una receta y cocinar paso a paso.",
+    "world-shopping": "Aquí preparamos la compra. Mira cómo un producto pasa a la lista. Después puedes abrir tu lista real y añadir lo que te haga falta. Esto no hace un pedido ni un pago.",
+    "world-pantry": "Abramos la despensa. Aquí cuentas lo que ya tienes en casa. Elige un ingrediente para ver el ejemplo, o abre tu despensa real. Al guardarla, revisa toda la lista para conservar los productos que todavía tienes.",
+    "world-fitness": "Este rincón es para moverte a tu ritmo. Elige fuerza suave, equilibrio o flexibilidad para explorar las guías. Son educativas. Un plan de entrenamiento personalizado todavía necesita su revisión profesional.",
+    "world-design": "Imaginemos juntos este salón. Prueba los ambientes de ejemplo y observa cómo cambia la escena. Para trabajar con tu habitación, añade una foto y cuéntame qué quieres conservar. Tú decides cada cambio.",
+    "world-plants": "Ven al jardín. Cada planta tiene su propia historia. Podemos añadir una foto, darle un nombre y contarme dónde vive. Después registrarás sus cuidados y observaciones en la ficha.",
+    "world-pets": "Ellos también tienen su lugar en casa. Elige qué compañero quieres registrar y completaremos su ficha. Conserva las indicaciones de su veterinario; yo te ayudo a tenerlas organizadas.",
+    "world-family": "Desde Nexo puedes conectar con las personas que quieres. Cada persona decide su acceso y si comparte ubicación. Primero revisemos los controles; las invitaciones se envían sólo cuando tú decides compartirlas.",
+    "world-location": "La ubicación empieza con tu elección. Te llevaré a Nexo para activar el permiso y comprobar que tu posición se actualice. Ver esta escena no comparte tu ubicación.",
+    "world-calendar": "Hagamos espacio para lo importante. Mira cómo una actividad ocupa un lugar en el día. Puedes crear tu evento, elegir la fecha y revisar el resumen antes de confirmar que se guarde.",
+    "world-today": "Este es el comienzo de tu día. Aquí se reúnen tus próximos eventos y los cuidados del hogar. Elige qué quieres organizar primero; siempre podrás volver a esta casa.",
+}
+WORLD = {
+    "version": 1,
+    "entry_image": "/assets/roxy_home/world/entry.png",
+    "kitchen_image": "/assets/roxy_home/world/kitchen.png",
+    "speech": {**WORLD_SPEECH, **{key: value for key, value in EXTRA_SCRIPTS.items() if key.startswith(("recipe-", "garden-"))}},
+    "films": {},
+}

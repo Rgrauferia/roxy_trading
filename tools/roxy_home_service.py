@@ -163,9 +163,10 @@ async def home_account_storage_error(_request: Request, exc: HomeAccountStorageE
 
 @app.exception_handler(RequestValidationError)
 async def private_account_validation_error(request: Request, exc: RequestValidationError):
-    if request.url.path.startswith("/v1/home-account/") or request.url.path.endswith(("/recipe-companion", "/recipe-speech")):
+    if request.url.path.startswith(("/v1/home-account/", "/api/fitness/v1/")) or request.url.path.endswith(("/recipe-companion", "/recipe-speech")):
         # Pydantic's default error body contains the original input, including
-        # passwords/codes. Keep field names and types, never submitted secrets.
+        # passwords/codes or personal measurements. Keep field names and types,
+        # never submitted values (including non-finite JSON numbers).
         errors = [{"loc": row["loc"], "type": row["type"], "msg": "Revisa este campo."}
                   for row in exc.errors()]
         return JSONResponse(status_code=422, content={"detail": errors})
@@ -1567,7 +1568,10 @@ def _authenticate(request: Request) -> AuthContext:
     if cookie_auth:
         if cookie_auth.trial:
             mode = trial_access_mode(request.method, request.url.path)
-            privacy_delete = request.method == "DELETE" and request.url.path == "/api/fitness/v1/me/data"
+            privacy_delete = request.method == "DELETE" and (
+                request.url.path in {"/api/fitness/v1/me/data", "/api/fitness/v1/me/activity-plan/data"}
+                or re.fullmatch(r"/api/fitness/v1/me/(?:measurements|training-logs)(?:/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?", request.url.path)
+            )
             account_security = request.method == "POST" and request.url.path == "/v1/home-account/recovery/codes"
             if cookie_auth.trial["status"] != "ACTIVE" and request.method not in {"GET", "HEAD"} and not (privacy_delete or account_security):
                 raise HTTPException(status_code=403, detail="Los cinco días de prueba terminaron. Puedes consultar tus datos; no hay cobro automático.")

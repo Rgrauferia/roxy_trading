@@ -91,7 +91,7 @@ RECOVERY_CODE_COUNT = 8
 RECOVERY_SCHEMA_VERSION = 1
 MEMBER_THEMES = {"classic", "olive", "coastal", "terracotta"}
 MEMBER_BACKGROUNDS = {"plant", "linen", "clean", "warm"}
-MEMBER_AVATARS = {"home", "professional", "monogram"}
+MEMBER_AVATARS = {"home", "professional", "monogram", "host"}
 MEMBER_RESPONSE_STYLES = {"balanced", "brief", "close", "explanatory"}
 MEMBER_TEXT_SCALES = {"compact", "standard", "large"}
 
@@ -664,6 +664,8 @@ class HomeAccountStore:
         display_name: Any,
         preferences: dict[str, Any],
         household_name: Any | None = None,
+        expected_personalization: dict[str, Any] | None = None,
+        expected_session_version: int | None = None,
     ) -> dict[str, Any]:
         normalized_name = normalize_display_name(display_name)
         normalized_preferences = normalize_member_preferences(preferences)
@@ -676,6 +678,12 @@ class HomeAccountStore:
             household = payload["households"].get(member.get("household_id"))
             if household is None:
                 raise KeyError(member.get("household_id"))
+            if expected_session_version is not None and member.get("session_version", 0) != expected_session_version:
+                raise RecipeProfileConflictError("Tu sesión cambió. Vuelve a abrir tu casa.")
+            if expected_personalization is not None:
+                actual = {"display_name": member["display_name"], "preferences": normalize_member_preferences(member.get("preferences", {}))}
+                if actual != expected_personalization:
+                    raise RecipeProfileConflictError("Tu personalización cambió en otra pestaña. Vuelve a abrirla antes de guardar.")
             if requested_household_name is not None and requested_household_name != household.get("name"):
                 if member.get("role") != "OWNER":
                     raise PermissionError("Solo la persona administradora puede cambiar el nombre del hogar.")

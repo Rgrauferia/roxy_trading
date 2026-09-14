@@ -49,7 +49,7 @@ def trial_access_mode(method: str, path: str) -> str:
     A request quota supplements, never replaces/increases, the Home AI ledger.
     No image/video generation, voice sessions, commerce feeds or device control.
     """
-    if (method, path) in {("GET", "/v1/home-tour"), ("PUT", "/v1/home-tour"), ("POST", "/v1/home-tour/speech")}:
+    if (method, path) in {("GET", "/v1/home-tour"), ("PUT", "/v1/home-tour"), ("PUT", "/v1/home-tour/personalization"), ("POST", "/v1/home-tour/speech")}:
         # Fixed public narration only, shared cache, existing Home TTS ledger.
         # Does not enable arbitrary speech, conversations or video generation.
         return "local"
@@ -76,8 +76,43 @@ def trial_access_mode(method: str, path: str) -> str:
     if (method, path) in {("GET", "/api/fitness/v1/status"), ("GET", "/api/fitness/v1/me/profile"), ("GET", "/api/fitness/v1/me/data"), ("PATCH", "/api/fitness/v1/me/profile"), ("POST", "/api/fitness/v1/me/consents"), ("DELETE", "/api/fitness/v1/me/data"), ("POST", "/api/fitness/v1/plans/preview")}:
         # Preference foundation only; no workouts, AI calls or commercial writes.
         return "local"
+    if (method, path) in {
+        ("GET", "/api/fitness/v1/me/activity-plan"),
+        ("PUT", "/api/fitness/v1/me/activity-plan"),
+        ("POST", "/api/fitness/v1/me/activity-plan/consent"),
+        ("POST", "/api/fitness/v1/me/activity-plan/proposal"),
+        ("GET", "/api/fitness/v1/me/activity-plan/data"),
+        ("DELETE", "/api/fitness/v1/me/activity-plan/data"),
+    }:
+        # Member-private, user-chosen planning and self-reported progress only.
+        # Authentication, consent and PostgreSQL protection remain mandatory.
+        return "local"
+    if method == "PATCH" and re.fullmatch(r"/api/fitness/v1/me/activity-plan/sessions/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", path):
+        return "local"
+    if (method, path) in {
+        ("POST", "/api/fitness/v1/me/training/preview"),
+        ("GET", "/api/fitness/v1/me/training-progress"),
+        *((method, f"/api/fitness/v1/me/{collection}")
+          for collection in ("measurements", "training-logs")
+          for method in ("GET", "PUT", "DELETE")),
+        *(("POST", f"/api/fitness/v1/me/{collection}/consent")
+          for collection in ("measurements", "training-logs")),
+        *(("GET", f"/api/fitness/v1/me/{collection}/export")
+          for collection in ("measurements", "training-logs")),
+    }:
+        # Manual personal records and deterministic proposals only. The router
+        # still enforces member identity, consent, CSRF and private PostgreSQL.
+        return "local"
+    if method == "DELETE" and re.fullmatch(r"/api/fitness/v1/me/(?:measurements|training-logs)/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", path):
+        return "local"
+    if method == "GET" and re.fullmatch(r"/api/fitness/v1/training/programs(?:/(?:home-bodyweight-foundations|home-dumbbell-foundations|gym-dumbbell-foundations|gentle-mobility|yoga-gentle-start|core-foundations))?", path):
+        # Fixed editorial content can be read without private storage or AI.
+        return "local"
     if method == "GET" and re.fullmatch(r"/api/fitness/v1/exercises(?:/wger-[A-Za-z0-9-]+)?", path):
         # Licensed bundled education, never a provider call or workout activation.
+        return "local"
+    if method == "GET" and path == "/api/fitness/v1/classes":
+        # Bundled source links only; no provider call, profile or assigned training.
         return "local"
     if method == "GET" and re.fullmatch(r"/api/fitness/v1/programs(?:/gentle-(?:strength|balance|flexibility))?", path):
         # Reading fixed source guides; no personal plan or calendar mutation.

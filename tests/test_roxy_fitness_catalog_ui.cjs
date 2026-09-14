@@ -10,23 +10,23 @@ const payload={clinical_approval:false,can_activate_training:false,entries:data.
 const clone=x=>JSON.parse(JSON.stringify(x));
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
 
-test('all twenty-one sourced entries and forty-four exact-source illustrations render',()=>{
+test('all twenty-five sourced entries and forty-eight exact-source illustrations render',()=>{
   const entries=api.validatedEntries(payload);
-  assert.equal(entries.length,21);assert.equal(entries.flatMap(x=>x.images).length,44);
-  for(const e of entries){const html=api.detail(e);assert.match(html,/Indicaciones originales/);assert.match(html,/Revisión profesional de Roxy: pendiente/);assert.match(html,/Everkinetic/);assert.match(html,/CC-BY-SA/);assert.match(html,/no-referrer/);assert.doesNotMatch(html,/Comenzar entrenamiento|FDA approved/);assert.equal((html.match(/<img /g)||[]).length,e.images.length);assert.ok(html.includes(e.source_url));}
+  assert.equal(entries.length,25);assert.equal(entries.flatMap(x=>x.images).length,48);
+  for(const e of entries){const html=api.detail(e);assert.match(html,/Indicaciones originales/);assert.match(html,/Revisión profesional de Roxy: pendiente/);assert.ok(html.includes(e.images[0].author));assert.match(html,/CC-BY-SA/);assert.match(html,/no-referrer/);assert.doesNotMatch(html,/Comenzar entrenamiento|FDA approved/);assert.equal((html.match(/<img /g)||[]).length,e.images.length);assert.ok(html.includes(e.source_url));}
 });
 test('unavailable or purported clinical approvals never enter educational UI',()=>{
   assert.throws(()=>api.validatedEntries({...payload,status:'catalogue_unavailable'}));
   assert.throws(()=>api.validatedEntries({...payload,clinical_approval:true}));
   assert.throws(()=>api.validatedEntries({...payload,can_activate_training:true}));
   const altered=clone(payload);altered.entries[0].can_activate_training=true;
-  assert.equal(api.validatedEntries(altered).length,20);
+  assert.equal(api.validatedEntries(altered).length,24);
 });
 test('unsafe sources, media, missing prose, duplicates and missing attribution are rejected',()=>{
   for(const mutate of [e=>e.images[0].url='https://evil.example/a.png',e=>e.source_url='javascript:alert(1)',e=>e.attribution.license_url='https://example.org/license',e=>e.instructions=[],e=>e.images=[],e=>e.images[0].author='']){
-    const altered=clone(payload);mutate(altered.entries[0]);assert.equal(api.validatedEntries(altered).length,20);
+    const altered=clone(payload);mutate(altered.entries[0]);assert.equal(api.validatedEntries(altered).length,24);
   }
-  assert.equal(api.validatedEntries({...payload,entries:[...data.entries,data.entries[0]]}).length,21);
+  assert.equal(api.validatedEntries({...payload,entries:[...data.entries,data.entries[0]]}).length,25);
   for(const url of ['javascript:alert(1)','http://wger.de/x','https://wger.de.evil.test/x','https://wger.de@evil.test/x'])assert.equal(api.safeLink(url),'');
   for(const url of ['https://wger.de/media/a.svg','https://evil.test/media/x.jpg','https://wger.de/media/a.png?redirect=evil'])assert.equal(api.safeImage(url),'');
 });
@@ -64,4 +64,14 @@ test('network/auth failures provide a retry rather than fabricated exercises',as
   for(const value of [new Error('Sin conexión'),response({},401),response({},503)]){
     const h=harness();h.queue.push(value);h.api.mount(h.root);await flush();assert.match(h.root.innerHTML,/role="alert"/);assert.match(h.root.innerHTML,/Volver a cargar/);assert.doesNotMatch(h.root.innerHTML,/data-exercise-id/);
   }
+});
+
+test('bodyweight filters show only confirmed equipment and preserve attributed new media',()=>{
+  const entries=api.selectEntries(data.entries,{equipment:'7'});
+  assert.deepEqual(entries.map(e=>e.id),['wger-458','wger-957','wger-1551']);
+  assert.equal(api.selectEntries(data.entries,{query:'sin material'}).length,3);
+  for(const e of entries){const html=api.detail(e);assert.match(html,/Sin material · peso corporal/);assert.ok(html.includes(e.images[0].author));assert.match(html,/CC-BY-SA-4.0/);}
+  const pullup=data.entries.find(e=>e.id==='wger-475');
+  assert.match(api.detail(pullup),/Barra de dominadas/);
+  assert.doesNotMatch(api.detail(pullup),/Sin material/);
 });

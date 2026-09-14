@@ -18,9 +18,9 @@ const response = (body,status=200)=>({ok:status>=200&&status<300,status,json:asy
 const deferred = ()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};
 const flush = ()=>new Promise(resolve=>setImmediate(resolve));
 
-function harness() {
+function harness(withPlanner=false) {
   const requests=[],queue=[],events=new Map(),downloads=[],programCalls=[],deadlines=new Map();
-  const form={values:new Map(),times:new Map(),querySelector(selector){const day=selector.match(/data-day="([^"]+)"/)?.[1],index=selector.match(/data-window="([^"]+)"/)?.[1],part=selector.match(/data-time="([^"]+)"/)?.[1];return this.times.get(`${day}:${index}:${part}`)||null;}};
+  const form={id:'fxForm',values:new Map(),times:new Map(),querySelector(selector){const day=selector.match(/data-day="([^"]+)"/)?.[1],index=selector.match(/data-window="([^"]+)"/)?.[1],part=selector.match(/data-time="([^"]+)"/)?.[1];return this.times.get(`${day}:${index}:${part}`)||null;}};
   const controls=[{disabled:false},{disabled:false},{disabled:false}];
   let html='',renderCount=0,focus='';
   const heading={focus:()=>{focus='heading';}},alert={focus:()=>{focus='alert';}},windows={innerHTML:''};
@@ -41,6 +41,8 @@ function harness() {
     addEventListener:(name,callback)=>events.set(name,callback),
     fetch:async(url,options)=>{requests.push({url,...options,payload:options.body?JSON.parse(options.body):undefined});if(!queue.length)throw new Error('Unexpected synthetic request '+url);const next=queue.shift();if(next instanceof Error)throw next;return typeof next==='function'?await next(url,options):next;}
   };
+  if(withPlanner)context.RoxyFitnessPlanner={mount(node,options){programCalls.push({type:'planner',options});},clear(){programCalls.push({type:'planner-clear'});},setActive(active){programCalls.push({type:'planner-active',active});}};
+  context.RoxyFitnessMeasurements={mount(node,options){programCalls.push({type:'measurements',options});},clear(){programCalls.push({type:'measurements-clear'});},setActive(active){programCalls.push({type:'measurements-active',active});}};
   context.window=context;
   vm.createContext(context);
   const instrumented=source.replace('scope.RoxyFitness={mount,clear,setActive};',`scope.RoxyFitness={mount,clear,setActive};scope.__test={mount,clear,setActive,load,collect,submit,erase,exportData,click,keys,render,space,settings,onboarding,windows,week,acceptSnapshot,saveLabel,dirty,
@@ -59,7 +61,7 @@ test('today and week mount the same program component without turning availabili
   h.api.configure({section:'week'});h.api.render();
   assert.equal(h.programCalls.at(-1).options.view,'week');
   assert.match(h.root.innerHTML,/Mi disponibilidad declarada/);
-  assert.match(h.root.innerHTML,/no asignan ejercicios/);
+  assert.match(h.root.innerHTML,/proponer fechas a las guías que elijas/);
 });
 
 test('welcome offers a source agenda directly without requiring health preferences',()=>{
@@ -72,7 +74,7 @@ test('leaving exercise cancels a request and removes visible personal content',a
   const h=harness(),pending=deferred();h.queue.push(pending.promise);const loading=h.api.load();
   await flush();h.api.setActive(false);assert.equal(h.requests[0].signal.aborted,true);
   pending.resolve(response(activeStatus));await loading;assert.equal(h.root.innerHTML,'');
-  assert.deepEqual(h.programCalls.at(-1),{type:'active',active:false});assert.equal(h.deadlines.size,0);
+  assert.deepEqual(h.programCalls.filter(c=>c.type==='active').at(-1),{type:'active',active:false});assert.equal(h.deadlines.size,0);
 });
 
 test('returning to exercise revalidates the member before loading a profile',async()=>{
@@ -208,7 +210,7 @@ test('skip and back do not let an invalid timezone enter the week',()=>{
 test('final step includes explicit exploration without giving consent',()=>{
   const h=harness();h.api.configure({status:activeStatus,ready:true,view:'onboarding',step:4});h.api.render();
   assert.match(h.root.innerHTML,/Explorar sin guardar cambios/);h.action('skip');
-  assert.equal(h.api.current().view,'space');assert.equal(h.requests.length,0);assert.match(h.root.innerHTML,/nada guardado/);
+  assert.equal(h.api.current().view,'space');assert.equal(h.requests.length,0);assert.match(h.root.innerHTML,/Preferencias aún no guardadas/);
 });
 
 test('same identity/root mount preserves live uncollected form input',()=>{
@@ -219,14 +221,14 @@ test('same identity/root mount preserves live uncollected form input',()=>{
 
 test('back restores keyboard focus and tabs have one tab stop',()=>{
   const h=harness();h.api.configure({view:'onboarding',step:1});h.api.render();h.action('back');assert.equal(h.api.current().step,0);assert.equal(h.focus,'heading');
-  const markup=h.api.space();assert.equal((markup.match(/role="tab"[^>]*tabindex="0"/g)||[]).length,1);assert.equal((markup.match(/role="tab"[^>]*tabindex="-1"/g)||[]).length,5);
+  const markup=h.api.space();assert.equal((markup.match(/role="tab"[^>]*tabindex="0"/g)||[]).length,1);assert.equal((markup.match(/role="tab"[^>]*tabindex="-1"/g)||[]).length,6);
   h.api.keys({target:h.tabs[0],key:'ArrowRight',preventDefault(){}});assert.equal(h.api.current().section,'week');
 });
 
 test('consent succeeds, profile fails, and removal still deletes consent-only state',async()=>{
   const h=harness();h.api.configure({status:activeStatus,ready:true,view:'onboarding',step:4});h.api.render();h.form.values.set('consent','on');
   h.queue.push(response(stored(null,1)),response({detail:'Perfil no válido'},422));
-  await h.api.submit({preventDefault(){}});assert.equal(h.api.current().saved,false);assert.equal(h.api.current().snapshot.consent.granted,true);
+  await h.api.submit({target:h.form,preventDefault(){}});assert.equal(h.api.current().saved,false);assert.equal(h.api.current().snapshot.consent.granted,true);
   assert.match(h.api.settings(),/Descargar datos guardados/);
   h.queue.push(response(stored(null,1)),response(empty(2)));await h.api.erase();
   assert.deepEqual(h.requests.map(r=>[r.method,r.url]),[['POST','/api/fitness/v1/me/consents'],['PATCH','/api/fitness/v1/me/profile'],['GET','/api/fitness/v1/me/profile'],['DELETE','/api/fitness/v1/me/data']]);
@@ -235,7 +237,7 @@ test('consent succeeds, profile fails, and removal still deletes consent-only st
 
 test('lost consent response is reconciled before claiming removal',async()=>{
   const h=harness();h.api.configure({status:activeStatus,ready:true,view:'onboarding',step:4});h.api.render();h.form.values.set('consent','on');h.queue.push(new TypeError('connection lost'));
-  await h.api.submit({preventDefault(){}});assert.equal(h.api.current().remoteUncertain,true);assert.match(h.api.settings(),/Eliminar mis preferencias/);
+  await h.api.submit({target:h.form,preventDefault(){}});assert.equal(h.api.current().remoteUncertain,true);assert.match(h.api.settings(),/Eliminar mis datos de Ejercicio/);
   h.queue.push(response(stored(null,1)),response(empty(2)));await h.api.erase();
   assert.equal(h.requests[1].method,'GET');assert.equal(h.requests[2].method,'DELETE');assert.equal(h.api.current().remoteUncertain,false);
 });
@@ -245,16 +247,16 @@ test('failed reconciliation never claims ambiguous data was removed',async()=>{
   await h.api.erase();assert.equal(h.requests.length,1);assert.equal(h.api.current().remoteUncertain,true);assert.equal(h.api.current().notice,'');assert.match(h.api.current().failure,/No des tus datos por eliminados/);
 });
 
-test('successful empty reconciliation can discard the local draft without a delete',async()=>{
-  const h=harness();h.api.configure({status:activeStatus,ready:true,remoteUncertain:true,profile:{...defaults(),primary_goal:'strength'}});h.queue.push(response(empty(0)));
-  await h.api.erase();assert.equal(h.requests.length,1);assert.equal(h.api.current().profile.primary_goal,null);assert.equal(h.api.current().remoteUncertain,false);
+test('empty preferences still delete other Exercise data such as a plan-only account',async()=>{
+  const h=harness();h.api.configure({status:activeStatus,ready:true,remoteUncertain:true,profile:{...defaults(),primary_goal:'strength'}});h.queue.push(response(empty(0)),response(empty(1)));
+  await h.api.erase();assert.equal(h.requests.length,2);assert.equal(h.requests[1].method,'DELETE');assert.equal(h.requests[1].url,'/api/fitness/v1/me/data');assert.equal(h.api.current().profile.primary_goal,null);assert.equal(h.api.current().remoteUncertain,false);assert.match(h.api.current().notice,/El servidor confirmó/);
 });
 
 test('busy operations disable actual controls and do not allow concurrent deletion/export',async()=>{
   const h=harness(),waiting=deferred();h.api.configure({snapshot:stored(null,1),status:activeStatus,ready:true});h.queue.push(()=>waiting.promise);
   const pending=h.api.exportData();assert.equal(h.api.current().busy,true);assert.ok(h.controls.every(control=>control.disabled));
   await h.api.erase();await h.api.exportData();assert.equal(h.requests.length,1);
-  waiting.resolve(response({state:stored(null,1)}));await pending;assert.equal(h.api.current().busy,false);assert.deepEqual(h.downloads,['mis-preferencias-ejercicio.json']);assert.ok(h.controls.every(control=>!control.disabled));
+  waiting.resolve(response({state:stored(null,1)}));await pending;assert.equal(h.api.current().busy,false);assert.deepEqual(h.downloads,['mis-datos-ejercicio.json']);assert.ok(h.controls.every(control=>!control.disabled));
 });
 
 test('reloading snapshots uses independent draft copies',async()=>{
@@ -284,7 +286,7 @@ test('expired authentication on reload does not leave a private old profile disp
 
 test('requests retain same-origin, no-store, explicit mutation intent and idempotency',async()=>{
   const h=harness();h.api.configure({status:activeStatus,ready:true,view:'onboarding',step:4});h.api.render();h.form.values.set('consent','on');h.queue.push(response(stored(null,1)),response(stored(defaults(),2)));
-  await h.api.submit({preventDefault(){}});assert.equal(h.api.current().failure,'');assert.equal(h.api.current().saved,true);
+  await h.api.submit({target:h.form,preventDefault(){}});assert.equal(h.api.current().failure,'');assert.equal(h.api.current().saved,true);
   for(const r of h.requests){assert.equal(r.credentials,'same-origin');assert.equal(r.cache,'no-store');assert.equal(r.headers['X-Roxy-Fitness-Request'],'1');assert.equal(r.headers['X-Roxy-Fitness-Member'],'member-a');assert.match(r.headers['Idempotency-Key'],/^[a-f0-9-]{36}$/);assert.ok(r.signal);}
 });
 
@@ -311,4 +313,31 @@ for(const operation of ['exportData','erase'])test(`shared-login rejection durin
 test('progress uses CSP-compatible state classes, not blocked inline styles',()=>{
   const h=harness();h.api.configure({view:'onboarding',step:1});h.api.render();
   assert.match(h.root.innerHTML,/data-progress="2"/);assert.match(h.root.innerHTML,/aria-valuenow="2"/);assert.doesNotMatch(h.root.innerHTML,/style="width:/);
+});
+
+
+test('planner mounts on Today, My plan and Progress while source guides and preferences remain available',()=>{
+  const h=harness(true);h.api.configure({view:'space',status:activeStatus,ready:true});
+  for(const section of ['today','week','progress']){h.api.configure({section});h.api.render();assert.equal(h.programCalls.filter(c=>c.type==='planner').at(-1).options.view,section);assert.match(h.root.innerHTML,/fxPlanner/);}
+  h.api.configure({section:'week'});h.api.render();assert.match(h.root.innerHTML,/Consultar guías sin guardarlas/);assert.match(h.root.innerHTML,/Mi disponibilidad declarada/);assert.doesNotMatch(h.root.innerHTML,/Vista previa · nada guardado/);
+  h.api.configure({view:'settings'});h.api.render();assert.equal(h.programCalls.filter(c=>c.type==='planner-active').at(-1).active,false);
+});
+test('a verified private account can export and delete plans even when preference snapshot is empty',async()=>{
+  const h=harness(true);h.api.configure({status:activeStatus,ready:true,snapshot:empty(0),view:'settings'});h.api.render();assert.match(h.root.innerHTML,/Descargar datos guardados/);assert.match(h.root.innerHTML,/plan, registros y mediciones de Ejercicio/);
+  h.queue.push(response({activity_plan:{plan:{title:'Only activity data'}}}));await h.api.exportData();assert.equal(h.requests[0].url,'/api/fitness/v1/me/data');assert.deepEqual(h.downloads,['mis-datos-ejercicio.json']);
+  h.queue.push(response(empty(0)),new Error('delete unavailable'));await h.api.erase();assert.equal(h.requests.at(-1).method,'DELETE');assert.match(h.api.current().failure,/No des tus datos por eliminados/);assert.doesNotMatch(h.api.current().notice,/El servidor confirmó/);
+});
+
+
+test('measurements only mount in Progreso and clear on leaving the module',()=>{
+  const h=harness(true);h.api.configure({view:'space',status:activeStatus,ready:true,section:'progress',profile:{...defaults(),without_weight_or_calories:false}});h.api.render();
+  const call=h.programCalls.filter(c=>c.type==='measurements').at(-1);assert.ok(call);assert.equal(call.options.identity,'member-a');assert.equal(typeof call.options.onPreferences,'function');assert.match(h.root.innerHTML,/fxMeasurements/);
+  h.api.configure({section:'week'});h.api.render();assert.equal(h.programCalls.filter(c=>c.type==='measurements-active').at(-1).active,false);
+  h.api.setActive(false);assert.equal(h.programCalls.filter(c=>c.type==='measurements-active').at(-1).active,false);
+});
+
+test('without weight preference keeps measurements unmounted until an explicit choice',()=>{
+ const h=harness(true);h.api.configure({view:'space',status:activeStatus,ready:true,section:'progress'});h.api.render();
+ assert.equal(h.programCalls.filter(c=>c.type==='measurements').length,0);assert.match(h.root.innerHTML,/Abrir mediciones opcionales/);
+ h.api.click({target:{closest:()=>({dataset:{fx:'show-measurements'}})}});assert.equal(h.programCalls.filter(c=>c.type==='measurements').length,1);
 });

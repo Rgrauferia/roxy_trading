@@ -1,0 +1,66 @@
+/* A quiet, living journal inside the Roxy studio. Values remain the member's own records. */
+.fxev-shell{--fxev-ink:#24412f;--fxev-cream:#f5f2e5;--fxev-gold:#e7d6a5;box-sizing:border-box;overflow:hidden;min-width:0;border:1px solid #c8d2bc;border-radius:25px;background:var(--fxev-cream);color:var(--fxev-ink);box-shadow:0 15px 40px #12321e0c;font-family:inherit}
+.fxev-shell *{box-sizing:border-box;min-width:0}
+.fxev-shell [hidden]{display:none!important}
+.fxev-hero{position:relative;isolation:isolate;display:flex;flex-direction:column;justify-content:center;min-height:270px;padding:32px 36px;background:#1c392a;color:#fff8e4;overflow:hidden}
+.fxev-hero::before{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,#153023fc 0%,#1a3728ed 48%,#1a372830 100%),url('/assets/roxy_home/fitness/studio-cinema-211.png') right 48%/cover no-repeat;animation:fxev-arrive 650ms ease-out both}
+.fxev-shell .fxev-eyebrow{margin:0 0 10px;color:#737b56;font-size:10px;font-weight:700;line-height:1.6;letter-spacing:.15em;text-transform:uppercase}
+.fxev-hero .fxev-eyebrow{color:#e4d7a9}
+.fxev-shell .fxev-hero h3{max-width:610px;margin:4px 0 13px;color:#fff8e4;font:400 clamp(34px,4vw,52px)/1.1 Georgia,'Times New Roman',serif;letter-spacing:-.025em;text-wrap:balance}
+.fxev-shell .fxev-hero-copy{max-width:480px;margin:0;color:#dce5ce;font-size:14px;line-height:1.75}
+.fxev-hero-stats{display:flex;flex-wrap:wrap;gap:28px;margin-top:24px}
+.fxev-hero-stat{display:flex;align-items:center;gap:11px;color:#d9e0c9;font-size:11px;line-height:1.6}
+.fxev-hero-stat strong{color:#f0deb0;font:400 35px/1 Georgia,serif;font-variant-numeric:tabular-nums}
+.fxev-body{padding:26px 30px 30px}
+.fxev-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 18px}
+.fxev-shell .fxev-heading h4,.fxev-shell .fxev-empty h4{margin:0;color:#2d4833;font:400 28px/1.2 Georgia,serif}
+.fxev-shell .fxev-caption{margin:8px 0 16px;color:#5c6d52;font-size:12px;line-height:1.75;overflow-wrap:anywhere}
+.fxev-button{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:11px 18px;border:1px solid #b7c4a7;border-radius:24px;background:#edf0dd;color:#284c31;font-family:inherit;font-size:12px;font-weight:600;line-height:1.5;text-align:center;cursor:pointer;transition:transform 160ms ease,background 160ms ease}
+.fxev-primary{background:#294d35;border-color:#294d35;color:#fffae6}
+.fxev-quiet{background:transparent;border-color:#c1ccb2;font-size:11px}
+.fxev-button:disabled{opacity:.5;cursor:default}
+.fxev-shell :is(button,select,summary):focus-visible{outline:3px solid #b28a35;outline-offset:4px}
+.fxev-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:17px}
+.fxev-timeline{list-style:none;margin:0;padding:0 0 0 20px}
+.fxev-timeline>li{position:relative;padding:0 0 17px 22px;border-left:1px solid #c2cbb4}
+.fxev-timeline>li:last-child{padding-bottom:0;border-left-color:transparent}
+.fxev-timeline>li::before{content:'';position:absolute;left:-6px;top:22px;width:11px;height:11px;border-radius:50%;border:2px solid #edf0db;background:#68835a;box-shadow:0 0 0 4px #dbe2c9}
+.fxev-entry{padding:20px 22px;border:1px solid #cdd6bf;border-radius:18px;background:#fffdf2;animation:fxev-entry 280ms ease-out both}
+.fxev-entry:first-child{box-shadow:0 5px 16px #17362205}
+.fxev-date{display:flex;align-items:center;flex-wrap:wrap;gap:10px;color:#6e774f;font-size:10px;font-weight:700;line-height:1.7;letter-spacing:.035em;text-transform:uppercase}
+.fxev-duration{display:inline-flex;padding:3px 9px;border:1px solid #d5dac6;border-radius:14px;background:#f0f1e1;font-size:10px;letter-spacing:0;text-transform:none;color:#626e4e}
+.fxev-shell .fxev-entry h5{margin:8px 0 10px;color:#2a4832;font:400 23px/1.25 Georgia,serif;overflow-wrap:anywhere}
+.fxev-shell .fxev-entry-stats{margin:0;color:#637153;font-size:12px;line-height:1.75}
+.fxev-shell .fxev-version-note{margin:10px 0 0;color:#7b7157;font-size:11px;line-height:1.65}
+.fxev-shell .fxev-load-more{display:flex;margin:20px auto 0}
+.fxev-comparisons{margin-top:32px;padding-top:27px;border-top:1px solid #cdd4bd}
+.fxev-filter{display:flex;flex-direction:column;gap:8px;margin:18px 0 20px;color:#506748;font-size:12px;line-height:1.6}
+.fxev-filter select{width:100%;min-height:48px;padding:11px 36px 11px 14px;border:1px solid #b5c3a5;border-radius:12px;background:#fffdf1;color:#294c34;font:inherit;line-height:1.5}
+.fxev-exercise-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.fxev-exercise{display:flex;flex-direction:column;padding:20px;border:1px solid #c8d2b7;border-radius:18px;background:#e9eedc}
+.fxev-shell .fxev-exercise h5{margin:0 0 12px;color:#26472f;font-family:inherit;font-size:15px;font-weight:600;line-height:1.5}
+.fxev-comparison{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:15px 0;border-block:1px solid #c5cfb5}
+.fxev-comparison-label{display:block;margin:0 0 8px;color:#677650;font-size:10px;line-height:1.7}
+.fxev-comparison-value{display:block;color:#294a31;font:400 26px/1.15 Georgia,serif;font-variant-numeric:tabular-nums}
+.fxev-comparison-unit{display:block;margin-top:6px;color:#5e6e4d;font-size:10px;line-height:1.6}
+.fxev-comparison-program,.fxev-history-program{display:block;margin-top:6px;color:#62724f;font-size:10px;line-height:1.6;overflow-wrap:anywhere}
+.fxev-shell .fxev-comparison-note{margin:12px 0;color:#506545;font-size:11px;line-height:1.8}
+.fxev-shell .fxev-single-record{padding:14px 0;margin:0;color:#4c6542;font-size:13px;line-height:1.7}
+.fxev-exercise details{margin-top:auto;padding-top:13px;border-top:1px solid #c5cfb5}
+.fxev-exercise summary{display:flex;align-items:center;min-height:44px;color:#33593b;font-size:12px;line-height:1.6;cursor:pointer}
+.fxev-history{list-style:none;margin:0;padding:0}
+.fxev-history>li{padding:12px 0;border-top:1px solid #c8d1ba}
+.fxev-history time{display:block;margin-bottom:6px;color:#566d48;font-size:11px;font-weight:600;line-height:1.6}
+.fxev-shell .fxev-set{margin:5px 0;color:#455d3e;font-size:12px;line-height:1.7;font-variant-numeric:tabular-nums}
+.fxev-shell .fxev-skipped{margin:6px 0;color:#6b7050;font-size:12px;line-height:1.7}
+.fxev-empty{padding:28px 25px;border:1px solid #ccd6bd;border-radius:20px;background:linear-gradient(125deg,#e8eeda,#f7f5e7)}
+.fxev-shell .fxev-empty .fxev-caption{max-width:590px;margin-bottom:0}
+.fxev-status,.fxev-error{margin:20px 30px;padding:14px 17px;border:1px solid #becdaa;border-radius:12px;background:#e7edd7;color:#315734;font-size:13px;line-height:1.7}
+.fxev-error{border-color:#dcc6a2;background:#fff0d9;color:#713f22}
+.fxev-retry{margin:0 30px 24px}
+@media(hover:hover){.fxev-button:not(:disabled):hover{transform:translateY(-2px);background:#dce5c9}.fxev-primary:not(:disabled):hover{background:#35613e}}
+@media(max-width:760px){.fxev-exercise-grid{grid-template-columns:1fr}.fxev-hero{padding:28px;min-height:270px}.fxev-body{padding:24px}.fxev-heading{align-items:flex-start}}
+@media(max-width:480px){.fxev-shell{border-radius:18px}.fxev-hero{padding:27px 22px;min-height:310px;justify-content:flex-end}.fxev-hero::before{background-image:linear-gradient(0deg,#163123 0%,#183827ee 50%,#18382720 100%),url('/assets/roxy_home/fitness/studio-cinema-211.png');background-position:center,67% center}.fxev-shell .fxev-hero h3{font-size:37px}.fxev-shell .fxev-hero-copy{font-size:13px}.fxev-hero-stats{gap:22px;margin-top:20px}.fxev-hero-stat{font-size:10px}.fxev-hero-stat strong{font-size:31px}.fxev-body{padding:23px 16px}.fxev-heading{flex-wrap:wrap;gap:12px}.fxev-shell .fxev-heading h4,.fxev-shell .fxev-empty h4{font-size:27px}.fxev-timeline{padding-left:6px}.fxev-timeline>li{padding-left:17px}.fxev-entry{padding:18px 16px;border-radius:16px}.fxev-shell .fxev-entry h5{font-size:23px}.fxev-actions{flex-direction:column}.fxev-actions .fxev-button{width:100%}.fxev-exercise{padding:19px 17px}.fxev-empty{padding:25px 20px}.fxev-status,.fxev-error{margin:17px 16px}.fxev-retry{margin:0 16px 20px}}
+@keyframes fxev-arrive{from{opacity:.7;transform:scale(1.015)}to{opacity:1;transform:scale(1)}}
+@keyframes fxev-entry{from{opacity:.7;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.fxev-hero::before,.fxev-entry{animation:none}.fxev-button{transition:none}.fxev-button:not(:disabled):hover{transform:none}}

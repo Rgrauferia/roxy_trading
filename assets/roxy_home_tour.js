@@ -7,6 +7,8 @@
   const icon = name => { const n=el('span',name,'material-symbols-rounded');n.setAttribute('aria-hidden','true');return n; };
   const valid = owner => Boolean(owner && context===owner && owner.isCurrent() && !document.hidden);
   function bind(next) {
+    global.RoxyHomeLiving?.bind(next);
+    global.RoxyHomeWorld?.bind(next);
     if (!next || context?.identity!==next.identity || context?.version!==next.version) { close(); stop(); latest=null; }
     if(context&&next&&context.identity===next.identity&&context.version===next.version){Object.assign(context,next);return;}
     context=next;
@@ -26,6 +28,7 @@
     prior.status?.('paused','Voz oficial pausada');
   }
   async function speak(chapter, status=()=>{}, host=null) {
+    global.RoxyHomeWorld?.stop();
     stop();const owner=context;
     owner?.beforeMedia?.();
     if(!valid(owner)){status('error','Inicia sesión para escuchar la voz oficial.');return;}
@@ -50,7 +53,8 @@
     }catch(error){if(player===task){stop();status('error',error.name==='AbortError'?'La voz se interrumpió. Puedes reintentar.':error.message);}}
   }
   function close(){if(!mounted)return;const old=mounted;mounted=null;old.controller.abort();stop();old.dialog.close();old.dialog.remove();if(old.focus?.isConnected)old.focus.focus({preventScroll:true});}
-  async function open(chapter='welcome',{automatic=false}={}){
+  async function open(chapter='welcome',{automatic=false,legacy=false}={}){
+    if(global.RoxyHomeWorld&&!legacy)return global.RoxyHomeWorld.open(chapter,{automatic});
     const owner=context;if(!valid(owner))return;
     if(mounted){if(mounted.data){const idx=mounted.data.chapters.findIndex(row=>row.id===chapter);if(idx>=0){mounted.index=idx;draw(mounted);}}return;}
     const dialog=el('dialog',null,'rht-dialog');dialog.setAttribute('aria-label','Conoce Roxy Home');

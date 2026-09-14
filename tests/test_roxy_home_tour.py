@@ -59,6 +59,52 @@ def test_progress_validation_never_stores_arbitrary_information(setup, extra):
     assert store.get_home_tour(a["id"])["progress"] is None
 
 
+def test_world_personalization_saves_exact_choices_and_preserves_other_member(setup):
+    client, store, a, b = setup
+    before_b = store.member(b["id"])
+    initial = client.get('/v1/home-tour', headers=headers(a)).json()['personalization']
+    selected = {**initial, 'display_name': 'Mi prueba', 'preferences': {**initial['preferences'], 'theme': 'coastal', 'avatar': 'host', 'response_style': 'close'}}
+    response = client.put('/v1/home-tour/personalization', json={**selected, 'expected': initial}, headers=headers(a))
+    assert response.status_code == 200, response.text
+    assert response.json()['personalization'] == selected
+    assert 'no-store' in response.headers['cache-control']
+    assert HomeAccountStore(store.path).member(a['id'])['preferences']['avatar'] == 'host'
+    assert store.member(b['id']) == before_b
+    assert store.get_recipe_profile(a['id'])['profile'] is None
+    # A retry of an obsolete form cannot silently overwrite a newer selection.
+    again = client.put('/v1/home-tour/personalization', json={**selected, 'expected': initial}, headers=headers(a))
+    assert again.status_code == 409
+
+
+@pytest.mark.parametrize('bad', ['other-member', 'old-session', 'origin', 'extra-choice'])
+def test_world_personalization_rejects_wrong_scope_without_writes(setup, bad):
+    client, store, a, b = setup
+    initial = client.get('/v1/home-tour', headers=headers(a)).json()['personalization']
+    body = {**initial, 'display_name': 'Should not save', 'expected': initial}
+    h = headers(a)
+    if bad == 'other-member': h = headers(b)
+    if bad == 'old-session': h['X-Roxy-Session-Version'] = '999'
+    if bad == 'origin': h['Origin'] = 'https://elsewhere.test'
+    if bad == 'extra-choice': body['preferences'] = {**initial['preferences'], 'health': 'not-allowed'}
+    response = client.put('/v1/home-tour/personalization', json=body, headers=h)
+    assert response.status_code in {403, 409, 422}
+    assert store.member(a['id'])['display_name'] == initial['display_name']
+
+
+def test_world_scripts_and_assets_are_fixed_and_available(setup):
+    from roxy_os.home_tour import WORLD_SPEECH
+    client, _, a, _ = setup
+    data = client.get('/v1/home-tour', headers=headers(a)).json()['world']
+    assert data['version'] == 1
+    assert set(WORLD_SPEECH) <= set(data['speech'])
+    assert data['films'] == {}  # No claim that stills are lip-synced videos.
+    for key, words in WORLD_SPEECH.items(): assert speech_for(key) == words
+    for path in [data['entry_image'], data['kitchen_image'], '/assets/roxy_home/world/roxy-host.png']:
+        assert client.get(path).status_code == 200
+    assert speech_for('world-personal-arbitrary-name') is None
+    assert trial_access_mode('PUT', '/v1/home-tour/personalization') == 'local'
+
+
 @pytest.mark.parametrize("route,method,payload", [("/v1/home-tour", "get", None), ("/v1/home-tour", "put", {"expected_revision": 0, "progress": {}}), ("/v1/home-tour/speech", "post", {"chapter": "welcome"})])
 def test_all_routes_bind_the_visible_member_and_session(setup, route, method, payload):
     client, _, a, b = setup

@@ -1,0 +1,75 @@
+/* The everyday rooms share the onboarding's house, without replacing tools. */
+body.rhl-enabled{--rhl-glass:rgba(252,247,236,.93)}
+body.rhl-scene-view main{width:100%;padding:0 0 calc(86px + env(safe-area-inset-bottom))}
+body.rhl-scene-view .topbar{position:relative;background:#faf7f0;border:0}
+#homeLivingRoom{gap:0;animation:none}
+.rhl-stage{position:relative;isolation:isolate;overflow:hidden;min-height:620px;height:calc(100svh - 166px);max-height:1080px;background:#343c30;color:#fff6e8}
+.rhl-room-image{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:-3;animation:rhl-arrive 1s ease-out both}
+.rhl-stage:before{content:"";position:absolute;inset:0;z-index:-2;background:linear-gradient(180deg,rgba(24,31,25,.56),transparent 55%,rgba(24,29,24,.64)),linear-gradient(90deg,rgba(24,31,25,.35),transparent 60%);pointer-events:none}
+.rhl-stage:after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(115deg,transparent 32%,rgba(255,226,155,.1) 50%,transparent 70%);animation:rhl-light 12s ease-in-out infinite alternate;pointer-events:none}
+.rhl-room-header{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:24px 4%}
+.rhl-breadcrumb{font-size:13px;letter-spacing:.06em}
+.rhl-room-nav{display:flex;gap:4px;padding:4px;border:1px solid rgba(255,255,255,.25);border-radius:40px;background:rgba(34,43,34,.35);backdrop-filter:blur(14px)}
+.rhl-room-nav button{min-height:38px;padding:8px 24px;border:0;border-radius:40px;background:transparent;color:#fff;font-size:13px;font-weight:600;line-height:1.2}
+.rhl-room-nav [aria-current="page"]{background:#f9f3e7;color:#263e30}
+.rhl-intro{margin:10px 4%;max-width:640px;text-shadow:0 2px 20px #18221b66}
+.rhl-eyebrow{font-size:10px;letter-spacing:.19em;font-weight:700;margin:0 0 13px}
+.rhl-intro h1{font:400 clamp(36px,4.4vw,66px)/1.04 Georgia,serif;letter-spacing:-.045em;max-width:580px;margin:0 0 14px;color:#fff7ea}
+.rhl-intro>p:last-child{font-size:14px;line-height:1.6;max-width:400px;margin:0}
+.rhl-objects{position:absolute;inset:0;pointer-events:none}
+.rhl-object{position:absolute;left:clamp(128px,var(--x),calc(100% - 128px));top:var(--y);transform:translate(-50%,-10%);pointer-events:auto;display:flex;align-items:center;gap:10px;min-height:52px;max-width:235px;padding:10px 13px;border:1px solid #fff9;border-radius:16px;background:var(--rhl-glass);color:#253d30;box-shadow:0 8px 35px #182a222b;backdrop-filter:blur(12px);cursor:pointer;transition:transform .2s,background .2s}
+.rhl-object:hover{transform:translate(-50%,-16%);background:#fffdf7}
+.rhl-object>.material-symbols-rounded:first-child{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:#526951;color:white;font-size:20px;flex:none}
+.rhl-object>.material-symbols-rounded:last-child{font-size:16px}
+.rhl-object-label{text-align:left}.rhl-object-label strong{display:block;font-size:14px;white-space:nowrap}.rhl-object-label small{display:block;margin-top:4px;font-size:10px;line-height:1.4;font-weight:400}
+.rhl-roxy{position:absolute;right:4%;bottom:66px;display:grid;grid-template-columns:54px minmax(0,1fr);align-items:center;gap:12px;max-width:365px;padding:17px;border:1px solid #fff7;border-radius:22px;background:var(--rhl-glass);color:#263b30;box-shadow:0 12px 32px #13201933;backdrop-filter:blur(16px)}
+.rhl-portrait{width:54px;height:64px;object-fit:cover;object-position:50% 30%;border-radius:30px;transition:box-shadow .25s}
+.rhl-speaking .rhl-portrait{box-shadow:0 0 0 5px #6d886330;animation:rhl-voice 1s ease-in-out infinite alternate}
+.rhl-roxy-words strong{font:400 21px/1.15 Georgia,serif}.rhl-roxy-words p{font-size:11px;line-height:1.45;margin:5px 0 0}
+.rhl-roxy-controls{grid-column:1/-1;display:flex;gap:7px;flex-wrap:wrap}
+.rhl-roxy-controls button{flex:1;min-height:40px;border-radius:40px;border:1px solid #78917d4d;background:#fffaf0;color:#304e38;font-size:11px;font-weight:700;padding:8px 12px}
+.rhl-roxy-controls .rhl-talk{background:#405c40;color:#fff;border-color:#405c40}
+.rhl-audio{grid-column:1/-1;max-width:100%;}.rhl-audio:empty{display:none}.rhl-audio audio{width:100%;height:30px;display:block;margin:0}
+.rhl-scene-footer{position:absolute;inset:auto 4% 22px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:11px}
+.rhl-motion{border:1px solid #fff6;border-radius:25px;padding:9px 14px;min-height:38px;background:#27372c66;color:#fff7eb;font-size:10px}
+.rhl-explore{border:0;background:transparent;color:#fff7eb;font:inherit;min-height:42px;padding:8px 0;text-decoration:underline;text-underline-offset:5px;cursor:pointer}
+.rhl-spaces{display:flex;justify-content:center;gap:4px;padding:18px 12px;background:#f7f2e8;flex-wrap:wrap}
+.rhl-spaces button{display:flex;align-items:center;gap:7px;min-height:44px;padding:10px 16px;border:0;border-radius:30px;background:transparent;color:#4b5b4d;font-size:12px}
+.rhl-spaces button[aria-current="page"]{background:#e5e9dc;color:#2e4a33}.rhl-spaces .material-symbols-rounded{font-size:20px}
+.rhl-stage button:focus-visible,.rhl-spaces button:focus-visible,#homeLivingBar button:focus-visible{outline:3px solid #dfb75b;outline-offset:4px}
+#homeLivingBar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:18px;padding:10px 12px;border-radius:22px;background:#fffaf0ee;box-shadow:0 6px 22px #26352914}
+#homeLivingBar[hidden]{display:none}#homeLivingBar .rhl-room-nav{background:#e9eee3;border:0}#homeLivingBar .rhl-room-nav button{color:#415743;padding:8px 14px}#homeLivingBar .rhl-room-nav [aria-current="page"]{background:#435e42;color:white}
+.rhl-back{display:flex;align-items:center;gap:7px;min-height:44px;border:0;background:transparent;color:#314f37;font-size:12px;font-weight:650;text-align:left}
+body.rhl-workspace-view:before{content:"";position:fixed;inset:0;z-index:-1;background:linear-gradient(#f6f2e799,#f6f2e7d9),url('/assets/roxy_home/world/living-room-205.png') center/cover}
+body.rhl-workspace-view[data-living-room="kitchen"]:before{background-image:linear-gradient(#f6f2e799,#f6f2e7d9),url('/assets/roxy_home/world/kitchen-room-205.png')}
+body.rhl-workspace-view{background:transparent!important;isolation:isolate}
+body.rhl-workspace-view .app-panel{padding:22px;border-radius:26px;background:rgba(255,252,245,.94);box-shadow:0 20px 70px #2635291a}
+body.rhl-workspace-view #homeTourOverview{display:none}
+.rhl-still:after,.rhl-still .rhl-room-image{animation:none}
+@keyframes rhl-arrive{from{opacity:.4;transform:scale(1.025)}to{opacity:1;transform:scale(1)}}
+@keyframes rhl-light{from{opacity:.25}to{opacity:1}}
+@keyframes rhl-voice{from{box-shadow:0 0 0 3px #6d886330}to{box-shadow:0 0 0 7px #6d886320}}
+@media(min-width:1300px){.rhl-roxy{right:5%;bottom:70px}.rhl-intro{margin-top:20px}}
+@media(max-width:1000px){
+ .rhl-stage{height:auto;min-height:760px;padding-bottom:26px;display:flex;flex-direction:column}
+ .rhl-room-image{height:470px;object-position:center;object-fit:cover}
+ .rhl-stage:before{background:linear-gradient(180deg,#1e2e2380 0%,transparent 35%,#273a2b 58%)}
+ .rhl-room-header{padding:16px 18px;gap:8px}.rhl-breadcrumb{font-size:10px}.rhl-room-nav button{padding:8px 17px;min-height:36px}
+ .rhl-intro{margin:8px 22px 0;max-width:330px;min-height:180px}.rhl-intro h1{font-size:40px;max-width:310px}.rhl-intro>p:last-child{font-size:12px;max-width:280px}
+ .rhl-eyebrow{font-size:9px;margin-bottom:11px}
+ .rhl-objects{position:relative;inset:auto;display:grid;grid-template-columns:1fr;gap:8px;margin:92px 20px 18px}
+ .rhl-object{position:relative;left:auto;top:auto;transform:none;max-width:none;width:100%;min-height:53px;padding:9px 13px;border-radius:15px;background:#fbf5e8ed}
+ .rhl-object:hover{transform:translateY(-2px)}.rhl-object-label{flex:1}.rhl-object-label small{font-size:10px;margin-top:2px}.rhl-object-label strong{font-size:13px}
+ .rhl-roxy{position:relative;right:auto;bottom:auto;margin:0 20px;max-width:none;padding:13px;grid-template-columns:44px minmax(0,1fr);gap:10px;border-radius:18px}
+ .rhl-portrait{width:44px;height:53px}.rhl-roxy-words strong{font-size:20px}.rhl-roxy-words p{font-size:10px}
+ .rhl-roxy-controls button{min-height:40px}.rhl-scene-footer{position:relative;inset:auto;margin:16px 20px 0;font-size:9px}.rhl-motion{font-size:9px;padding:8px 11px}
+ .rhl-spaces{padding:13px 12px;justify-content:flex-start;gap:4px}.rhl-spaces button{flex:1 0 21%;flex-direction:column;gap:5px;padding:8px 3px;font-size:10px;border-radius:16px}
+ body.rhl-workspace-view main{padding-inline:12px}body.rhl-workspace-view .app-panel{padding:14px;border-radius:20px}.rhl-back{font-size:10px}
+ #homeLivingBar{padding:7px}#homeLivingBar .rhl-room-nav button{padding:8px 11px;font-size:11px}
+}
+@media(prefers-reduced-motion:reduce){.rhl-stage:after,.rhl-room-image,.rhl-speaking .rhl-portrait{animation:none}.rhl-object{transition:none}}
+
+body .bottom-nav>button[data-tab-link="house"],body .bottom-nav>button[data-tab-link="kitchen"],body.family-mode .bottom-nav>button[data-tab-link="house"],body.family-mode .bottom-nav>button[data-tab-link="kitchen"],body.fitness-mode .bottom-nav>button[data-tab-link="house"],body.fitness-mode .bottom-nav>button[data-tab-link="kitchen"]{display:flex!important;flex-direction:column;align-items:center;justify-content:center}
+
+@media(min-width:1001px){body.rhl-scene-view:not([data-living-room="house"]) .rhl-roxy{left:4%;right:auto}}
+@media(min-width:1001px) and (max-width:1200px){body.rhl-scene-view:not([data-living-room="house"]) .rhl-roxy{max-width:320px}}

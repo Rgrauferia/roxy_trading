@@ -41,6 +41,7 @@ def test_real_driver_parameters_cannot_downgrade_tls(monkeypatch):
 class SyntheticDB:
     def __init__(self):
         self.states, self.requests, self.calls = {}, {}, []
+        self.plan_states, self.plan_requests = {}, {}
         self.lock = RLock()
         self.role = {"rolsuper": False, "rolbypassrls": False}
         self.tls = True
@@ -64,11 +65,11 @@ class SyntheticConnection:
     @contextmanager
     def transaction(self):
         with self.db.lock:
-            saved = deepcopy((self.db.states, self.db.requests))
+            saved = deepcopy((self.db.states, self.db.requests, self.db.plan_states, self.db.plan_requests))
             try:
                 yield
             except Exception:
-                self.db.states, self.db.requests = saved
+                self.db.states, self.db.requests, self.db.plan_states, self.db.plan_requests = saved
                 raise
 
     def cursor(self):
@@ -97,13 +98,36 @@ class SyntheticCursor:
         elif "FROM pg_catalog.pg_roles" in sql:
             self.result = deepcopy(db.role)
         elif "FROM pg_catalog.pg_class" in sql:
-            self.result = deepcopy(db.tables)
+            self.result = deepcopy([row for row in db.tables if "'" + row["relname"] + "'" in sql])
         elif "SELECT version FROM roxy_home_fitness.schema_version" in sql:
             self.result = {"version": db.schema_version}
         elif "set_config('roxy_home.member_id'" in sql:
             self.conn.member = params[0]
         elif "pg_advisory_xact_lock" in sql:
-            assert params[0] == "roxy-home-fitness:" + self.conn.member
+            assert params[0] in {"roxy-home-fitness:" + self.conn.member, "roxy-home-activity-plan:" + self.conn.member}
+        elif sql.startswith("INSERT INTO roxy_home_fitness.activity_plan_state"):
+            assert params[0] == self.conn.member
+            db.plan_states.setdefault(params[0], {"version": 0, "plan": None, "consent": None, "updated_at": "2026-09-14T12:00:00Z"})
+        elif sql.startswith("SELECT version, plan, consent"):
+            assert params[0] == self.conn.member
+            self.result = deepcopy(db.plan_states.get(params[0]))
+        elif sql.startswith("UPDATE roxy_home_fitness.activity_plan_state SET version = version + 1"):
+            assert params[0] == self.conn.member
+            if params[0] in db.plan_states:
+                state = db.plan_states[params[0]]
+                state.update(version=state["version"] + 1, plan=None, consent=None)
+        elif sql.startswith("UPDATE roxy_home_fitness.activity_plan_state"):
+            version, plan, consent, member = params
+            assert member == self.conn.member
+            db.plan_states[member].update(version=version, plan=json.loads(plan) if plan else None,
+                                          consent=json.loads(consent) if consent else None)
+        elif sql.startswith("DELETE FROM roxy_home_fitness.activity_plan_idempotency"):
+            assert params[0] == self.conn.member
+            db.plan_requests = {key: value for key, value in db.plan_requests.items() if key[0] != params[0]}
+        elif sql.startswith("INSERT INTO roxy_home_fitness.activity_plan_idempotency"):
+            member, key, digest, version = params
+            assert member == self.conn.member
+            db.plan_requests[member, key] = {"request_hash": digest, "response_version": version}
         elif sql.startswith("INSERT INTO roxy_home_fitness.member_state"):
             assert params[0] == self.conn.member
             db.states.setdefault(params[0], {"version": 0, "profile": None, "consent": None, "updated_at": "2026-09-08T12:00:00Z"})
@@ -112,7 +136,7 @@ class SyntheticCursor:
             self.result = deepcopy(db.states.get(params[0]))
         elif sql.startswith("SELECT request_hash, response_version"):
             assert params[0] == self.conn.member
-            self.result = deepcopy(db.requests.get(tuple(params)))
+            self.result = deepcopy((db.plan_requests if "activity_plan_idempotency" in sql else db.requests).get(tuple(params)))
         elif sql.startswith("DELETE FROM roxy_home_fitness.idempotency"):
             assert params[0] == self.conn.member
             db.requests = {key: value for key, value in db.requests.items() if key[0] != params[0]}

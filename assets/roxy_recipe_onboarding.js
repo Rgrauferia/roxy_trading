@@ -100,7 +100,7 @@
     const button = (value, cls, fn) => { const node = el('button', cls, value); node.type = 'button'; node.addEventListener('click', () => { if (isCurrent() && !node.disabled) fn(); }); return node; };
     const shell = el('section', 'recipe-onboarding'); shell.setAttribute('aria-labelledby', `${id}-title`);
     container.replaceChildren(shell);
-    let content, errorBox, footer, next, reload, voiceButton, voiceStatus, voiceArea, narrationNode, overview, stepHeading;
+    let content, errorBox, footer, next, reload, voiceButton, voiceStatus, voiceArea, narrationNode, overview, stepHeading, narratedStep = -1;
     function stopSpeech() {
       if (speech) global.RoxyHomeTour?.stop();
       speech = null;
@@ -234,11 +234,13 @@
       const privacy = el('p','rco-privacy',t.privacy + ' '), link = el('a','',t.privacyLink); link.href = '/privacy'; link.target = '_blank'; link.rel = 'noopener'; privacy.append(link); shell.append(privacy); updateBusy();
       if (focusId) { const target = [...shell.querySelectorAll('input')].find(node => node.id === focusId); target?.focus(); }
       else if (model.step > 0) stepHeading.focus?.();
+      if(options.onNarration && narratedStep!==model.step){narratedStep=model.step;options.onNarration(model.step);}
     }
     function checkScope() { if (!isCurrent()) dispose(); }
     function onVisibility() { stopSpeech(); if (doc.hidden && request) request.cancel(); checkScope(); }
     function dispose() {
       if (disposed) return; disposed = true; stopSpeech();
+      options.stopNarration?.();
       if (request) { clearTimeout(request.timer); request.cancel(); request = null; }
       observer?.disconnect(); owned.splice(0).forEach(remove => remove()); shell.remove(); if (mounts.get(container) === controller) mounts.delete(container);
       model = null;

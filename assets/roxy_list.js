@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '203';
+  const APP_VERSION = '215';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -118,8 +118,8 @@
   const announcedTimers = new Set();
   let greetingName=String(localStorage.getItem('roxyHomeGreetingName')||'').trim().slice(0,32);
   const appearanceDefaults={theme:'classic',background:'plant',avatar:'home',response_style:'balanced',text_scale:'standard'};
-  const appearanceChoices={theme:['classic','olive','coastal','terracotta'],background:['plant','linen','clean','warm'],avatar:['home','professional','monogram'],response_style:['balanced','brief','close','explanatory'],text_scale:['compact','standard','large']};
-  const avatarSources={home:'/assets/roxy_home_avatar.jpg',professional:'/assets/roxy_avatar_icon.jpg',monogram:'/assets/roxy_home/avatars/monogram.svg'};
+  const appearanceChoices={theme:['classic','olive','coastal','terracotta'],background:['plant','linen','clean','warm'],avatar:['home','professional','monogram','host'],response_style:['balanced','brief','close','explanatory'],text_scale:['compact','standard','large']};
+  const avatarSources={host:'/assets/roxy_home/world/roxy-host.png',home:'/assets/roxy_home_avatar.jpg',professional:'/assets/roxy_avatar_icon.jpg',monogram:'/assets/roxy_home/avatars/monogram.svg'};
   function cachedAppearance(){try{const value=JSON.parse(localStorage.getItem('roxyHomeAppearance')||'{}');return value&&typeof value==='object'?value:{}}catch(_error){return{}}}
   let appearance={...appearanceDefaults,...cachedAppearance()};
   let account={mode:'checking',display_name:'',storage_user_id:user,role:'',preferences:appearance};
@@ -771,6 +771,7 @@
         render();
         load.renderedScope={owner:requestedOwner,identity};$('app').hidden=false;
         activateRecipeSources();
+        bindHomeTour({prompt:false});
       }
       if (!cached) setConnection('No se pudo cargar Roxy Home','offline');
     } finally {
@@ -842,17 +843,28 @@
   }
 
   let tourPromptedIdentity='';
-  function bindHomeTour(){
-    if(account.mode!=='member'){window.RoxyHomeTour?.bind(null);return}
+  function bindHomeTour({prompt=true}={}){
+    if(account.mode!=='member'){window.RoxyHomeTour?.bind(null);const target=window.RoxyHomeLiving?.toolFor(activePanel)||({house:'today',kitchen:'recipes'})[activePanel]||activePanel;if(target!==activePanel)selectPanel(target);return}
     const memberId=account.id,version=account.session_version||0;
-    window.RoxyHomeTour?.bind({identity:memberId,version,
+    window.RoxyHomeTour?.bind({identity:memberId,version,converse:openRoxyVoice,
       isCurrent:()=>account.mode==='member'&&account.id===memberId&&(account.session_version||0)===version,
       beforeMedia:()=>{stopCookingSpeech();resetRoxyVoiceContext()},
       onCompleted:()=>{if(account.id===memberId)account.home_tour_completed=true},
+      onPersonalized:values=>{if(account.id!==memberId||(account.session_version||0)!==version)return;account={...account,...values};appearance=safeAppearance(values.preferences);applyAppearance();renderHomeMoment();renderAccount()},
+      mountRecipe:async(host,flow)=>{
+        const isCurrent=()=>account.mode==='member'&&account.id===memberId&&(account.session_version||0)===version&&flow.isCurrent();
+        await prepareRecipePreferences(isCurrent,{force:true});
+        if(!isCurrent())return null;
+        if(!recipeProfileEnvelope||!window.RoxyRecipeOnboarding)throw new Error(recipeProfileError||'No pudimos abrir tus gustos.');
+        return window.RoxyRecipeOnboarding.render(host,{profile:recipeProfileEnvelope,identity:memberId,displayName:account.display_name||'',isCurrent,api:privateRecipeApi(memberId,isCurrent),
+          onNarration:step=>flow.speak(`recipe-${step}`),stopNarration:flow.stop,
+          onCancel:flow.onCancel,onSaved:result=>{if(!isCurrent()||result.member_id!==memberId)return;recipeProfileEnvelope=result;recipeProfileError='';recipePresetId='';recipeNavigationIdentity='';flow.onSaved()}});
+      },
+      openForm:(destination,flow)=>{if(account.mode!=='member'||account.id!==memberId||(account.session_version||0)!==version)return;if(destination==='plant-new')return openPlantForm(null,flow);if(destination==='pet-new')openPetProfile();if(destination==='calendar-new')openCalendarEvent();if(destination==='design-new')$('designUploadButton').click();if(destination==='family-privacy'){selectPanel('family');$('familySettings').open=true;$('familySettings').scrollIntoView({block:'start',behavior:'smooth'})}},
       navigate:destination=>{if(destination==='appearance'){openPersonalization();return}if(destination==='calendar-new'){selectPanel('calendar');openCalendarEvent();return}selectPanel(destination)},
     });
     window.RoxyHomeTour?.home($('homeTourOverview'));addModuleHelp(activePanel);
-    if(!account.home_tour_completed&&tourPromptedIdentity!==`${memberId}:${version}`){
+    if(prompt&&!account.home_tour_completed&&tourPromptedIdentity!==`${memberId}:${version}`){
       tourPromptedIdentity=`${memberId}:${version}`;
       if(!document.querySelector('dialog[open]'))void window.RoxyHomeTour?.open('welcome',{automatic:true});
     }
@@ -862,10 +874,26 @@
     const host=$((panel==='pets'?'recipes':panel)+'Panel');if(!host||!chapters[panel])return;
     let help=host.querySelector('.rht-module-help');
     if(!help){help=makeButton('','rht-module-help',()=>void window.RoxyHomeTour?.open(help.dataset.chapter));host.prepend(help)}
-    help.dataset.chapter=chapters[panel];help.textContent=panel==='more'?'Conoce todos los espacios con Roxy':'Roxy, explícame esta sección';
+    if(panel==='more')host.querySelector('.more-home-hero')?.append(help);
+    help.dataset.chapter=chapters[panel];help.textContent=panel==='more'?'Guía de Roxy':'Roxy, explícame esta sección';
   }
   let activePanel='';
-  function mountFitness(){window.RoxyFitness?.mount($('fitnessRoot'),{identity:account.id||account.mode||'preview',navigate:selectPanel,scheduleActivity:date=>{selectPanel('calendar');openCalendarEvent(null,new Date(`${date}T12:00:00`));$('calendarEventTitle').value='Actividad personal';$('calendarEventDuration').value='30';$('calendarEventNotes').value='';announce('Revisa fecha, hora y duración. Se guardará al confirmar; el calendario pertenece al hogar.')}})}
+  function openFitnessCalendarDraft(activity){
+    if(account.mode!=='member')return;
+    const scheduled=activity&&typeof activity==='object';
+    const date=scheduled?activity.date:activity;
+    if(typeof date!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(date))return;
+    const instant=scheduled?Date.parse(activity.starts_at):NaN;
+    if(scheduled&&!Number.isFinite(instant)){announce('No pude confirmar la hora de esta actividad. Actualiza tu plan antes de añadirla al calendario.');return;}
+    selectPanel('calendar');
+    if(scheduled)openCalendarEvent({_draft:true,title:'Actividad personal',starts_at:new Date(instant).toISOString(),ends_at:new Date(instant+3600000).toISOString(),reminder_minutes:0,category:'PERSONAL',notes:'',participants:[]});
+    else openCalendarEvent(null,new Date(`${date}T12:00:00`));
+    $('calendarEventTitle').value='Actividad personal';
+    $('calendarEventDuration').value='';
+    $('calendarEventNotes').value='';
+    announce('Elige la duración y revisa la hora local del calendario. Se guardará al confirmar; el evento será visible en el calendario del hogar.');
+  }
+  function mountFitness(){window.RoxyFitness?.mount($('fitnessRoot'),{identity:account.id||account.mode||'preview',navigate:selectPanel,scheduleActivity:openFitnessCalendarDraft})}
   function recipeSourcesReady(){
     return !$('app').hidden&&!$('recipePreferencesDialog')?.open&&load.renderedScope?.owner===user&&load.renderedScope?.identity===collectionIdentity();
   }
@@ -876,6 +904,8 @@
     window.RoxyDrinks?.setActive($('drinksRecipePanel'),active&&recipeCollection==='drinks');
   }
   function selectPanel(panel,{smooth=true}={}) {
+    if(panel==='wellness'&&typeof window.RoxyFitnessWorld?.mount==='function')panel='fitness';
+    if(!['checking','unknown','member'].includes(account.mode))panel=window.RoxyHomeLiving?.toolFor(panel)||({house:'today',kitchen:'recipes'})[panel]||panel;
     activePanel=panel;
     window.RoxyHomeTour?.stop();
     addModuleHelp(panel);
@@ -884,7 +914,7 @@
     window.RoxyFitness?.setActive(panel==='fitness');
     syncFamilyMapReadiness();
     if(panel!=='family'&&familyWeatherGlobeActive)exitFamilyWeatherGlobe();
-    const contentPanel=panel==='pets'?'recipes':panel;
+    const contentPanel=panel==='pets'?'recipes':window.RoxyHomeLiving?.isRoom(panel)||panel==='kitchen'?'house':panel;
     if(panel==='pets')recipeAudience='pet';else if(panel==='recipes')recipeAudience='human';
     document.body.classList.toggle('family-mode',panel==='family');
     document.body.classList.toggle('pet-module-mode',panel==='pets');
@@ -896,8 +926,8 @@
       node.classList.toggle('active',active);
     });
     document.querySelectorAll('.bottom-nav [data-tab-link]').forEach(button => {
-      const primaryPanels=['today','shopping','recipes','fitness'];
-      const active=button.dataset.tabLink === panel||(button.dataset.tabLink==='more'&&!primaryPanels.includes(panel));
+      const primaryPanels=['house','today','kitchen','shopping','recipes','pantry','fitness','wellness'];
+      const active=button.dataset.tabLink===panel||(button.dataset.tabLink==='fitness'&&panel==='wellness')||(button.dataset.tabLink==='house'&&panel==='today')||(button.dataset.tabLink==='kitchen'&&['recipes','pantry'].includes(panel))||(button.dataset.tabLink==='more'&&!primaryPanels.includes(panel));
       button.classList.toggle('active',active);
       if(active)requestAnimationFrame(()=>{const nav=button.closest('.bottom-nav');if(nav)nav.scrollTo({left:Math.max(0,button.offsetLeft-(nav.clientWidth-button.offsetWidth)/2),behavior:smooth?'smooth':'auto'})});
     });
@@ -905,8 +935,10 @@
     // dedicated welcome experience. Today starts and ends with useful content,
     // while the center Roxy tab remains the conversation entry point.
     $('homeWelcome').hidden=true;
-    const hashes={today:'hoy',shopping:'compra',recipes:'recetas',pets:'mascotas',pantry:'despensa',calendar:'calendario',design:'renueva',plants:'jardin',family:'nexo',more:'mas',fitness:'ejercicio'};
+    const hashes={garden:'patio',wellness:'bienestar',companions:'companeros',atelier:'estudio',connection:'encuentro',agenda:'agenda',house:'hoy',kitchen:'cocina',today:'dia',shopping:'compra',recipes:'recetas',pets:'mascotas',pantry:'despensa',calendar:'calendario',design:'renueva',plants:'jardin',family:'nexo',more:'mas',fitness:'ejercicio'};
     location.hash=hashes[panel]||'hoy';
+    window.RoxyHomeLiving?.show(panel);
+    window.RoxyHomeLiving?.enter();
     if(contentPanel==='recipes')renderRecipes();
     if(panel==='fitness')mountFitness();
     window.scrollTo({top:0,behavior:smooth?'smooth':'auto'});
@@ -1045,7 +1077,7 @@
   }
 
   function showCalendarConfirmation(draft,conflicts=[],mode='create'){
-    pendingCalendarDraft={...draft,_mode:mode};const root=$('calendarConfirmSummary');root.replaceChildren();const title=document.createElement('strong');title.textContent=draft.title;const start=new Date(draft.starts_at);const copy=document.createElement('small');copy.textContent=`${formatCalendarDay(start)} · ${formatCalendarTime(start)} · ${calendarCategories[draft.category]||'Personal'} · aviso ${Number(draft.reminder_minutes||0)===60?'1 hora':`${Number(draft.reminder_minutes||0)} min`} antes`;root.append(title,copy);const warning=$('calendarConflictWarning');warning.hidden=!conflicts.length;warning.textContent=conflicts.length?`Hay un posible conflicto con “${conflicts[0].title}”. Puedes volver y cambiar la hora.`:'';$('calendarConfirmDialog').showModal();
+    pendingCalendarDraft={...draft,_mode:mode};const root=$('calendarConfirmSummary');root.replaceChildren();const title=document.createElement('strong');title.textContent=draft.title;const start=new Date(draft.starts_at),end=new Date(draft.ends_at);const duration=Math.round((end-start)/60000);const endLabel=dateKey(start)===dateKey(end)?formatCalendarTime(end):`${formatCalendarDay(end)} ${formatCalendarTime(end)}`;const reminder=Number(draft.reminder_minutes||0);const reminderLabel=reminder>0?`Aviso ${reminder===60?'1 hora':`${reminder} min`} antes`:'Sin aviso';const timeLabel=draft.all_day?'Todo el día':`${formatCalendarTime(start)} – ${endLabel} (${duration} min)`;const copy=document.createElement('small');copy.textContent=`${formatCalendarDay(start)} · ${timeLabel} · ${calendarCategories[draft.category]||'Personal'} · ${reminderLabel}`;root.append(title,copy);const warning=$('calendarConflictWarning');warning.hidden=!conflicts.length;warning.textContent=conflicts.length?`Hay un posible conflicto con “${conflicts[0].title}”. Puedes volver y cambiar la hora.`:'';$('calendarConfirmDialog').showModal();
   }
 
   async function submitCalendarEvent(event){
@@ -1909,11 +1941,12 @@
     if(details.childElementCount)root.append(details);
     if(plant.sources?.length){const section=document.createElement('section');section.className='plant-care-sources';const heading=document.createElement('strong');heading.textContent='Fuentes de estos cuidados';section.append(heading);plant.sources.forEach(source=>{if(!/^https:\/\//.test(source.url||''))return;const link=document.createElement('a');link.href=source.url;link.textContent=source.label||'Consultar fuente';link.target='_blank';link.rel='noopener noreferrer';section.append(link)});root.append(section)}
   }
-  function openPlantForm(plant=null){
+  function openPlantForm(plant=null,flow=null){
     if(window.RoxyGardenGuide){
       if($('plantDetailDialog').open)$('plantDetailDialog').close();
       let savedResult=null;
-      window.RoxyGardenGuide.open({memberName:activePersonName(),species:homePlants.species||[],plant,readPhoto:readPlantPhoto,onSave:async(payload)=>{
+      return window.RoxyGardenGuide.open({memberName:activePersonName(),species:homePlants.species||[],plant,readPhoto:readPlantPhoto,onNarration:flow?(step,{explicit=false}={})=>(explicit?flow.repeat:flow.speak)(`garden-${step}`):undefined,stopNarration:flow?.stop,onSave:async(payload)=>{
+        if(flow&&!flow.isCurrent())throw new Error('Tu sesión cambió. Vuelve a abrir la ficha.');
         const path=`/v1/home-plants/${encodeURIComponent(user)}`+(plant?`/${encodeURIComponent(plant.id)}`:'');
         if(!savedResult)savedResult=await api(path,{method:plant?'PATCH':'POST',body:JSON.stringify(plant?payload:{...payload,identify_photo:false})});
         try{await refreshPlants()}catch(_error){announce('La planta se guardó. Vuelve a abrir Jardín para actualizar la lista.');return savedResult}
@@ -3280,7 +3313,7 @@
     catch(error){if(current())roxyVoiceStatus('No pude enviar el mensaje. Conservé tu texto para que puedas reintentar.',true)}
     finally{button.disabled=false}
   }
-  function openRoxyVoice(){window.RoxyRecipeGuide?.pauseActive?.();$('roxyVoicePanel').hidden=false;$('roxyVoiceLauncher').setAttribute('aria-expanded','true');$('roxyVoiceLauncher').classList.add('active');if(!roxyVoiceConversation&&!roxyVoiceStarting&&!roxyReadableResponse)roxyVoiceStatus('Pulsa Iniciar para hablar con el agente de Home o escribe tu mensaje.');$('roxyVoiceStart').focus()}
+  function openRoxyVoice(){window.RoxyHomeLiving?.stop();window.RoxyHomeTour?.stop();window.RoxyRecipeGuide?.pauseActive?.();$('roxyVoicePanel').hidden=false;$('roxyVoiceLauncher').setAttribute('aria-expanded','true');$('roxyVoiceLauncher').classList.add('active');if(!roxyVoiceConversation&&!roxyVoiceStarting&&!roxyReadableResponse)roxyVoiceStatus('Pulsa Iniciar para hablar con el agente de Home o escribe tu mensaje.');$('roxyVoiceStart').focus()}
   function closeRoxyVoice(){stopRoxyDeviceSpeech('response');void endRoxyVoice();$('roxyVoicePanel').hidden=true;$('roxyVoiceLauncher').setAttribute('aria-expanded','false');$('roxyVoiceLauncher').classList.remove('active');$('roxyVoiceLauncher').focus()}
   async function loadElevenLabs(){if(roxyElevenLabsModule)return roxyElevenLabsModule;let lastError=null;for(const url of roxyVoiceUrls){try{roxyElevenLabsModule=await import(url);return roxyElevenLabsModule}catch(error){lastError=error}}throw lastError||new Error('ElevenLabs SDK no disponible')}
   function currentShoppingSummary(){const rows=activeItems();return{pending_count:rows.length,total_quantity:rows.reduce((total,item)=>total+Number(item.quantity||0),0),items:rows.slice(0,50).map(item=>({name:item.name,quantity:item.quantity,unit:item.unit,category:item.category}))}}
@@ -3504,7 +3537,7 @@
     $('nextStepButton').addEventListener('click',()=>updateCooking('next'));
     $('speakStepButton').addEventListener('click',speakCurrentStep);
     $('startTimerButton').addEventListener('click',startCookingTimer);
-    document.querySelectorAll('[data-tab-link]').forEach(button=>button.addEventListener('click',event=>{event.preventDefault();selectPanel(button.dataset.tabLink)}));
+    document.querySelectorAll('[data-tab-link]').forEach(button=>button.addEventListener('click',event=>{event.preventDefault();const target=button.dataset.tabLink;selectPanel(button.closest('.bottom-nav,.more-shortcuts')?(window.RoxyHomeLiving?.entryFor(target)||target):target)}));
     document.querySelectorAll('[data-open-custom]').forEach(button=>button.addEventListener('click',()=>$('customDialog').showModal()));
     document.querySelectorAll('[data-close-dialog]').forEach(button=>button.addEventListener('click',()=>$(button.dataset.closeDialog).close()));
     $('pairDialog').addEventListener('cancel',event=>{event.preventDefault();$('pairDialog').close()});
@@ -3518,9 +3551,9 @@
   applyAppearance();bind();renderHomeMoment();setInterval(renderHomeMoment,30000);render();
   window.addEventListener('pageshow',event=>{if(event.persisted)location.reload()});
   if('scrollRestoration'in history)history.scrollRestoration='manual';
-  const initialPanels={hoy:'today',compra:'shopping',recetas:'recipes',mascotas:'pets',pets:'pets',despensa:'pantry',calendario:'calendar',renueva:'design',jardin:'plants',familia:'family',nexo:'family',family:'family',mas:'more',ejercicio:'fitness'};
-  window.addEventListener('hashchange',()=>{const panel=initialPanels[location.hash.slice(1)]||'today';if(panel!==activePanel)selectPanel(panel,{smooth:false})});
-  selectPanel(initialPanels[location.hash.slice(1)]||'today',{smooth:false});const calendarSyncResult=new URLSearchParams(location.search).get('calendar_sync');if(calendarSyncResult){sessionStorage.setItem('roxyCalendarSyncNotice',calendarSyncResult);history.replaceState(null,'',`${location.pathname}${location.hash||'#calendario'}`)}load().then(()=>{const notice=sessionStorage.getItem('roxyCalendarSyncNotice');if(notice){sessionStorage.removeItem('roxyCalendarSyncNotice');announce(notice==='connected'?'Google Calendar quedó conectado. Tus próximos eventos ya se están sincronizando.':notice==='denied'?'No se autorizó Google Calendar. No hice cambios.':'No pude terminar la conexión con Google Calendar. Inténtalo de nuevo.')}});
+  const initialPanels={patio:'garden',bienestar:'wellness',companeros:'companions',estudio:'atelier',encuentro:'connection',agenda:'agenda',hoy:'house',casa:'house',cocina:'kitchen',dia:'today',compra:'shopping',recetas:'recipes',mascotas:'pets',pets:'pets',despensa:'pantry',calendario:'calendar',renueva:'design',jardin:'plants',familia:'family',nexo:'family',family:'family',mas:'more',ejercicio:'fitness'};
+  window.addEventListener('hashchange',()=>{const panel=initialPanels[location.hash.slice(1)]||'house';if(panel!==activePanel)selectPanel(panel,{smooth:false})});
+  selectPanel(initialPanels[location.hash.slice(1)]||'house',{smooth:false});const calendarSyncResult=new URLSearchParams(location.search).get('calendar_sync');if(calendarSyncResult){sessionStorage.setItem('roxyCalendarSyncNotice',calendarSyncResult);history.replaceState(null,'',`${location.pathname}${location.hash||'#calendario'}`)}load().then(()=>{const notice=sessionStorage.getItem('roxyCalendarSyncNotice');if(notice){sessionStorage.removeItem('roxyCalendarSyncNotice');announce(notice==='connected'?'Google Calendar quedó conectado. Tus próximos eventos ya se están sincronizando.':notice==='denied'?'No se autorizó Google Calendar. No hice cambios.':'No pude terminar la conexión con Google Calendar. Inténtalo de nuevo.')}});
   if('serviceWorker'in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){
     const homeRoute=location.pathname.startsWith('/home');
     navigator.serviceWorker.register(homeRoute?'/home-sw.js':'/lista-sw.js',{scope:homeRoute?'/home':'/lista',updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});

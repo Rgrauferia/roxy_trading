@@ -1,0 +1,67 @@
+/* Cinematic presentation of the unchanged source guides. Ambient art is not a demonstration. */
+.fxp-shell:has(.fx-session-cinema),.fxpl-shell:has(.fx-session-cinema){padding:0;border:0;background:transparent;box-shadow:none}
+.fxp-shell:has(.fx-session-cinema)>.fxp-heading,.fxp-shell:has(.fx-session-cinema)>.fxp-programs,.fxp-shell:has(.fx-session-cinema)>.fxp-description,.fxp-shell:has(.fx-session-cinema)>.fxp-form,.fxp-shell:has(.fx-session-cinema)>.fxp-configuration,.fxp-shell:has(.fx-session-cinema)>.fxp-credits,.fxp-shell:has(.fx-session-cinema)>.fxp-caption,.fxpl-shell:has(.fx-session-cinema)>.fxpl-heading{display:none}
+.fxp-agenda-root:has(.fx-session-cinema){margin-top:0}
+.fxp-agenda-root:has(.fx-session-cinema)>:not(.fx-session-cinema){display:none}
+.fxp-shell .fx-session-cinema,.fxpl-shell .fx-session-cinema{position:relative;isolation:isolate;padding:0;margin:0;overflow:hidden;border:1px solid #87988066;border-radius:26px;background:#14271e;color:#fff9e9;box-shadow:0 22px 60px #14271e30}
+.fx-session-cinema *{box-sizing:border-box;min-width:0}
+.fx-session-stage{position:relative;isolation:isolate;min-height:610px;background:#16281f;overflow:hidden}
+.fx-session-stage::before{content:'';position:absolute;z-index:-2;inset:0;background-image:linear-gradient(90deg,#13261ffa 0%,#14271fed 32%,#14271f92 56%,#14271f05 80%),var(--fx-session-scene,url('/assets/roxy_home/fitness/roxy-fitness-welcome.jpg'));background-size:100% 100%,auto 100%;background-position:center,right center;background-repeat:no-repeat;animation:fx-session-arrive 800ms ease-out both}
+.fx-session-stage::after{content:'';position:absolute;z-index:-1;inset:0;background:linear-gradient(0deg,#14271e 0%,transparent 20%);pointer-events:none}
+.fx-session-story{position:relative;width:68%;padding:40px 36px 32px}
+.fx-session-cinema .fx-session-eyebrow{margin:0 0 24px;color:#ead4a5;font-size:10px;font-weight:700;letter-spacing:.17em;text-transform:uppercase}
+.fx-session-cinema :is(.fxp-reader-title,.fxpl-reader-title){color:#fff9e9;font:400 clamp(34px,4.1vw,58px)/1.05 Georgia,'Times New Roman',serif;max-width:650px;letter-spacing:-.025em;margin:0 0 16px;text-wrap:balance;scroll-margin-top:110px}
+.fx-session-cinema .fx-session-program{font-size:13px;color:#d4dfce;margin:0 0 30px}
+.fx-session-cinema .fx-session-image-note{position:absolute;z-index:2;right:20px;top:16px;max-width:33%;margin:0;padding:7px 10px;border:1px solid #ffffff36;border-radius:20px;background:#14271ed9;color:#f1edda;font-size:10px;line-height:1.35;text-align:right}
+.fx-session-cue{padding:20px 22px;border:1px solid #d7dfbd45;border-radius:16px;background:#17372be8;box-shadow:0 15px 28px #061d152a;animation:fx-session-cue-in 320ms ease-out both}
+.fx-session-cinema .fx-session-cue-count{margin:0 0 12px;color:#ded3ae;font-size:11px;font-weight:700;letter-spacing:.11em;text-transform:uppercase}
+.fx-session-cinema .fx-session-current-instruction{margin:0;color:#fffbee;font-size:clamp(17px,1.6vw,22px);line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;scroll-margin-top:125px}
+.fx-session-steps{display:flex;gap:9px;flex-wrap:wrap;margin:21px 0 16px}
+.fx-session-cinema .fx-session-step{display:grid;place-items:center;width:44px;min-height:44px;padding:0;border:1px solid #cbd6b965;border-radius:50%;background:#14271e80;color:#edf2df;font-size:14px;font-weight:700;cursor:pointer;transition:background 180ms ease,transform 180ms ease}
+.fx-session-cinema .fx-session-step[aria-pressed=true]{background:#e5e6bb;color:#203d2d;border-color:#e5e6bb;box-shadow:0 0 0 5px #d5e3b315}
+.fx-session-cue-controls{display:flex;gap:8px;flex-wrap:wrap}
+.fx-session-cinema .fx-session-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:13px 20px;border:1px solid #d0dfc178;border-radius:30px;background:#dfe4c0;color:#183b29;font-size:13px;font-weight:700;text-decoration:none;text-align:center;line-height:1.4;cursor:pointer;transition:background 160ms ease,transform 160ms ease}
+.fx-session-cinema .fx-session-quiet{color:#f3f4e2;background:#182f23b8;border-color:#c6d8b86b}
+.fx-session-cinema .fx-session-voice{background:#f1dcac;color:#2a3c27;border-color:#f1dcac}
+.fx-session-cinema button:disabled{opacity:.42;cursor:default}
+.fx-session-cinema :is(button,summary,a):focus-visible{outline:3px solid #f2d895;outline-offset:4px}
+.fx-session-cinema .fx-session-pace{font-size:12px;color:#d3dcca;margin:18px 0 0}
+.fx-session-transport,.fxpl-reader .fx-session-transport{position:relative;z-index:2;display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:9px;margin:-8px 20px 0;padding:16px;border:1px solid #a8bb9163;border-radius:20px;background:#213e30;box-shadow:0 14px 28px #00150d24}
+.fx-session-transport>.fx-session-button,.fxpl-reader .fx-session-transport>.fx-session-button{width:100%;flex:auto;min-height:52px;font-size:13px;padding:13px 10px}
+.fx-session-support{padding:22px 36px 8px}
+.fx-session-cinema .fx-session-safety{color:#f2dfb7;font-size:13px;line-height:1.6;margin:0 0 16px}
+.fx-session-cinema .fx-session-intro,.fx-session-all-instructions{padding:18px 0;border-top:1px solid #bdcbb338;margin:0;background:transparent;border-radius:0}
+.fx-session-cinema summary{color:#e0e8d5;font-size:13px;line-height:1.5;cursor:pointer}
+.fx-session-cinema :is(.fx-session-intro,.fx-session-all-instructions) p{color:#d3dfc9;font-size:14px;line-height:1.8;white-space:pre-wrap}
+.fx-session-cinema .fx-session-voice-status{color:#dce5ce;font-size:12px;margin:16px 0 9px}
+.fx-session-voice-host audio{display:block;max-width:100%;width:100%;margin:8px 0 16px}
+.fx-session-completion{padding:14px 36px}
+.fx-session-cinema .fx-session-completion p{color:#cbdac1;font-size:12px;line-height:1.6}
+.fx-session-cinema .fx-session-credit{margin:12px 36px 0;padding:20px 0 8px;border-top:1px solid #bdcbb338;background:transparent;color:#b9c9b0}
+.fx-session-cinema .fx-session-credit p{font-size:11px;line-height:1.7;color:#b9c9b0;overflow-wrap:anywhere}
+.fx-session-cinema .fx-session-credit a{display:inline-block;font-size:11px;line-height:1.5;color:#e4d7ae;margin:5px 14px 5px 0;text-decoration:underline;text-underline-offset:3px;overflow-wrap:anywhere}
+.fx-session-cinema .fx-session-credit>.fx-session-button{margin-bottom:10px}
+.fx-session-cinema>.fx-session-exit{margin:12px 36px 30px;background:transparent;color:#fff4d7;border-color:#c3d0b25e}
+@media(hover:hover){.fx-session-cinema button:not(:disabled):hover{transform:translateY(-2px)}.fx-session-cinema .fx-session-step:not(:disabled):hover{background:#78906c;color:white}}
+@media(max-width:700px){
+ .fxp-shell .fx-session-cinema,.fxpl-shell .fx-session-cinema{border-radius:20px}
+ .fx-session-stage{min-height:0;padding-top:220px}
+ .fx-session-stage::before{bottom:auto;height:310px;background-image:linear-gradient(0deg,#14271e 0%,#14271e00 58%),var(--fx-session-scene,url('/assets/roxy_home/fitness/roxy-fitness-welcome.jpg'));background-size:100% 100%,auto 390px;background-position:center,right 15% top 5%;animation:none}
+ .fx-session-story{width:100%;padding:0 20px 28px}
+ .fx-session-cinema .fx-session-eyebrow{font-size:9px;line-height:1.6;max-width:90%;margin-bottom:18px}
+ .fx-session-cinema :is(.fxp-reader-title,.fxpl-reader-title){font-size:39px;line-height:1.08;max-width:100%}
+ .fx-session-cinema .fx-session-program{font-size:12px;margin-bottom:22px}
+ .fx-session-cinema .fx-session-image-note{top:15px;right:15px;max-width:55%;font-size:9px}
+ .fx-session-cue{padding:17px;border-radius:13px}
+ .fx-session-cinema .fx-session-current-instruction{font-size:18px;line-height:1.65}
+ .fx-session-cue-controls{display:grid;grid-template-columns:1fr 1fr}
+ .fx-session-cue-controls>.fx-session-button{padding:12px 9px;font-size:12px}
+ .fx-session-transport,.fxpl-reader .fx-session-transport{grid-template-columns:1fr 1fr;margin:0 12px;padding:12px;gap:8px;border-radius:16px}
+ .fx-session-transport>.fx-session-button,.fxpl-reader .fx-session-transport>.fx-session-button{min-height:56px;font-size:12px}
+ .fx-session-support,.fx-session-completion{padding:21px 20px 6px}
+ .fx-session-cinema .fx-session-credit{margin:15px 20px 0}
+ .fx-session-cinema>.fx-session-exit{margin:15px 20px 26px}
+}
+@keyframes fx-session-arrive{from{opacity:.65;transform:scale(1.02)}to{opacity:1;transform:scale(1)}}
+@keyframes fx-session-cue-in{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.fx-session-stage::before,.fx-session-cue{animation:none}.fx-session-cinema button{transition:none}.fx-session-cinema button:not(:disabled):hover{transform:none}}

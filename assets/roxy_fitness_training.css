@@ -1,0 +1,173 @@
+/* The approved studio world continues into routine selection and real session controls. */
+.fxt-shell,.fxt-session{--fxt-ink:#1b3c2d;--fxt-cream:#f5f2e4;--fxt-gold:#ead7a6;--fxt-border:#cbd4bf;box-sizing:border-box;min-width:0;color:var(--fxt-ink);font-family:inherit}
+.fxt-shell *,.fxt-session *{box-sizing:border-box;min-width:0}
+.fxt-shell{padding:0 0 24px;border:1px solid #cbd4bf;border-radius:26px;overflow:hidden;background:#f4f2e7;box-shadow:0 16px 45px #12321f12}
+.fxt-hero{position:relative;isolation:isolate;min-height:300px;display:flex;flex-direction:column;justify-content:center;padding:36px 42px;background:#183528;color:#fff9e7;overflow:hidden}
+.fxt-hero::before{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,#102d22fa 0%,#183528e8 43%,#18352800 100%),url('/assets/roxy_home/fitness/studio-cinema-211.png') right 48%/cover no-repeat;animation:fxt-arrive 700ms ease-out both}
+.fxt-shell .fxt-hero h3{max-width:660px;margin:8px 0 18px;color:#fff9e7;font:400 clamp(36px,4.4vw,58px)/1.08 Georgia,'Times New Roman',serif;letter-spacing:-.025em;text-wrap:balance}
+.fxt-shell .fxt-hero-copy{max-width:540px;margin:0;color:#e1e8d5;font-size:15px;line-height:1.7}
+.fxt-shell .fxt-eyebrow,.fxt-session .fxt-eyebrow{font-size:10px;font-weight:700;line-height:1.6;letter-spacing:.15em;text-transform:uppercase;margin:0 0 10px}
+.fxt-hero .fxt-eyebrow{color:#ead7a6}
+.fxt-button{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:12px 19px;border:1px solid #b0c0a4;border-radius:28px;background:#e7ebd5;color:#1e442e;font-family:inherit;font-size:13px;font-weight:600;line-height:1.4;text-align:center;cursor:pointer;transition:transform 160ms ease,background 160ms ease}
+.fxt-primary{background:#234f37;color:#fffbe9;border-color:#234f37}
+.fxt-quiet{background:transparent;border-color:#bbc9ae;color:#35523a}
+.fxt-text{padding-inline:12px;background:transparent;border-color:transparent;text-decoration:underline;text-underline-offset:4px}
+.fxt-button:disabled,.fxt-step-button:disabled{opacity:.45;cursor:default}
+.fxt-shell :is(button,input,select,summary,a):focus-visible,.fxt-session :is(button,input,select,summary,a):focus-visible{outline:3px solid #b28a35;outline-offset:4px}
+.fxt-shell>.fxt-quiet,.fxt-shell>.fxt-button{margin:20px 28px 0}
+.fxt-filters{display:flex;flex-wrap:wrap;gap:8px;padding:24px 28px 8px}
+.fxt-filter{min-height:44px;padding:10px 20px;background:#eeefdf;border-color:transparent;font-size:12px}
+.fxt-filter[aria-pressed=true]{background:#254d35;color:#fff5d8}
+.fxt-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;padding:16px 28px 10px}
+.fxt-card{overflow:hidden;border:1px solid #cdd5c0;border-radius:19px;background:#fffdf2;box-shadow:0 7px 20px #15371e08;transition:transform 180ms ease,box-shadow 180ms ease}
+.fxt-card-scene{position:relative;min-height:148px;display:flex;align-items:flex-end;justify-content:space-between;padding:17px;background:linear-gradient(0deg,#16351dd9,#1c492220),url('/assets/roxy_home/fitness/studio-cinema-211.png') center 62%/cover no-repeat}
+.fxt-card-yoga .fxt-card-scene{background-image:linear-gradient(0deg,#4b4226eb,#9d946529),url('/assets/roxy_home/fitness/studio-map-211.png');background-position:center,70% 76%;background-size:cover,170%}
+.fxt-card-mobility .fxt-card-scene{background-image:linear-gradient(0deg,#366064e8,#b3c8bc1a),url('/assets/roxy_home/fitness/studio-map-211.png');background-position:center,30% 35%;background-size:cover,180%}
+.fxt-card-core .fxt-card-scene{background-image:linear-gradient(0deg,#5e3f2de8,#8d6b5029),url('/assets/roxy_home/fitness/studio-map-211.png');background-position:center,22% 78%;background-size:cover,180%}
+.fxt-card-number{font:400 42px/1 Georgia,serif;color:#fff9e4b0}
+.fxt-card-tag{padding:6px 10px;border:1px solid #ffffff4d;border-radius:20px;color:#fff9e4;background:#122c1c80;font-size:10px;font-weight:700}
+.fxt-card-body{display:flex;flex-direction:column;padding:22px 20px;min-height:268px}
+.fxt-card-body h4{font:400 25px/1.15 Georgia,serif;margin:1px 0 12px;color:#1c402d}
+.fxt-caption{font-size:13px;line-height:1.7;color:#53664c;margin:8px 0 14px;overflow-wrap:anywhere}
+.fxt-card-body>.fxt-caption{flex:1}
+.fxt-card-body .fxt-button{width:100%}
+.fxt-meta{font-size:11px;color:#6b724f;line-height:1.6;font-weight:600;margin:4px 0 17px}
+.fxt-detail,.fxt-requirements,.fxt-proposal{margin:24px 28px 0;padding:28px;border:1px solid #cbd4bf;border-radius:20px;background:#fffdf3}
+.fxt-detail h4,.fxt-requirements h4,.fxt-proposal h4,.fxt-finish h4{font:400 30px/1.18 Georgia,serif;color:#21452e;margin:0 0 12px}
+.fxt-path{list-style:none;margin:22px 0 0;padding:0}
+.fxt-path>li{display:grid;grid-template-columns:44px 1fr;gap:17px;padding:20px 0;border-top:1px solid #d4dac9}
+.fxt-path-number{display:grid;place-items:center;height:44px;border:1px solid #becaae;border-radius:50%;background:#eef0de;color:#4c6542;font:400 18px Georgia,serif}
+.fxt-path small{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#758161}
+.fxt-path h5{font-family:inherit;font-size:17px;font-weight:600;margin:5px 0 7px;color:#27442f}
+.fxt-path p{font-size:13px;line-height:1.7;margin:5px 0 12px}
+.fxt-path details{padding-top:5px}
+.fxt-path summary,.fxt-sources summary{cursor:pointer;font-size:13px;color:#385c3e;line-height:1.6;min-height:32px}
+.fxt-path details ol{padding-left:20px}
+.fxt-path details li{padding:5px 0;font-size:14px;line-height:1.8}
+.fxt-cue{padding:12px 16px;border-left:3px solid #b0b77d;background:#eff1df}
+.fxt-sources{margin-top:24px;padding-top:18px;border-top:1px solid #c5d0b8}
+.fxt-sources a{display:inline-block;margin:4px 14px 8px 0;color:#466038;font-size:12px;line-height:1.7;text-decoration:underline;text-underline-offset:3px;overflow-wrap:anywhere}
+.fxt-requirements{background:#e8eedc}
+.fxt-requirements fieldset{padding:15px 0;border:0;border-top:1px solid #c4ceb6;margin:12px 0}
+.fxt-requirements legend{padding-right:12px;font-size:13px;font-weight:700}
+.fxt-requirements>label{display:block;font-size:13px;margin:14px 0 20px}
+.fxt-requirements input[type=date]{display:block;min-height:48px;width:min(100%,290px);margin-top:7px;padding:12px;border:1px solid #a4b695;border-radius:10px;background:#fbfbee;color:#23442e;font:inherit}
+.fxt-proposal summary{font-size:12px;line-height:1.7;color:#e3e4c5;cursor:pointer}
+.fxt-check{display:flex;align-items:flex-start;gap:12px;padding:12px 0;font-size:14px;line-height:1.6;color:#344f32;cursor:pointer}
+.fxt-check input{flex:0 0 auto;width:22px;height:22px;margin:1px 0 0;accent-color:#386447}
+.fxt-proposal{background:#234631;color:#fff8df}
+.fxt-proposal h4,.fxt-proposal .fxt-caption{color:#f4f0d8}
+.fxt-proposal .fxt-primary{background:#eadab0;color:#294329;border-color:#eadab0}
+.fxt-proposed-date{display:inline-block;margin:7px 12px 8px 0;padding:10px 14px;border:1px solid #b8c59b52;border-radius:12px;background:#ffffff0d;font-size:14px}
+.fxt-status,.fxt-error{margin:18px 28px;padding:13px 16px;border-radius:12px;font-size:13px;line-height:1.6}
+.fxt-status{color:#315634;background:#e2ecd2;border:1px solid #bdcda9}
+.fxt-error{color:#6d3d23;background:#fff1d8;border:1px solid #ddc4a0}
+.fxt-session{overflow:hidden;border:1px solid #86967b;border-radius:24px;background:#172e23;box-shadow:0 20px 50px #0e2e211f;color:#f7f1d9}
+.fxt-session-top{display:flex;align-items:center;gap:18px;padding:15px 24px;background:#142a20}
+.fxt-session-top .fxt-quiet{min-height:44px;border-color:#9eaf8c60;color:#f2e8c6;font-size:12px}
+.fxt-session-program{font-size:12px;line-height:1.5;color:#b8c9ae}
+.fxt-session-scene{position:relative;isolation:isolate;min-height:560px;background:#162c22;overflow:hidden}
+.fxt-session-scene::before{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,#132b22fc 0%,#19382ddf 45%,#19382d44 75%),url('/assets/roxy_home/fitness/session-cinema-211.png') right center/auto 100% no-repeat;animation:fxt-arrive 800ms ease-out both}
+.fxt-session-story{width:69%;padding:38px 36px 34px}
+.fxt-session .fxt-eyebrow{color:#d8c898}
+.fxt-session h3.fxt-movement-title{font:400 clamp(32px,4vw,53px)/1.08 Georgia,serif;letter-spacing:-.02em;margin:12px 0 17px;color:#fffae6;text-wrap:balance;scroll-margin-top:110px}
+.fxt-dose{display:inline-block;font-size:14px;line-height:1.6;color:#eddfb8;padding:9px 14px;border:1px solid #b4c19146;border-radius:10px;background:#122d2480;margin:0 0 24px}
+.fxt-image-note{position:absolute;right:18px;top:12px;max-width:30%;padding:5px 10px;border-radius:18px;background:#122c23d9;color:#e2e7d4;font-size:9px;line-height:1.5}
+.fxt-instruction{padding:23px;border:1px solid #a8bc8552;border-radius:18px;background:#1d4435ed;box-shadow:0 15px 30px #03160e1c;animation:fxt-cue-in 250ms ease-out both}
+.fxt-session .fxt-instruction-text{font-size:20px;line-height:1.65;color:#fffce9;margin:13px 0 20px}
+.fxt-step-buttons{display:flex;flex-wrap:wrap;gap:9px;margin:14px 0 19px}
+.fxt-step-button{display:grid;place-items:center;min-width:44px;min-height:44px;border:1px solid #c3d1b67a;border-radius:50%;background:#173428;color:#e8edd7;font-size:13px;cursor:pointer}
+.fxt-step-button[aria-pressed=true]{background:#e5e8bc;color:#21402b;box-shadow:0 0 0 4px #d8e0b516}
+.fxt-session .fxt-button{border-color:#aec09066;background:#244937;color:#f1f2d6}
+.fxt-session .fxt-primary{background:#e4e5ba;color:#213e2c;border-color:#e4e5ba}
+.fxt-actions{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 6px}
+.fxt-actions .fxt-button{flex:1}
+.fxt-session-cue{font-size:13px;line-height:1.7;color:#d3dcc2;margin:22px 0 0}
+.fxt-movement-nav{display:flex;gap:9px;padding:14px 22px;background:#213e2d;border-block:1px solid #9aae8452;overflow-x:auto;overscroll-behavior-inline:contain;scrollbar-width:thin}
+.fxt-movement-choice{flex:0 0 165px;min-height:60px;padding:12px 15px;border:1px solid #b7c99a3b;border-radius:12px;background:#193b2a;color:#e6ecd4;text-align:left;font-size:11px;line-height:1.6;cursor:pointer}
+.fxt-movement-choice[aria-current=step]{background:#e9e6c1;border-color:#e9e6c1;color:#21422c}
+.fxt-session-content{padding:24px 32px 32px}
+.fxt-session .fxt-caption{color:#c0cfb4}
+.fxt-session .fxt-rest{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:16px 0 24px;border-bottom:1px solid #a0b48a3a}
+.fxt-rest>.fxt-caption:first-child{flex:1 1 240px;margin:0}
+.fxt-rest-time{font:400 30px/1 Georgia,serif;font-variant-numeric:tabular-nums;color:#f5e8bb}
+.fxt-rest>.fxt-caption:last-child{flex-basis:100%;margin:0;font-size:11px}
+.fxt-exercise-log{padding:25px 0 17px}
+.fxt-exercise-log h5{font:400 28px/1.2 Georgia,serif;color:#fff7de;margin:0 0 11px}
+.fxt-session .fxt-check{color:#dae6cc}
+.fxt-set-rows{display:grid;gap:10px;margin:16px 0}
+.fxt-set-row{display:grid;grid-template-columns:70px minmax(120px,1fr) 72px;align-items:end;gap:12px;padding:15px;border:1px solid #a7be8c4d;border-radius:14px;background:#264331}
+.fxt-set-row.fxt-with-load{grid-template-columns:65px minmax(100px,1fr) minmax(100px,1fr) 70px 65px}
+.fxt-set-index{font-size:12px;color:#c8d9bb;padding-bottom:17px}
+.fxt-session label:not(.fxt-check){font-size:11px;line-height:1.6;color:#cedabf}
+.fxt-session :is(input[type=number],input[type=date],select){display:block;width:100%;min-height:48px;margin-top:6px;padding:12px;border:1px solid #aabf8d7a;border-radius:10px;background:#142e22;color:#fff6d9;font-family:inherit;font-size:15px;font-weight:400;line-height:1.4;color-scheme:dark}
+.fxt-session .fxt-set-row .fxt-text{padding-inline:4px;font-size:11px;background:transparent;border-color:transparent}
+.fxt-finish{margin-top:26px;padding:24px;border:1px solid #adb98a66;border-radius:18px;background:#2a4933}
+.fxt-session .fxt-finish h4{color:#f7efcb}
+.fxt-finish .fxt-button{margin:6px 10px 4px 0}
+.fxt-manage{margin-top:18px;padding-top:16px;border-top:1px solid #b9c69638}
+.fxt-manage summary{font-size:12px;line-height:1.7;color:#dce4c5;cursor:pointer;margin-bottom:12px}
+.fxt-session .fxt-sources{border-color:#c5d0b83a}
+.fxt-session .fxt-sources summary,.fxt-session .fxt-sources a{color:#d1dba8}
+.fxt-session .fxt-sources p{color:#bdcbaa;font-size:11px}
+.fxt-shell .fxt-caption{color:#53664c}
+.fxt-shell .fxt-meta{color:#6b724f}
+.fxt-shell .fxt-proposal .fxt-caption{color:#f4f0d8}
+.fxt-session .fxt-dose{color:#eddfb8;font-size:14px;line-height:1.6;margin:0 0 24px}
+.fxt-session .fxt-image-note{color:#e2e7d4;font-size:9px;line-height:1.5}
+.fxt-session .fxt-session-cue{color:#d3dcc2;font-size:13px;line-height:1.7;margin:22px 0 0}
+.fxt-session .fxt-meta{color:#bfccaa}
+.fxt-session .fxt-status,.fxt-shell .fxt-status{color:#315634}
+.fxt-session .fxt-error,.fxt-shell .fxt-error{color:#6d3d23}
+.fxt-session .fxt-before{margin-bottom:18px;color:#d4deb9;font-size:12px}
+.fxt-before summary{min-height:36px;line-height:1.7;cursor:pointer}
+.fxt-review{padding:28px 36px 38px}
+.fxt-review h3{font:400 38px/1.15 Georgia,serif;color:#fff6dc;margin:0 0 16px}
+.fxt-review .fxt-meta{color:#bfccaa}
+.fxt-review-fields{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:24px 0}
+.fxt-review-row{padding:17px 0;border-top:1px solid #9aac813d}
+.fxt-review-row h4{color:#e5e8c1;font-size:15px;margin:0 0 10px}
+.fxt-review-row p{font-size:13px;line-height:1.8;color:#d0dbc1;margin:4px 0}
+@media(hover:hover){.fxt-card:hover{transform:translateY(-3px);box-shadow:0 12px 28px #14352115}.fxt-button:not(:disabled):hover{transform:translateY(-2px)}}
+@media(max-width:1000px){.fxt-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.fxt-session-story{width:78%}.fxt-set-row.fxt-with-load{grid-template-columns:60px 1fr 1fr 64px}.fxt-set-row.fxt-with-load>.fxt-text{grid-column:4}}
+@media(max-width:620px){
+ .fxt-shell,.fxt-session{border-radius:19px}.fxt-hero{min-height:330px;padding:30px 22px;justify-content:flex-end}.fxt-hero::before{background-image:linear-gradient(0deg,#173527 0%,#183528dc 40%,#1835281f 100%),url('/assets/roxy_home/fitness/studio-cinema-211.png');background-position:center,70% center}.fxt-shell .fxt-hero h3{font-size:37px;max-width:100%;margin-bottom:14px}.fxt-shell .fxt-hero-copy{font-size:13px}.fxt-filters{padding:20px 16px 7px;gap:6px}.fxt-filter{font-size:11px;padding:10px 15px}.fxt-cards{grid-template-columns:1fr;padding:12px 16px 5px;gap:16px}.fxt-card-scene{min-height:145px}.fxt-card-body{min-height:0;padding:20px}.fxt-card-body h4{font-size:26px}.fxt-detail,.fxt-requirements,.fxt-proposal{margin:20px 16px 0;padding:22px 18px}.fxt-detail h4,.fxt-requirements h4,.fxt-proposal h4{font-size:28px}.fxt-shell>.fxt-quiet,.fxt-shell>.fxt-button{margin:20px 16px 0}.fxt-path>li{grid-template-columns:35px 1fr;gap:12px}.fxt-path-number{height:35px;font-size:16px}.fxt-status,.fxt-error{margin:16px}.fxt-proposed-date{display:block}.fxt-check{font-size:13px}.fxt-session-top{padding:12px 15px;gap:12px;align-items:flex-start}.fxt-session-program{font-size:10px;padding-top:10px}.fxt-session-top .fxt-button{min-width:105px;padding:10px}.fxt-session-scene{min-height:0;padding-top:215px}.fxt-session-scene::before{bottom:auto;height:310px;background:linear-gradient(0deg,#162c22 0%,#162c2200 60%),url('/assets/roxy_home/fitness/session-cinema-211.png') right top/auto 390px no-repeat;animation:none}.fxt-image-note{max-width:55%;top:8px;right:12px}.fxt-session-story{width:100%;padding:0 18px 26px}.fxt-session h3.fxt-movement-title{font-size:37px}.fxt-session .fxt-eyebrow{font-size:9px}.fxt-dose{font-size:12px;margin-bottom:18px}.fxt-instruction{padding:17px}.fxt-session .fxt-instruction-text{font-size:18px;line-height:1.7}.fxt-actions{gap:8px}.fxt-actions .fxt-button{padding:12px 10px;font-size:11px;min-height:50px}.fxt-movement-nav{padding:12px}.fxt-movement-choice{flex-basis:145px;font-size:10px}.fxt-session-content{padding:20px 18px 26px}.fxt-session .fxt-rest{gap:12px}.fxt-rest>.fxt-caption:first-child{flex-basis:100%;font-size:12px}.fxt-exercise-log h5{font-size:27px}.fxt-set-row,.fxt-set-row.fxt-with-load{grid-template-columns:1fr 1fr;gap:10px;padding:14px}.fxt-set-index{grid-column:1/-1;padding:0}.fxt-set-row:not(.fxt-with-load)>label{grid-column:1}.fxt-set-row.fxt-with-load>.fxt-text{grid-column:2}.fxt-set-row .fxt-text{justify-self:end}.fxt-set-row label{font-size:10px}.fxt-set-row.fxt-with-load>label:nth-of-type(3){grid-column:1}.fxt-finish{padding:20px 17px}.fxt-finish h4{font-size:26px}.fxt-finish .fxt-button{width:100%;margin:5px 0}.fxt-review{padding:24px 20px}.fxt-review h3{font-size:33px}.fxt-review-fields{grid-template-columns:1fr;gap:14px}
+}
+@keyframes fxt-arrive{from{opacity:.6;transform:scale(1.02)}to{opacity:1;transform:scale(1)}}
+@keyframes fxt-cue-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.fxt-hero::before,.fxt-session-scene::before,.fxt-instruction{animation:none}.fxt-card,.fxt-button{transition:none}.fxt-card:hover,.fxt-button:not(:disabled):hover{transform:none}}
+
+/* The guided session fills the same immersive room as the approved source reader. */
+.fxw-tools:has(.fxt-session){margin:0;padding:0;background:none;border:0;box-shadow:none;backdrop-filter:none;min-height:calc(100svh - 90px);border-radius:0}
+.fxw-tools:has(.fxt-session) :is(.fx-space-head,.fx-tabs,.fxpl-source-guides,.fx-preferences-detail){display:none}
+.fxw-tools:has(.fxt-session) #fx-content{outline:none}
+.fxpl-shell:has(.fxt-session){padding:0;margin:0;border:0;background:transparent;box-shadow:none}
+.fxpl-shell:has(.fxt-session)>.fxpl-heading{display:none}
+.fxw-tools .fxt-session{border-radius:0;border:0;scroll-margin-top:90px}
+.fxw-scene:has(.fxt-session)>.fxw-header{position:sticky;top:0}
+@media(max-width:700px){.fxw-tools:has(.fxt-session){margin:0;padding:0}.fxw-tools .fxt-session{scroll-margin-top:77px}}
+
+/* Chosen references stay distinct from the source guide and from recorded results. */
+.fxt-targets{margin:24px 28px 0;padding:28px;border:1px solid #b8c7a6;border-radius:20px;background:linear-gradient(135deg,#eef0dc,#fff9e8)}
+.fxt-targets>h4{font:400 30px/1.18 Georgia,serif;color:#21452e;margin:0 0 16px}
+.fxt-targets>.fxt-eyebrow{color:#627047}
+.fxt-previous{padding:15px 18px;border:1px solid #c0cbb2;border-radius:14px;background:#f8faeb}
+.fxt-previous summary{min-height:36px;display:list-item;align-content:center;font-size:13px;line-height:1.6;color:#315439;cursor:pointer}
+.fxt-previous-records{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:18px}
+.fxt-previous-exercise{padding-top:13px;border-top:1px solid #c7d0b9}
+.fxt-previous-exercise h5{font-size:14px;line-height:1.5;margin:0 0 8px;color:#24432e}
+.fxt-previous-exercise p{font-size:12px;line-height:1.7;margin:5px 0;color:#52684a}
+.fxt-target-time{font-size:12px;line-height:1.7;border-left:3px solid #b3ae73;padding:11px 14px;background:#e8ebd0;color:#515a35}
+.fxt-target-editor{display:grid;gap:16px;margin-top:20px}
+.fxt-target-exercise{margin:0;padding:17px 20px 21px;border:1px solid #b8c6a7;border-radius:15px;background:#f8faeb}
+.fxt-target-exercise legend{padding:0 9px;color:#294832;font-size:15px;font-weight:600;line-height:1.5}
+.fxt-targets .fxt-set-row{background:#e8eddb;border-color:#bfcbaf}
+.fxt-targets .fxt-set-index{color:#516b46}
+.fxt-targets label:not(.fxt-check){display:block;font-size:11px;line-height:1.6;color:#45603e}
+.fxt-targets :is(input[type=number],select){display:block;width:100%;min-height:48px;margin-top:6px;padding:12px;border:1px solid #adbfa0;border-radius:10px;background:#fffef1;color:#28442d;font-family:inherit;font-size:15px;font-weight:400;line-height:1.4}
+.fxt-targets .fxt-set-row .fxt-text{padding-inline:4px;font-size:11px}
+.fxt-chosen-targets{margin:24px 0 0;padding:20px 23px;border:1px solid #c0c18a7a;border-radius:16px;background:#354b30}
+.fxt-chosen-targets h5{font:400 27px/1.2 Georgia,serif;color:#f6eccc;margin:8px 0 15px}
+.fxt-session .fxt-target-value{font-size:15px;line-height:1.7;color:#f4e6b8;margin:7px 0}
+.fxt-chosen-targets>.fxt-caption{margin-bottom:0;font-size:12px}
+@media(max-width:620px){.fxt-targets{margin:20px 16px 0;padding:22px 18px}.fxt-targets>h4{font-size:28px}.fxt-previous{padding:13px 14px}.fxt-previous-records{grid-template-columns:1fr;gap:12px}.fxt-target-exercise{padding:12px 12px 17px}.fxt-target-exercise legend{font-size:14px;max-width:100%;overflow-wrap:anywhere}.fxt-chosen-targets{padding:19px 17px}.fxt-targets .fxt-set-row{padding:12px}.fxt-targets :is(input[type=number],select){font-size:16px}}

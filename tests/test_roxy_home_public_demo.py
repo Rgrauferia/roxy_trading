@@ -187,8 +187,8 @@ def test_trial_can_read_original_exercise_catalogue_without_profile_storage_or_a
     catalogue = tester.get("/api/fitness/v1/exercises")
     assert catalogue.status_code == 200
     value = catalogue.json()
-    assert value["count"] == len(value["entries"]) == 21
-    assert sum(len(entry["images"]) for entry in value["entries"]) == 44
+    assert value["count"] == len(value["entries"]) == 25
+    assert sum(len(entry["images"]) for entry in value["entries"]) == 48
     assert value["clinical_approval"] is False and value["can_activate_training"] is False
     detail = tester.get("/api/fitness/v1/exercises/wger-91")
     assert detail.status_code == 200
@@ -212,6 +212,47 @@ def test_demo_exercise_catalogue_allowlist_is_read_only_and_does_not_include_act
                  "/api/fitness/v1/exercises/wger-91/../../me/profile"):
         assert trial_access_mode("GET", path) == "unavailable"
         assert trial_access_mode("POST", path) == "unavailable"
+
+
+def test_demo_personal_activity_plan_allows_only_reviewed_manual_routes():
+    base = "/api/fitness/v1/me/activity-plan"
+    allowed = {("GET", base), ("PUT", base), ("POST", base + "/consent"),
+               ("GET", base + "/data"), ("DELETE", base + "/data"),
+               ("PATCH", base + "/sessions/9d649df3-6f24-4cc6-ae58-a1224cd3270b")}
+    for method, path in allowed:
+        assert trial_access_mode(method, path) == "local"
+        assert trial_access_mode(method, path + "/activate") == "unavailable"
+    for method, path in {("POST", base), ("DELETE", base), ("PUT", base + "/consent"),
+                         ("PATCH", base + "/sessions/not-a-uuid"),
+                         ("POST", base + "/generate"), ("POST", base + "/purchase")}:
+        assert trial_access_mode(method, path) == "unavailable"
+
+
+def test_expired_trial_can_delete_its_private_plan_but_cannot_change_progress(demo, monkeypatch):
+    from roxy_os.fitness.activity_plan import ActivityPlanRepository
+    calls = []
+    empty = {"version": 1, "plan": None, "consent": None, "updated_at": None,
+             "progress": {"planned": 0, "completed": 0, "skipped": 0, "total": 0}}
+    def delete(_self, member_id, **kwargs):
+        calls.append((member_id, kwargs))
+        return empty
+    monkeypatch.setattr(ActivityPlanRepository, "delete_data", delete)
+    tester = client()
+    member = signup(tester).json()
+    expired = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
+    demo._mutate(lambda data: data["households"][member["household_id"]]["trial"].update(expires_at=expired))
+    headers = {"Origin": "https://roxy.test", "X-Roxy-Fitness-Member": member["id"],
+               "X-Roxy-Fitness-Request": "1", "Idempotency-Key": "delete-plan-demo-207"}
+    base = "/api/fitness/v1/me/activity-plan"
+    assert tester.patch(base + "/sessions/9d649df3-6f24-4cc6-ae58-a1224cd3270b",
+                        json={"expected_version": 0, "status": "completed"}, headers=headers).status_code == 403
+    denied = tester.request("DELETE", base + "/data", json={"expected_version": 0, "confirm_delete": True},
+                            headers={**headers, "Origin": "https://elsewhere.test"})
+    assert denied.status_code == 403 and calls == []
+    result = tester.request("DELETE", base + "/data", json={"expected_version": 0, "confirm_delete": True}, headers=headers)
+    assert result.status_code == 200, result.text
+    assert result.headers["cache-control"] == "private, no-store"
+    assert calls[0][0] == member["id"]
 
 
 def test_trial_budget_is_atomic_shared_and_survives_new_store_instance(demo):

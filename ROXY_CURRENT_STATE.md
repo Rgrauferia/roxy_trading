@@ -1,5 +1,200 @@
 # Roxy Home — estado operativo
 
+## 215 — MÁS INMERSIVO VERIFICADO LOCALMENTE; PUBLICACIÓN EN PREPARACIÓN
+
+Corrección de Roberto: foto pública203 mostraba menú plano y no veía avances.
+Más ahora ofrece entrada de casa y seis estancias fotográficas, accesos cotidianos
+y ajustes agrupados. Conserva33IDs,9destinos anteriores y herramientas de cocina.
+CUA393×852 y858×779:Más→Mascotas/Ejercicio/ajustes, sinerrores ni desbordamiento.
+QA visual pasado, reports/home-more-215/audit-and-implementation.md.
+
+214 terminado localmente: Mi evolución compara registros por ejercicio/versión/fecha;
+objetivos nuevos elegidos y editables, separados de resultados, sin subir cargas
+automáticamente. Referencia protegida por versión; historial y privacidad preservados.
+1093casos Python verificados/363Node pasan. CUA2registros sintéticos y11actividades
+(2realizadas/9pendientes),2mediciones conservadas; Ver registro abre resumen directo.
+Informe reports/home-fitness-214/implementation.md.
+
+Público203 confirmado enHTTPyRender. RamaHomecodex/roxy-home-nfc, servicio
+srv-da0l3vs9v7es739kcmd0, Dockerfile.roxy-home, disco10GB/var/data verificados.
+No ROXY_HOME_FITNESS_DATABASE_URL enlosnombresdeentorno, valores no leídos.
+Diseño/catálogos pueden publicarse; guardado personal requiere PostgreSQL exclusivo
+Home conTLS/RLS/rolmínimo y4migraciones. No contratar ni cambiar infraestructura
+sin decisión concreta. No aplicar Blueprintcompleto (contiene otros productos).
+Enprepublicación se corrigen acceso de cuentasdeprueba y descargaexcesiva inicialSW.
+
+Preview8771/PID92240/sesión15682, mismo estado sintético207.8770/PID63912
+intacto convozfija;8771 sinTTS. Todosoriginales/prototipos/datosanterioresconservados.
+Faltan alternativaspersonales/ampliaciónrutinas; AppleWatch no conectado; avatar/
+Runway pausados. Mascotas debe seguir al terminarprioridadEjercicio.
+
+## 213 — RUTINAS Y REGISTROS POR EJERCICIO VERIFICADOS LOCALMENTE
+
+Seis rutinas editoriales ES con28movimientos de trabajo sumados, pasos detallados,
+material/capacidades explícitos y estimaciones con pausas. Rutinas→requisitos→
+propuesta semanal→revisión→Mi plan conserva historial y valida perfil/horario al
+guardar. Sesión inmersiva completa con descanso manual y registro de series,
+repeticiones/segundos, carga opcional y duración. Consentimiento propio, corrección,
+export/borrado, privacidad PostgreSQL TLS/RLS; completar actividad es independiente.
+
+984casos Python cubiertos:983pasan en pase amplio y fallo de versión del paquete
+corregido,39paquete/demo finales pasan (solapados, no sumar).304Node pasan.
+CUA858px/393px:3sesiones añadidas a5previas,1registro sintético con3series/1omitido;
+tras reinicio:8actividades2realizadas/6pendientes,1registro y2mediciones recuperados.
+QA visual pasó tras contraste y eliminación de marcos en sesión; sin overflow,
+consola vacía, viewport restablecido. Informe reports/home-fitness-213/implementation.md.
+
+Preview8771/PID78464/sesión96303, estado sintético207, migraciones001–004.
+8770/PID63912 intacto con voz fija;8771 sinTTS. Público203 sin cambios, sin
+commit/push/deploy ni eliminación de originales/prototipos/datos anteriores.
+Pendiente real: progresión y comparación longitudinal por ejercicio, más variedad
+y alternativas personales por capacidad/edad/objetivo. No hay certificación clínica,
+AppleWatch conectado ni vídeo de técnica nuevo; avatar/Runway pausados.
+Después de terminar Ejercicio seguir Mascotas inmersivo y auditoría funcional;
+Mascotas sigue en cola, no iniciado.
+
+## 212 — MEDICIONES Y AGENDA POR DISPONIBILIDAD VERIFICADAS LOCALMENTE
+
+Progreso guarda peso/estatura opcionales con consentimiento separado, unidades,
+historial, corrección/export/borrado y comparación declarada. Perfil adulto,
+PostgreSQL TLS/RLS y privacidad por miembro; sin peso oculta las mediciones hasta
+elegir abrirlas. Mi plan propone fechas para las3guías NHS elegidas según ventanas
+y minutos con traslado, respeta actividades existentes/DST y separación de fuerza.
+Borrador editable y guardado confirmado; NO es aún entrenamiento personalizado.
+
+700Python/260Node aprobadas, incluidas pruebas PostgreSQL real. CUA858px/393px:
+perfil sintético adulto,2mediciones con unidades mixtas y3fechas añadidas a las2
+anteriores. Tras reinicio/recarga:5actividades,1realizada/4pendientes,2mediciones.
+Sin overflow ni errores de consola; viewport restablecido. Informe:
+`reports/home-fitness-212/implementation.md`; QA visual del incremento passed.
+
+Preview8771/PID69109/sesión98513, mismo estado sintético207, migraciones001–003.
+8770/PID63912 intacto con voz fija en memoria;8771 continúa sinTTS. Publicación203
+sin cambiar, no commit/push/deploy, sin borrado de originales ni prototipos.
+Pendiente: rutinas variadas casa/gym, material/capacidad/nivel, técnica española,
+progresión y seguimiento por ejercicio. Peso registrado no prescribe cargas.
+AppleWatch no conectado; avatar/Runway pausados. Después de completar Ejercicio,
+Roberto pidió continuar Mascotas con estética inmersiva y auditoría funcional
+completa; está en cola, no iniciado.
+
+## 211 — ESTUDIO CINEMATOGRÁFICO LOCAL VERIFICADO
+
+Roberto aprobó los tres conceptos210 («Me encantan»). Entrada fotográfica, mapa
+interactivo y escena de lectura integrados con biblioteca209, Mi plan privado,
+progreso y preferencias. Habitación persistente; navegación directa desde Home.
+Guía con indicaciones numeradas, siguiente/anterior y canal de voz oficial existente.
+481Python/218Node aprobadas;18paquete repetidas tras assets finales. CUA real
+1487×1058 y393×852: filtros, lector, regreso, plan207 recuperado y progreso1/1/0;
+sin nuevas escrituras de datos. QA visual passed (`design-qa.md`), comparación
+junto a las referencias y varias correcciones registradas. Informe:
+`reports/home-fitness-211/implementation.md`.
+
+Preview8771/PID22637/sesión47027 con mismo PostgreSQL sintético.8770/PID63912
+intacto con su voz fija en memoria.8771 no tiene TTS: indisponibilidad controlada
+comprobada; no fallback masculino. Tres fondos nuevos, imágenes estáticas con
+movimiento ambiental/controles, NO vídeos de técnica ni avatar animado.
+Personalización profesional por edad/peso/capacidad/material/tiempo, mediciones y
+AppleWatch pendientes. Avatar/Runway pausados. Tres originales210/galería8798,
+prototipo20860122, catálogo y datos preservados. Público203/PostgreSQL público sin
+cambiar; no commit/push/deploy ni eliminación de originales.
+Siguiente: revisión con Roberto y entrenamiento profesional personalizado con
+contenido revisado, mediciones privadas y seguimiento; no confundir agenda elegida
+con una prescripción individual.
+
+## 209 — BIBLIOTECA LOCAL AMPLIADA; personalización pendiente
+
+Ejercicio → Ejercicios integra modalidades, filtros y acceso a fichas/guías reales.
+25fichas/48ilustraciones wger (23textosES/2EN),21anteriores preservadas; tres guías
+NHS/16movimientos conservadas. Nueva colección18recursos externos:15clases y3demos,
+vídeos originales EN con enlaces; no18clases ni vídeos integrados. Yoga/Pilates/
+Cardio/Fuerza/Calistenia/Movilidad.422Pythonintegración+59catálogo y191Node+9catálogo
+aprobadas;41Discovery repetidas tras concordancia singular. UI real mostrada a Roberto:
+Calistenia3, Yoga1, filtro10min0, fichas25 y plancha con ilustración cargada.
+Vista858px; intento393 no aplicado por navegador, móvil209 sigue pendiente.
+Preview8771/PID22637/sesión47027 con mismo PostgreSQL y datos sintéticos conservados;
+8770/PID63912 intacto. Informe: `reports/home_fitness_library_209_20260914.md`.
+No adaptación por edad/peso/capacidad, Apple Watch ni película nuevos. Avatar/Runway
+pausados; público203/PostgreSQL público sin cambiar. Sin commit/push/deploy ni borrados.
+
+## 207 — BASE LOCAL VERIFICADA; personalización208 en diseño
+
+Plan elegido privado, fechas/horas, reprogramación y progreso declarado persistidos
+con PostgreSQL Home real.452Python/150Node aprobadas;39paquete/demo repetidas tras
+assets finales. CUA: dos actividades, una realizada, otra16/09/18:30; evento genérico
+confirmado30min y recuperado una sola vez tras recarga. Progreso393px sin overflow.
+Preview8771/PID4355/sesión54082, datos sintéticos conservados;8770 sin reiniciar.
+Informe: `reports/home_fitness_functional_207_20260914.md`.
+
+Roberto precisó: entrenador personal casa/gym por equipo/nivel/días/minutos,
+peso/estatura y resultados, experiencia visual viva y posible Apple Watch.
+Catálogo actual16movimientos (fuerza7/equilibrio5/flexibilidad4); NO cumple aún esa
+personalización. Propuesta interactiva208 de cuatro capítulos mostrada en60122,
+sin guardado ni reloj; archivo e implementación pendiente documentados en
+`reports/home_fitness_design_208_20260914.md`. Apple requiere conector iOSHealthKit;
+ver `reports/home_fitness_watch_208_20260914.md`. Pestaña7 entregada,5/6 preservadas.
+Público203 intacto, PostgreSQL público/migraciones pendientes. Sin contratación,
+commit/push/deploy ni eliminación de originales. Avatar/Runway siguen pausados.
+
+## 206 — CANDIDATA LOCAL: ocho habitaciones y herramientas reales
+
+Sala/Cocina más Jardín, Ejercicio, Mascotas, Renueva, Nexo y Calendario.
+59Node/51Python aprobadas; ocho entradas393px sin overflow. Formularios reales
+de planta/mascota/espacio/evento y privacidad Nexo comprobados sin escrituras nuevas.
+Voz Ejercicio30,883s reproduciendo; ledger7solicitudes/1490caracteres.
+Tres imágenes y movimientoCSS; no avatar/película nueva. Diseño en flujo hasta1000px
+evita tapar botones con audio; QA final escritorio pendiente.
+Preview8770/PID63912 conserva voz fija Home en memoria; no reiniciarlo.
+Informe `reports/home_living_206_20260914.md`; captura y prompts en home-living-206.
+Sin commit/push/deploy; originales y prototipos preservados.
+
+## 205 — CANDIDATA LOCAL: Sala y Cocina de uso diario
+
+Roberto aprobó extender la presentación a toda la aplicación, empezando por estos
+2espacios. Sala#hoy y Cocina#cocina conectadas a Mi día#dia, Calendario, Recetario,
+Despensa y Compra reales. Conserva formularios y datos, navegación de otros módulos,
+regreso a la habitación y voz original de guiones fijos. Dos nuevas fotos de la casa;
+movimiento CSS con pausa, todavía sin película ni avatar con labios sincronizados.
+Runway: instalación aprobada por Roberto, completedfalse y sin herramientas disponibles;
+ningún trabajo enviado. Público203 intacto, sin commit/push/deploy205.
+35Node/51Python aprobadas. QA393px sin overflow y1280px sin solapamientos. Despensa,
+receta/paso1→2 y evento16/09,13h sin aviso persistieron en fixture sintética.
+Voz Cocina23,17s reproducida de verdad en navegador; ledger6solicitudes/1120caracteres.
+Preview8770/PID63912 conserva voz segura en memoria. Solo guiones fijos habilitados:
+voz de pasos culinarios/IA/MyPlate e imágenes de recetas bloqueados en esta prueba.
+Pestaña5/Cocina marcada de entrega; viewport reseteado. Pestaña4 timeoutCDP al cerrar.
+Ningún archivo versionado perdido,4películas byteidénticas a HEAD,prototipos intactos.
+Informe: `reports/home_living_205_20260914.md`; imágenes/prompts `reports/home-living-205/`.
+Siguiente: revisión visual de Roberto, conectar Runway/avatar oficial y extender
+experiencia inmersiva a módulos restantes; no registrar todo Home como terminado.
+
+## 204 — CANDIDATA LOCAL: casa interactiva; película pendiente
+
+Roberto aprobó entrar en una casa inmersiva y configurar Home eligiendo durante
+el recorrido. Base implementada: cinco decisiones con guardado privado real,
+once espacios, cuaderno culinario dentro de la escena y guía de Jardín con
+narración continua desde la entrada. Formularios reales de Mascotas/Renueva/
+Calendario abiertos sobre la casa; adaptación audiovisual completa aún pendiente.
+Tres imágenes originales nuevas y Roxy Anfitriona; son imágenes con cámara CSS,
+no avatar con labios sincronizados. world.films vacío, cuatro películas anteriores
+intactas. Higgsfield9,5créditos, una toma10s720p estimada15; recarga preguntada,
+sin respuesta ni trabajo enviado. No gastar, cambiar plan ni inventar una película.
+220Python y64Node aprobadas; guardado, reanudación en Calendario, fichas y393px
+sin overflow comprobados en CUA. Preview8770 abierto en mapa, fixture sintética
+Actualización de voz: PID63912/sesión37666. Narración oficial real comprobada
+en Entrada/Mi casa/Ejercicio;3MP3,3solicitudes/525caracteres. Se conservaron los
+7archivos de la prueba y sus elecciones. Configuración Home temporal consumida;
+sólo TTS de guiones fijos autorizado, otros proveedores bloqueados.13pruebas de
+aislación adicionales aprobadas. No cambio público ni vídeo nuevo.
+Detalle: `reports/home_voice_preview_204_20260914.md`.
+No pérdida de originales/prototipos; sin commit/push/deploy204. Público sigue203.
+Registro público positivo ya comprobado antes del rediseño: nueva cuenta provisional,
+Cloudflare autorizado, códigos vistos sin exportar, login y bienvenida203 con
+reproducción oficial avanzando. Notas anteriores de primera alta pendiente quedan
+como historial. Ninguna contraseña/código se registra en documentación.
+Informe: `reports/home_world_204_20260914.md`; capturas/prompts `reports/home-world-204/`.
+Siguiente: revisión visual de Roberto y producción/validación de tomas con voz
+original cuando haya créditos; completar interacción audiovisual restante.
+
 ## 203 — PUBLICADA: recorrido completo con voz oficial
 
 Solicitud vigente: sustituir la voz masculina e integrar una bienvenida animada de

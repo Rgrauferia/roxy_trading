@@ -110,6 +110,7 @@
     const doc = global.document, model = createModel(options), id = `rg-guide-${++counter}`;
     const previousFocus = doc.activeElement;
     let closed = false, saving = false, photoPending = false, photoRevision = 0, utterance = null;
+    let narratedStep = -1;
     let speechText = '', speechButton, speechStatus, region, errorBox, nextButton, backButton;
     const el = (tag, className, text) => { const node = doc.createElement(tag); if (className) node.className = className; if (text != null) node.textContent = text; return node; };
     const button = (text, className, action) => { const node = el('button', className, text); node.type = 'button'; node.addEventListener('click', action); return node; };
@@ -126,14 +127,17 @@
     const voiceCopy = el('div'); voiceCopy.append(el('strong', '', 'Roxy, paso a paso contigo'));
     const speech = el('p', 'rg-speech'); speech.setAttribute('aria-live', 'polite'); speech.setAttribute('aria-atomic', 'true'); voiceCopy.append(speech);
     const speechActions = el('div', 'rg-speech-actions');
-    const canSpeak = Boolean(global.RoxyHomeTour);
+    const guidedVoice = typeof options.onNarration === 'function';
+    const canSpeak = guidedVoice || Boolean(global.RoxyHomeTour);
     function stopSpeech() {
+      if (guidedVoice) options.stopNarration?.();
       if (utterance) global.RoxyHomeTour?.stop();
       utterance = null;
-      if (speechButton) speechButton.textContent = 'Escuchar a Roxy';
+      if (speechButton) speechButton.textContent = guidedVoice ? 'Repetir explicación' : 'Escuchar a Roxy';
     }
     function speak() {
       if (!canSpeak || closed) return;
+      if (guidedVoice) { options.onNarration(model.step, { explicit: true }); return; }
       if (utterance && global.RoxyHomeTour.isPlaying()) { stopSpeech(); return; }
       utterance = true;
       void global.RoxyHomeTour.speak(`garden-${model.step}`, (state, message) => {
@@ -143,9 +147,10 @@
         speechStatus.textContent = message;
       }, speechActions);
     }
-    speechButton = button('Escuchar a Roxy', 'rg-voice', speak); speechButton.disabled = !canSpeak;
+    speechButton = button(guidedVoice ? 'Repetir explicación' : 'Escuchar a Roxy', 'rg-voice', speak); speechButton.disabled = !canSpeak;
     speechStatus = el('small', '', canSpeak ? 'Guía con la voz oficial de Roxy · en español' : 'La voz no está disponible ahora. Todo está por escrito.');
-    speechActions.append(speechButton, speechStatus); voiceCopy.append(speechActions); roxy.append(avatar, voiceCopy); shell.append(roxy);
+    speechActions.append(speechButton, speechStatus);
+    if (guidedVoice) speechActions.append(button('Detener voz', 'rg-voice', stopSpeech)); voiceCopy.append(speechActions); roxy.append(avatar, voiceCopy); shell.append(roxy);
     region = el('div', 'rg-content'); shell.append(region);
     errorBox = el('p', 'rg-error'); errorBox.setAttribute('role', 'alert'); errorBox.hidden = true; shell.append(errorBox);
     const footer = el('footer', 'rg-footer');
@@ -247,6 +252,7 @@
       stopSpeech(); clearError(); region.replaceChildren();
       [...progress.children].forEach((item, i) => { if (i === model.step) item.setAttribute('aria-current', 'step'); else item.removeAttribute('aria-current'); item.dataset.complete = String(i < model.step); });
       updateNarration(); [identityStep, placeStep, rootsStep, summaryStep][model.step](); backButton.hidden = model.step === 0; updateBusy();
+      if (guidedVoice && narratedStep !== model.step) { narratedStep = model.step; options.onNarration(model.step); }
       dialog.scrollTop = 0; const stepTitle = region.querySelector('h3'); if (stepTitle) { stepTitle.tabIndex = -1; stepTitle.focus({ preventScroll: true }); }
     }
     function close(reason = 'cancelled') {

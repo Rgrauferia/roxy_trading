@@ -47,6 +47,13 @@ COPY assets/roxy_home_drinks.js assets/roxy_home_drinks.css assets/open-drinks-l
 COPY data/home_open_drinks.json ./data/home_open_drinks.json
 COPY assets/roxy_fitness.js assets/roxy_fitness.css assets/roxy_fitness_catalog.js ./assets/
 COPY assets/roxy_fitness_programs.js assets/roxy_fitness_programs.css ./assets/
+COPY assets/roxy_fitness_planner.js assets/roxy_fitness_planner.css ./assets/
+COPY assets/roxy_fitness_measurements.js assets/roxy_fitness_measurements.css ./assets/
+COPY assets/roxy_fitness_training.js assets/roxy_fitness_training.css ./assets/
+COPY assets/roxy_fitness_progress.js assets/roxy_fitness_progress.css ./assets/
+COPY assets/roxy_fitness_discovery.js assets/roxy_fitness_discovery.css ./assets/
+COPY assets/roxy_fitness_world.js assets/roxy_fitness_world.css assets/roxy_fitness_session.css ./assets/
+COPY data/home_fitness_classes_209.json ./data/home_fitness_classes_209.json
 COPY data/home_fitness_source_programs_192.json ./data/home_fitness_source_programs_192.json
 COPY assets/roxy_garden_guide.js assets/roxy_garden_guide.css ./assets/
 COPY assets/roxy_maplibre_loader.js ./assets/
@@ -75,3 +82,7 @@ CMD ["sh", "-c", "uvicorn tools.roxy_home_service:app --host 0.0.0.0 --port ${PO
 
 COPY assets/roxy_home_tour.js assets/roxy_home_tour.css ./assets/
 COPY assets/roxy_home/tour ./assets/roxy_home/tour
+COPY assets/roxy_home_world.js assets/roxy_home_world.css ./assets/
+COPY assets/roxy_home_living.js assets/roxy_home_living.css ./assets/
+COPY assets/roxy_home_more.css ./assets/
+COPY assets/roxy_home/world ./assets/roxy_home/world

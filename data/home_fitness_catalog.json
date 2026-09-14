@@ -1,23 +1,23 @@
 {
-  "version": "fitness-open-catalog-20260910-v2",
+  "version": "fitness-open-catalog-20260914-v3",
   "product": "roxy-home",
-  "checked_on": "2026-09-10",
+  "checked_on": "2026-09-14",
   "source": "https://wger.de/api/v2/exerciseinfo/",
-  "data_license_notice": "Los textos conservan CC BY-SA 3.0 o 4.0, y los metadatos CC BY-SA 3.0 o CC0 1.0, según cada recurso; las ilustraciones Everkinetic conservan CC BY-SA 3.0 según wger. La normalización y selección de datos de Roxy se distribuyen bajo CC BY-SA 4.0. Esta atribución se refiere a datos del catálogo, no cambia la licencia del código de la aplicación. Sin respaldo ni aprobación profesional de los autores.",
+  "data_license_notice": "Los textos conservan CC BY-SA 3.0 o 4.0, y los metadatos CC BY-SA 3.0, 4.0 o CC0 1.0, según cada recurso; las ilustraciones Everkinetic conservan CC BY-SA 3.0, y las ilustraciones de utkb, Imobard y Settebello conservan CC BY-SA 4.0 según sus registros individuales de wger. La normalización y selección de datos de Roxy se distribuyen bajo CC BY-SA 4.0. Esta atribución se refiere a datos del catálogo, no cambia la licencia del código de la aplicación. Sin respaldo ni aprobación profesional de los autores.",
   "coverage": {
-    "exercises": 21,
-    "spanish": 19,
+    "exercises": 25,
+    "spanish": 23,
     "english": 2,
-    "illustrations": 44,
+    "illustrations": 48,
     "photographs": 0,
     "workout_templates": 0,
     "categories": {
-      "Abs": 1,
       "Arms": 6,
-      "Back": 3,
-      "Chest": 4,
+      "Chest": 5,
       "Legs": 4,
-      "Shoulders": 3
+      "Shoulders": 3,
+      "Back": 5,
+      "Abs": 2
     }
   },
   "entries": [
@@ -2159,6 +2159,344 @@
           "changes": "Sin cambios en la imagen original servida por wger.",
           "rights_evidence": "Licencia individual declarada en la API de wger; autor Everkinetic.",
           "author_project_license_url": "https://github.com/everkinetic/data/blob/main/LICENSE.md"
+        }
+      ],
+      "review_status": "pending_professional_review",
+      "clinical_approval": false,
+      "can_activate_training": false
+    },
+    {
+      "id": "wger-458",
+      "name": "Plancha de antebrazo",
+      "language": "es",
+      "category": "Abs",
+      "category_source_id": 10,
+      "metadata_language": "en",
+      "equipment": [
+        {
+          "id": 7,
+          "name": "none (bodyweight exercise)"
+        }
+      ],
+      "equipment_metadata_complete": true,
+      "instructions": [
+        "Posición de salida:",
+        "Empiece a cuatro patas.Los brazos deben estar doblados en ángulo recto, con los hombros justo sobre los codos.La espalda debe estar recta, todo el cuerpo en línea recta.",
+        "Pasos:",
+        "Mantenga esta posición."
+      ],
+      "source_url": "https://wger.de/en/exercise/458/view",
+      "source_api_url": "https://wger.de/api/v2/exerciseinfo/458/",
+      "source_exercise_id": 458,
+      "source_exercise_uuid": "c9e57bbe-e839-44c6-861d-1c8dd2845e36",
+      "source_translation_id": 1401,
+      "source_translation_uuid": "96ba2610-dd8b-490b-8583-5dc7ef871c02",
+      "source_language_id": 4,
+      "source_last_update": "2026-04-15T22:23:56.746559+02:00",
+      "checked_on": "2026-09-14",
+      "instructions_sha256": "6a6963261fcd2bac9f820961a4a5d4aa84f689a9540352a91ada373bc30ae25a",
+      "source_description_sha256": "fe300e04446e98066546281db7dc0756c3c8c58658f2cf9d230ecff2cfafb243",
+      "attribution": {
+        "authors": [
+          "YYCfit / BFad07",
+          "mondstern (imported from Feeel)",
+          "Luis Alfredo Figueroa Bracamontes (imported from Feeel)",
+          "Gabriel Tandil (imported from Feeel)",
+          "Diego Sanguinetti (imported from Feeel)"
+        ],
+        "license": "CC-BY-SA-3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+        "source_license_id": 1,
+        "source_license_url": "https://wger.de/api/v2/license/1/",
+        "source_author_history": [
+          "mondstern (imported from Feeel)",
+          "Luis Alfredo Figueroa Bracamontes (imported from Feeel)",
+          "Gabriel Tandil (imported from Feeel)",
+          "Diego Sanguinetti (imported from Feeel)",
+          "YYCfit / BFad07"
+        ],
+        "changes": "Se retiró el formato HTML y se normalizaron espacios; palabras originales, sin traducción ni instrucciones añadidas."
+      },
+      "base_attribution": {
+        "author": "YYCfit / BFad07",
+        "license": "CC-BY-SA-3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+        "source_license_id": 1,
+        "source_author_history": [
+          "YYCfit / BFad07"
+        ]
+      },
+      "images": [
+        {
+          "source_id": 346,
+          "source_uuid": "b7bd9c28-9f1d-4647-bd17-ab6a3adf5770",
+          "source_exercise_id": 458,
+          "url": "https://wger.de/media/exercise-images/458/b7bd9c28-9f1d-4647-bd17-ab6a3adf5770.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/346/",
+          "kind": "illustration",
+          "author": "utkb",
+          "license": "CC-BY-SA-4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+          "source_license_id": 2,
+          "source_license_url": "https://wger.de/api/v2/license/2/",
+          "source_author_history": [
+            "utkb"
+          ],
+          "checked_on": "2026-09-14",
+          "visual_review": "exact_variant_verified",
+          "visual_review_notes": "Plancha estática sobre antebrazos y puntas de los pies, cuerpo extendido; sin carga ni apoyo adicional.",
+          "is_ai_generated": false,
+          "sha256": "006a934daf47e95ccf37a0482bce110b12b4f2f49c55f7b6d4fc97aba3e588d5",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor utkb.",
+          "source_style": "4"
+        }
+      ],
+      "review_status": "pending_professional_review",
+      "clinical_approval": false,
+      "can_activate_training": false
+    },
+    {
+      "id": "wger-475",
+      "name": "Dominadas",
+      "language": "es",
+      "category": "Back",
+      "category_source_id": 12,
+      "metadata_language": "en",
+      "equipment": [
+        {
+          "id": 6,
+          "name": "Pull-up bar"
+        }
+      ],
+      "equipment_metadata_complete": true,
+      "instructions": [
+        "Toma la barra con los brazos a la altura de los hombros y las palmas de las manos hacia el frente. Intenta sacar el pecho, apretar el abdomen y tirar con las dorsales para elevarte hacia arriba hasta sobrepasar la barra con la barbilla intentando mantener el resto del cuerpo completamente estático"
+      ],
+      "source_url": "https://wger.de/en/exercise/475/view",
+      "source_api_url": "https://wger.de/api/v2/exerciseinfo/475/",
+      "source_exercise_id": 475,
+      "source_exercise_uuid": "8e420408-0682-4ab6-89f5-2681e54c7ce0",
+      "source_translation_id": 2028,
+      "source_translation_uuid": "0b068941-65c4-4ce3-ad70-c006d2bc88e2",
+      "source_language_id": 4,
+      "source_last_update": "2026-04-15T22:23:56.751242+02:00",
+      "checked_on": "2026-09-14",
+      "instructions_sha256": "4f5b5e5540c9e158261dec2d6e5532ff4a843c72dc5faa543ae704ac624f4724",
+      "source_description_sha256": "7334c4ef0454b1fe50026ebae9d6da5f01f093b0c50876cae88b9b22ee50030c",
+      "attribution": {
+        "authors": [
+          "wger.de",
+          "Imobard"
+        ],
+        "license": "CC-BY-SA-3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+        "source_license_id": 1,
+        "source_license_url": "https://wger.de/api/v2/license/1/",
+        "source_author_history": [
+          "Imobard",
+          "wger.de"
+        ],
+        "changes": "Se retiró el formato HTML y se normalizaron espacios; palabras originales, sin traducción ni instrucciones añadidas."
+      },
+      "base_attribution": {
+        "author": "wger.de",
+        "license": "CC-BY-SA-3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+        "source_license_id": 1,
+        "source_author_history": [
+          "wger.de"
+        ]
+      },
+      "images": [
+        {
+          "source_id": 323,
+          "source_uuid": "b0554016-16fd-4dbe-be47-a2a17d16ae0e",
+          "source_exercise_id": 475,
+          "url": "https://wger.de/media/exercise-images/475/b0554016-16fd-4dbe-be47-a2a17d16ae0e.jpg",
+          "source_url": "https://wger.de/api/v2/exerciseimage/323/",
+          "kind": "illustration",
+          "author": "Imobard",
+          "license": "CC-BY-SA-4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+          "source_license_id": 2,
+          "source_license_url": "https://wger.de/api/v2/license/2/",
+          "source_author_history": [
+            "Imobard"
+          ],
+          "checked_on": "2026-09-14",
+          "visual_review": "exact_variant_verified",
+          "visual_review_notes": "Dos posiciones de dominada con agarre prono en barra; no es la dominada supina de la ficha 152.",
+          "is_ai_generated": false,
+          "sha256": "cc494be8d8f520e4a883ff8b43b2e41da97dfd0a6474c1c16ea6c03fa1740c08",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Imobard.",
+          "source_style": "4"
+        }
+      ],
+      "review_status": "pending_professional_review",
+      "clinical_approval": false,
+      "can_activate_training": false
+    },
+    {
+      "id": "wger-957",
+      "name": "Elevación de brazo y pierna en cuadrupedia",
+      "language": "es",
+      "category": "Back",
+      "category_source_id": 12,
+      "metadata_language": "en",
+      "equipment": [
+        {
+          "id": 7,
+          "name": "none (bodyweight exercise)"
+        }
+      ],
+      "equipment_metadata_complete": true,
+      "instructions": [
+        "En este ejercicio se activan los músculos de la espalda y los músculos de la parte posterior de la pierna y del brazo al levantar al mismo tiempo el brazo y la pierna cruzados en posición de cuadrupedia. También mejora el equilibrio y la propiocepción. El movimiento se realiza de forma simétrica.",
+        "Colócate en posición de cuadrupedia.2. Mete el abdomen y luego levanta tu pierna derecha y tu brazo izquierdo.3. Debes mantener el abdomen metido durante 8 segundos.4. Después de 8 segundos, baja lentamente el brazo y la pierna.5. Luego relaja los músculos."
+      ],
+      "source_url": "https://wger.de/en/exercise/957/view",
+      "source_api_url": "https://wger.de/api/v2/exerciseinfo/957/",
+      "source_exercise_id": 957,
+      "source_exercise_uuid": "80c167b9-3749-48a1-8686-fc2163a1e7fb",
+      "source_translation_id": 3618,
+      "source_translation_uuid": "ac694928-e76a-4674-a34b-329544afd495",
+      "source_language_id": 4,
+      "source_last_update": "2026-06-19T18:48:56.900386+02:00",
+      "checked_on": "2026-09-14",
+      "instructions_sha256": "e24f9dfceaee4d61313b08d559bc3befb4ef8364c2a02ce378ed292a53b61fce",
+      "source_description_sha256": "8754d2bcf54911c4ceb6f796538a3203dba3fa180c6896117ad8a9964a97fb92",
+      "attribution": {
+        "authors": [
+          "wger.de"
+        ],
+        "license": "CC-BY-SA-4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "source_license_id": 2,
+        "source_license_url": "https://wger.de/api/v2/license/2/",
+        "source_author_history": [
+          "wger.de"
+        ],
+        "changes": "Se retiró el formato HTML y se normalizaron espacios; palabras originales, sin traducción ni instrucciones añadidas."
+      },
+      "base_attribution": {
+        "author": "utkb",
+        "license": "CC-BY-SA-4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "source_license_id": 2,
+        "source_author_history": [
+          "utkb"
+        ]
+      },
+      "images": [
+        {
+          "source_id": 271,
+          "source_uuid": "0fd94587-6021-4763-856e-7227f5fcba2a",
+          "source_exercise_id": 957,
+          "url": "https://wger.de/media/exercise-images/957/0fd94587-6021-4763-856e-7227f5fcba2a.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/271/",
+          "kind": "illustration",
+          "author": "utkb",
+          "license": "CC-BY-SA-4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+          "source_license_id": 2,
+          "source_license_url": "https://wger.de/api/v2/license/2/",
+          "source_author_history": [
+            "utkb"
+          ],
+          "checked_on": "2026-09-14",
+          "visual_review": "exact_variant_verified",
+          "visual_review_notes": "Cuadrupedia con elevación simultánea de brazo y pierna contrarios, con la mano y rodilla opuestas apoyadas.",
+          "is_ai_generated": false,
+          "sha256": "f854c0f87f645395bea79bed0e6da2b272c02b97944489d62ffa20993e2b07eb",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor utkb.",
+          "source_style": "4"
+        }
+      ],
+      "review_status": "pending_professional_review",
+      "clinical_approval": false,
+      "can_activate_training": false
+    },
+    {
+      "id": "wger-1551",
+      "name": "Push-Up",
+      "language": "es",
+      "category": "Chest",
+      "category_source_id": 11,
+      "metadata_language": "en",
+      "equipment": [
+        {
+          "id": 7,
+          "name": "none (bodyweight exercise)"
+        }
+      ],
+      "equipment_metadata_complete": true,
+      "instructions": [
+        "La flexión es un ejercicio fundamental con peso corporal que trabaja el pecho, los brazos y los hombros, a la vez que trabaja el core para lograr estabilidad. No requiere equipo y es excelente para fortalecer la parte superior del cuerpo. Instrucciones:",
+        "Comience en posición de plancha con las manos colocadas ligeramente más anchas que el ancho de los hombros, los pies juntos y el cuerpo en línea recta desde la cabeza hasta los talones.",
+        "Contraiga el torso y baje el cuerpo flexionando los codos, manteniéndolos cerca del cuerpo o ligeramente separados.",
+        "Baje hasta que el pecho casi toque el suelo, manteniendo la columna neutra.",
+        "Empuje con las palmas de las manos para volver a la posición inicial, extendiendo completamente los brazos."
+      ],
+      "source_url": "https://wger.de/en/exercise/1551/view",
+      "source_api_url": "https://wger.de/api/v2/exerciseinfo/1551/",
+      "source_exercise_id": 1551,
+      "source_exercise_uuid": "f5b84269-18af-4464-a61f-b767cbcd81dc",
+      "source_translation_id": 2504,
+      "source_translation_uuid": "d0ab9a62-399c-40d3-be8d-dc197f1dc266",
+      "source_language_id": 4,
+      "source_last_update": "2026-06-19T18:57:50.900240+02:00",
+      "checked_on": "2026-09-14",
+      "instructions_sha256": "d8f3f682fce2d35fd75eb1a913d48abb2bf182c5513ecbe08b14638a5d386957",
+      "source_description_sha256": "5a469405e95f83981c667c8d52ed0dd25035350620fe9d56e94c44c7329bedc8",
+      "attribution": {
+        "authors": [
+          "Settebello"
+        ],
+        "license": "CC-BY-SA-4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "source_license_id": 2,
+        "source_license_url": "https://wger.de/api/v2/license/2/",
+        "source_author_history": [
+          "Settebello"
+        ],
+        "changes": "Se retiró el formato HTML y se normalizaron espacios; palabras originales, sin traducción ni instrucciones añadidas."
+      },
+      "base_attribution": {
+        "author": "Settebello",
+        "license": "CC-BY-SA-4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "source_license_id": 2,
+        "source_author_history": [
+          "Settebello"
+        ]
+      },
+      "images": [
+        {
+          "source_id": 524,
+          "source_uuid": "a6a9e561-3965-45c6-9f2b-ee671e1a3a45",
+          "source_exercise_id": 1551,
+          "url": "https://wger.de/media/exercise-images/1551/a6a9e561-3965-45c6-9f2b-ee671e1a3a45.png",
+          "source_url": "https://wger.de/api/v2/exerciseimage/524/",
+          "kind": "illustration",
+          "author": "Settebello",
+          "license": "CC-BY-SA-4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+          "source_license_id": 2,
+          "source_license_url": "https://wger.de/api/v2/license/2/",
+          "source_author_history": [
+            "Settebello"
+          ],
+          "checked_on": "2026-09-14",
+          "visual_review": "exact_variant_verified",
+          "visual_review_notes": "Ilustración de la posición alta de una flexión en el suelo, sin equipo; no se presenta como vídeo ni secuencia completa.",
+          "is_ai_generated": false,
+          "sha256": "ece83e006d9e578d9f61281b50c1869e763d2e99bc005993868838250111b9b6",
+          "changes": "Sin cambios en la imagen original servida por wger.",
+          "rights_evidence": "Licencia individual declarada en la API de wger; autor Settebello.",
+          "source_style": "4"
         }
       ],
       "review_status": "pending_professional_review",

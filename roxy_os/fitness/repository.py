@@ -162,9 +162,20 @@ class PostgresFitnessRepository:
             return self._read(cursor, member_id)
 
     def export_data(self, member_id: str) -> dict[str, Any]:
-        return {"format": "roxy-home-fitness-preferences-v1", "exported_at": datetime.now(timezone.utc).isoformat(),
-                "data": self.snapshot(member_id),
-                "scope": "authenticated_member_only", "contains_clinical_records": False}
+        from .activity_plan import ActivityPlanRepository
+        from .measurements import MeasurementsRepository
+        from .training_logs import TrainingLogsRepository
+        with self._transaction(member_id) as cursor:
+            result = {"format": "roxy-home-fitness-preferences-v1", "exported_at": datetime.now(timezone.utc).isoformat(),
+                      "data": self._read(cursor, member_id),
+                      "scope": "authenticated_member_only", "contains_clinical_records": False}
+            if ActivityPlanRepository.available(cursor, required=False):
+                result["activity_plan"] = ActivityPlanRepository.read(cursor, member_id)
+            if MeasurementsRepository.available(cursor, required=False):
+                result["measurements"] = MeasurementsRepository.read(cursor, member_id)
+            if TrainingLogsRepository.available(cursor, required=False):
+                result["training_logs"] = TrainingLogsRepository.read(cursor, member_id)
+            return result
 
     def save_profile(self, member_id: str, profile: FitnessProfileInput | dict[str, Any], *, expected_version: int, idempotency_key: str) -> dict[str, Any]:
         parsed = profile if isinstance(profile, FitnessProfileInput) else FitnessProfileInput.model_validate(profile)
@@ -209,6 +220,10 @@ class PostgresFitnessRepository:
                 if not payload["granted"]:
                     profile = None
             elif operation == "delete":
+                from .activity_plan import ActivityPlanRepository
+                from .measurements import MeasurementsRepository
+                ActivityPlanRepository.erase_for_member(cursor, member_id)
+                MeasurementsRepository.erase_for_member(cursor, member_id)
                 profile, consent = None, None
             else:
                 raise FitnessInputError("Operación no válida.")

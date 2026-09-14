@@ -222,3 +222,14 @@ test('review voice stays gesture driven, and cancel does not write', async () =>
   assert.equal(h.spoken.length, 0); await h.find('Escuchar a Roxy').click(); assert.equal(h.spoken.length, 1);
   await h.find('Cerrar').click(); assert.equal(h.cancelled.length, 1); assert.equal(calls, 0);
 });
+
+test('house narration follows real garden steps without sending private answers', async () => {
+  const h = setup(); const steps = []; let stops = 0;
+  h.api.open({ species, memberName: 'Private name', plant: { id: 'p', species_key: 'pothos' }, onSave: async () => {}, onNarration: step => steps.push(step), stopNarration: () => { stops++; } });
+  assert.deepEqual(steps, [0]);
+  await h.find('Continuar').click(); assert.deepEqual(steps, [0, 1]);
+  await h.find('Repetir explicación').click(); assert.deepEqual(steps, [0, 1, 1]);
+  assert.equal(h.spoken.length, 0, 'The house owns the only audio channel');
+  const before = stops; await h.find('Detener voz').click(); assert.ok(stops > before);
+  await h.find('Cerrar').click(); assert.equal(h.document.body.children.length, 0);
+});

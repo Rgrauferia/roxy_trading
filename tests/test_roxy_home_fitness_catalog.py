@@ -25,11 +25,11 @@ def replace_snapshot(monkeypatch, tmp_path, snapshot):
 def test_real_selection_has_individual_rights_provenance_and_honest_coverage():
     response = catalog.fitness_catalog()
     assert response["status"] == catalog.STATUS
-    assert response["count"] == 21
-    assert sum(e["language"] == "es" for e in response["entries"]) == 19
+    assert response["count"] == 25
+    assert sum(e["language"] == "es" for e in response["entries"]) == 23
     assert sum(e["language"] == "en" for e in response["entries"]) == 2
-    assert sum(len(e["images"]) for e in response["entries"]) == 44
-    assert sum(len(e["instructions"]) for e in response["entries"]) == 67
+    assert sum(len(e["images"]) for e in response["entries"]) == 48
+    assert sum(len(e["instructions"]) for e in response["entries"]) == 79
     for entry in response["entries"]:
         assert not entry["clinical_approval"] and not entry["can_activate_training"]
         assert entry["attribution"]["authors"]
@@ -37,9 +37,9 @@ def test_real_selection_has_individual_rights_provenance_and_honest_coverage():
         assert sha256("\n\n".join(entry["instructions"]).encode()).hexdigest() == entry["instructions_sha256"]
         for media in entry["images"]:
             assert media["kind"] == "illustration"
-            assert media["author"] == "Everkinetic"
+            assert media["author"] in {"Everkinetic", "utkb", "Imobard", "Settebello"}
             assert media["source_exercise_id"] == entry["source_exercise_id"]
-            assert media["license"] == "CC-BY-SA-3.0"
+            assert media["license"] == ("CC-BY-SA-3.0" if media["author"] == "Everkinetic" else "CC-BY-SA-4.0")
             assert len(media["sha256"]) == 64
 
 
@@ -61,12 +61,12 @@ def test_expansion_preserves_previous_entries_and_adds_missing_groups(snapshot):
         "wger-91", "wger-92", "wger-95", "wger-135", "wger-272", "wger-365", "wger-366", "wger-572",
     ]
     counts = Counter(entry["category"] for entry in entries)
-    assert counts == {"Abs": 1, "Arms": 6, "Back": 3, "Chest": 4, "Legs": 4, "Shoulders": 3}
+    assert counts == {"Abs": 2, "Arms": 6, "Back": 5, "Chest": 5, "Legs": 4, "Shoulders": 3}
     assert snapshot["coverage"]["categories"] == counts
     assert snapshot["coverage"]["exercises"] == len(entries)
-    assert snapshot["coverage"]["illustrations"] == 44
-    assert len({m["url"] for e in entries for m in e["images"]}) == 44
-    assert len({m["sha256"] for e in entries for m in e["images"]}) == 44
+    assert snapshot["coverage"]["illustrations"] == 48
+    assert len({m["url"] for e in entries for m in e["images"]}) == 48
+    assert len({m["sha256"] for e in entries for m in e["images"]}) == 48
 
 
 def test_expansion_keeps_exact_translation_and_media_variants():
@@ -88,6 +88,42 @@ def test_expansion_keeps_exact_translation_and_media_variants():
     for identifier in [83, 167, 301, 377, 394, 576, 1392]:
         assert catalog.fitness_catalog_entry(f"wger-{identifier}") is None
 
+
+
+def test_calisthenics_expansion_preserves_all_twenty_one_previous_entries(snapshot):
+    # Digest of the complete prior v2 entries, independently compared to HEAD
+    # and the preserved ingestion backup during the 209 review.
+    prior = json.dumps(snapshot["entries"][:21], ensure_ascii=False,
+                       sort_keys=True, separators=(",", ":")).encode()
+    assert sha256(prior).hexdigest() == "ea495c3616ebd63b6738e6ee50b75aaa312c145bc5968c1aa480c86cc8c222e8"
+    selected = {
+        "wger-458": (1401, 346, "utkb", 7),
+        "wger-475": (2028, 323, "Imobard", 6),
+        "wger-957": (3618, 271, "utkb", 7),
+        "wger-1551": (2504, 524, "Settebello", 7),
+    }
+    assert [entry["id"] for entry in snapshot["entries"][21:]] == list(selected)
+    for identifier, (translation, media_id, author, equipment) in selected.items():
+        entry = catalog.fitness_catalog_entry(identifier)
+        assert entry["source_translation_id"] == translation
+        assert entry["language"] == "es" and entry["checked_on"] == "2026-09-14"
+        assert [item["id"] for item in entry["equipment"]] == [equipment]
+        assert len(entry["images"]) == 1
+        media = entry["images"][0]
+        assert (media["source_id"], media["author"], media["license"]) == (media_id, author, "CC-BY-SA-4.0")
+        assert not entry["clinical_approval"] and not entry["can_activate_training"]
+    # Preserve the actual source name even though its instructions are Spanish.
+    assert catalog.fitness_catalog_entry("wger-1551")["name"] == "Push-Up"
+
+
+@pytest.mark.parametrize("field,value", [
+    ("author", "Everkinetic"), ("author", "unknown"), ("sha256", "f" * 64),
+    ("source_id", 9999), ("license", "CC-BY-SA-3.0"),
+])
+def test_new_media_cannot_impersonate_reviewed_originals(monkeypatch, tmp_path, snapshot, field, value):
+    snapshot["entries"][21]["images"][0][field] = value
+    replace_snapshot(monkeypatch, tmp_path, snapshot)
+    assert catalog.fitness_catalog()["status"] == "catalogue_unavailable"
 
 def test_cc0_base_metadata_does_not_relicense_text_or_media():
     chin_up = catalog.fitness_catalog_entry("wger-152")

@@ -17,7 +17,16 @@ from urllib.parse import urlsplit
 
 
 CATALOG_PATH = Path(__file__).resolve().parents[2] / "data" / "home_fitness_catalog.json"
-CATALOG_VERSION = "fitness-open-catalog-20260910-v2"
+CATALOG_VERSION = "fitness-open-catalog-20260914-v3"
+CATALOG_CHECKED_ON = "2026-09-14"
+# Additional originals reviewed individually; an author name alone cannot
+# authorize a different illustration or relicense the existing Everkinetic set.
+ADDITIONAL_REVIEWED_MEDIA = {
+    346: (458, "utkb", "006a934daf47e95ccf37a0482bce110b12b4f2f49c55f7b6d4fc97aba3e588d5"),
+    323: (475, "Imobard", "cc494be8d8f520e4a883ff8b43b2e41da97dfd0a6474c1c16ea6c03fa1740c08"),
+    271: (957, "utkb", "f854c0f87f645395bea79bed0e6da2b272c02b97944489d62ffa20993e2b07eb"),
+    524: (1551, "Settebello", "ece83e006d9e578d9f61281b50c1869e763d2e99bc005993868838250111b9b6"),
+}
 LICENSES = {
     "CC-BY-SA-3.0": "https://creativecommons.org/licenses/by-sa/3.0/",
     "CC-BY-SA-4.0": "https://creativecommons.org/licenses/by-sa/4.0/",
@@ -190,7 +199,14 @@ def _validate_entry(entry):
             raise CatalogValidationError("Unapproved image origin or path")
         if media.get("source_url") != f"https://wger.de/api/v2/exerciseimage/{media_id}/":
             raise CatalogValidationError("Mismatched media source")
-        if (media.get("kind") != "illustration" or media.get("author") != "Everkinetic"
+        reviewed_media = ADDITIONAL_REVIEWED_MEDIA.get(media_id)
+        if reviewed_media:
+            if ((source_id, media.get("author"), media.get("sha256")) != reviewed_media
+                    or media.get("license") != "CC-BY-SA-4.0"):
+                raise CatalogValidationError("Unreviewed additional media provenance")
+        elif media.get("author") != "Everkinetic" or media.get("license") != "CC-BY-SA-3.0":
+            raise CatalogValidationError("Unreviewed media attribution")
+        if (media.get("kind") != "illustration"
                 or media.get("visual_review") != "exact_variant_verified"
                 or media.get("is_ai_generated") is not False):
             raise CatalogValidationError("Unreviewed media content")
@@ -227,7 +243,7 @@ def fitness_catalog() -> dict:
     """Read the fixed selection; corrupt/unreviewed content fails closed."""
     result = {
         "version": CATALOG_VERSION,
-        "checked_on": "2026-09-10",
+        "checked_on": CATALOG_CHECKED_ON,
         "status": STATUS,
         "clinical_approval": False,
         "can_activate_training": False,

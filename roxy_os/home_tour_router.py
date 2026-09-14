@@ -17,6 +17,13 @@ class TourSpeech(BaseModel):
     chapter: str = Field(min_length=1, max_length=40)
 
 
+class TourPersonalization(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    display_name: str = Field(min_length=1, max_length=80)
+    preferences: dict[str, Any]
+    expected: dict[str, Any]
+
+
 def create_home_tour_router(authenticate: Callable, account_store: Callable,
                             same_origin: Callable, rate_limit: Callable, voice_response: Callable):
     router = APIRouter(prefix="/v1/home-tour")
@@ -38,7 +45,25 @@ def create_home_tour_router(authenticate: Callable, account_store: Callable,
     def read(request: Request, response: Response, auth=Depends(authenticate)):
         current = member(request, auth)
         response.headers["Cache-Control"] = "private, no-store"
-        return {**catalogue(), **account_store().get_home_tour(current["id"])}
+        return {**catalogue(), **account_store().get_home_tour(current["id"]),
+                "personalization": {"display_name": current["display_name"], "preferences": current["preferences"]}}
+
+    @router.put("/personalization")
+    def personalize(payload: TourPersonalization, request: Request, response: Response, auth=Depends(authenticate)):
+        current = member(request, auth, True)
+        if set(payload.preferences) != {"theme", "background", "avatar", "response_style", "text_scale"}:
+            raise HTTPException(422, "La personalización no es válida.")
+        try:
+            updated = account_store().update_personalization(
+                current["id"], display_name=payload.display_name, preferences=payload.preferences,
+                expected_personalization=payload.expected, expected_session_version=auth.session_version)
+        except RecipeProfileConflictError as exc:
+            raise HTTPException(409, str(exc)) from None
+        except (KeyError, ValueError) as exc:
+            raise HTTPException(422, str(exc)) from None
+        response.headers["Cache-Control"] = "private, no-store"
+        return {"member_id": current["id"], "personalization": {
+            "display_name": updated["display_name"], "preferences": updated["preferences"]}}
 
     @router.put("")
     def save(payload: TourProgress, request: Request, response: Response, auth=Depends(authenticate)):

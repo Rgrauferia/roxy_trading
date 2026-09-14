@@ -161,7 +161,7 @@ test('changing module through selectPanel cancels a pending globe opening', asyn
   const loader = deferred(), f = fixture({ loader: () => loader.promise });
   const pending = f.context.activateFamilyWeatherGlobe(); f.context.selectPanel('today');
   loader.resolve({}); await pending;
-  assert.equal(f.context.activePanel, 'today'); assert.equal(f.context.location.hash, 'hoy');
+  assert.equal(f.context.activePanel, 'today'); assert.equal(f.context.location.hash, 'dia');
   assert.equal(f.context.familyWeatherGlobeActive, false); assert.equal(f.calls.ensure, 0); assert.equal(f.calls.radar, 0);
 });
 
@@ -224,11 +224,12 @@ test('HTML loads only the lightweight helper; Docker retains local vendor', () =
   assert.ok(docker.includes('COPY assets/vendor/maplibre-gl.js assets/vendor/maplibre-gl.css'));
 });
 
-test('recipes and exercise remain adjacent in navigation without CSS reordering', () => {
+test('kitchen and exercise remain adjacent in navigation without CSS reordering', () => {
   const html = read('assets/roxy_list.html'), css = read('assets/roxy_list.css').replace(/\/\*[\s\S]*?\*\//g, '');
   const nav = html.match(/<nav\b[^>]*class="bottom-nav"[^>]*>([\s\S]*?)<\/nav>/)[1];
   const links = [...nav.matchAll(/\bdata-tab-link="([^"]+)"/g)].map(match => match[1]);
-  assert.equal(links[links.indexOf('recipes') + 1], 'fitness');
+  assert.ok(links.includes('kitchen'));
+  assert.equal(links[links.indexOf('kitchen') + 1], 'fitness');
   const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)];
   for (const [, selector, declarations] of rules) {
     if (!selector.includes('bottom-nav') && !selector.includes('fitness-nav') && !selector.includes('roxy-nav')) continue;
