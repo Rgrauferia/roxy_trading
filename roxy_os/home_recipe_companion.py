@@ -33,7 +33,8 @@ Use only the supplied ingredients and steps for recipe-specific facts. Do not
 invent or change ingredients, amounts, servings, times, temperatures, equipment
 settings, substitutions or nutrition. Do not convert units or scale quantities.
 Any number, quantity, time or temperature must appear in an EXACT complete short
-ingredient or step quotation between «...»; do not paraphrase its quantities or
+ingredient, whole step, or complete sentence from a cited step between «...»;
+do not paraphrase its quantities, omit a condition within that sentence, or
 reuse numbers from other steps. If a source passage is too long, explain without
 numbers. Step references may use 'paso N' / 'step N', where N is a supporting step.
 Do not introduce new ingredient-addition instructions outside literal quotations.
@@ -335,7 +336,15 @@ def validate_answer(result: Any, context: Any) -> dict[str, Any]:
         raise ValueError("La explicación no está vinculada a los pasos originales.")
     # Exact source passages only: numbers in the question, history, title or
     # profile never authorize a quantitative instruction.
-    passages = set(source["ingredients"] + [source["steps"][index - 1] for index in references])
+    passages = set(source["ingredients"])
+    for index in references:
+        step = source["steps"][index - 1]
+        passages.update((step, step.strip()))
+        # One source step may contain several complete sentences. Accept only
+        # entire literal sentences, never arbitrary substrings that could drop
+        # a negation, condition, decimal or unit. Do not split at a decimal or
+        # a lowercase continuation; the whole source step remains available.
+        passages.update(re.split(r"(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÜÑ¿¡])", step.strip()))
 
     def remove_source_quote(match: re.Match[str]) -> str:
         quoted = next(group for group in match.groups() if group is not None)

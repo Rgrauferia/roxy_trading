@@ -52,8 +52,8 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
         assert '/assets/' + asset in worker.text
         assert '/assets/' + asset in page.text
         assert client.get('/assets/' + asset).status_code == 200
-    assert 'roxy-list-shell-v200' in worker.text
-    for asset in ('roxy_recipe_guide.js?v=4', 'roxy_recipe_guide.css?v=3'):
+    assert 'roxy-list-shell-v201' in worker.text
+    for asset in ('roxy_recipe_guide.js?v=5', 'roxy_recipe_guide.css?v=3'):
         assert '/assets/' + asset in page.text and '/assets/' + asset in worker.text
         assert client.get('/assets/' + asset).status_code == 200
     assert page.text.index('roxy_recipe_guide.js') < page.text.index('roxy_home_myplate_recipes.js')

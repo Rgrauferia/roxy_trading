@@ -751,3 +751,11 @@ test('official speech reads the displayed explanation without sharing preference
   assert.equal(requests.at(-1).kind,'response');assert.equal(requests.at(-1).text,'Bate con suavidad para mezclar.');
   assert.equal(Object.hasOwn(requests.at(-1),'include_preferences'),false);assert.equal(Object.hasOwn(requests.at(-1),'history'),false);
 });
+
+test('a failed question clears the official speaking status after cancelling its audio',async()=>{
+  const h=harness();h.mount({startWithVoice:true,requestSpeech:async()=>({}),askQuestion:async()=>{throw new Error('La explicación fue rechazada.');}});
+  await settleVoice();h.audios[0].onplaying();assert.match(status(h.container),/hablando/);
+  h.command('¿Qué significa batir?');await settleVoice();
+  assert.equal(h.audios[0].paused,true);assert.doesNotMatch(status(h.container),/hablando/);
+  assert.equal(h.revoked.length,1);assert.equal(progress(h.container),'Paso 1 de 3');
+});

@@ -175,6 +175,7 @@
       }, 200);
     }
     function stopSpeech() {
+      const hadSpeech = Boolean(state.officialJob || state.utterance || state.voiceRequest);
       const job = state.officialJob; state.officialJob = null;
       if (job) {
         job.controller.abort(); clearTimeout(job.timer);
@@ -191,6 +192,7 @@
         state.ownCancellationPending = Boolean(speech.speaking || speech.pending);
       }
       hear.setAttribute('aria-pressed', 'false');
+      if (hadSpeech) audioStatus.textContent = '';
     }
     function stopRecognition() {
       state.micToken++; clearTimer('micTimer');

@@ -3,10 +3,10 @@
   "updated_on": "2026-09-13",
   "deployment_branch": "codex/roxy-home-nfc",
   "public_url": "https://roxy-home.onrender.com/lista#recetas",
-  "last_verified_public_version": 200,
-  "deployed_implementation_commit": "877e6758402f8c5ef8e65783792c9f67d05220a8",
+  "last_verified_public_version": 201,
+  "deployed_implementation_commit": "b595cd58680d0814d48575be5b0d8c02fc7612e4",
   "candidate_version": 201,
-  "candidate_status": "201_validated_ready_to_publish",
+  "candidate_status": "201_public_voice_verified_explanation_fix_pending",
   "candidate_199": {
     "published": true,
     "implementation_commit": "4652e5200594401ed719cf7c928a8ade2010e97a",
@@ -995,7 +995,7 @@
     "tests_checker": 6
   },
   "candidate_201": {
-    "published": false,
+    "published": true,
     "scope": "Consistent Prepare with Roxy food/drink actions; official recipe step/reply TTS; explicit device choice and cancellation; bounded Home voice ledger.",
     "environment_deploy": "dep-dajmpfdg1s2s73bbuohg",
     "environment_seconds": 48.9,
@@ -1011,6 +1011,20 @@
     "tests_node": 857,
     "tests_after_css": 7,
     "qa": "Synthetic account: silent view, direct food and drink preparation, controlled unconfigured TTS, coffee manual step1to2,393px nooverflow. QA7 CDP timeout onreload;8recovered same account.",
-    "preservation": "4789 preexisting files present;3758prototype files byteidentical"
+    "preservation": "4789 preexisting files present;3758prototype files byteidentical",
+    "implementation_commit": "b595cd58680d0814d48575be5b0d8c02fc7612e4",
+    "render_deploy": "dep-dajmve6k1f9s73fvru3g",
+    "render_duration": "1m03s",
+    "public_proof": "Health200/9assetsidentical; session/meta201; food/drink eventplaying officialvoice; silentVerreceta; cacheledger2requests143chars.",
+    "explanation_diagnostic": {
+      "false_positive_confirmed_in_separate_diagnostic": true,
+      "cause": "Exact complete sentence quote within longer cited step rejected as new ingredient action; now entire sentence quotes accepted without dropping conditions.",
+      "first_public_raw_captured": false,
+      "input_tokens": 892,
+      "output_tokens": 180,
+      "estimated_text_cost_usd": 0.0003944,
+      "targeted_python": 157,
+      "targeted_node": 450
+    }
   }
 }

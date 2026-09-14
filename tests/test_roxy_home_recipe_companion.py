@@ -211,3 +211,33 @@ def test_validation_preserves_recipe_and_returns_independent_reference_list(reci
     answer["supporting_steps"].append(2)
     assert value["supporting_steps"] == [1]
     assert recipe == original
+
+
+def test_complete_literal_sentence_in_cited_step_is_not_a_new_ingredient_action(recipe):
+    recipe['steps'][0] = 'Hierve el agua. Añade el café molido al filtro vietnamita phin (o a un filtro de café por vertido) y presiónalo.'
+    value = response('El phin es un filtro vietnamita que deja caer el café lentamente. La fuente indica: «Añade el café molido al filtro vietnamita phin (o a un filtro de café por vertido) y presiónalo.»')
+    before = copy.deepcopy(recipe)
+    assert validate_answer(value, recipe) == value
+    assert recipe == before
+
+
+@pytest.mark.parametrize('answer', [
+    'La fuente dice «Añade 2 huevos.».',
+    'La fuente dice «Si la mezcla está seca, añade 3 huevos.».',
+    'La fuente dice «añade 2 huevos.».',
+    'La fuente dice «Añade 2.5 cucharadas de leche.».',
+    'La fuente dice «5 cucharadas de leche si hace falta.».',
+    'La fuente dice «Añade 2 huevos» sin la condición.',
+])
+def test_sentence_quotes_cannot_drop_conditions_negation_decimals_or_invent_amounts(recipe, answer):
+    recipe['steps'][0] = 'Mezcla. No añadas 2 huevos. Si la mezcla está seca, añade 2 huevos. Añade 2.5 cucharadas de leche si hace falta.'
+    with pytest.raises(ValueError):
+        validate_answer(response(answer), recipe)
+
+
+def test_sentence_quote_with_decimal_preserves_full_original_condition(recipe):
+    recipe['steps'][0] = 'Mezcla. Añade 2.5 cucharadas de leche si hace falta.'
+    value = response('La fuente dice: «Añade 2.5 cucharadas de leche si hace falta.»')
+    assert validate_answer(value, recipe) == value
+    with pytest.raises(ValueError):
+        validate_answer(response(value['answer'], references=[2]), recipe)

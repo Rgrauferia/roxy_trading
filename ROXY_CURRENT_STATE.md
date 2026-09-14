@@ -1,6 +1,6 @@
 # Roxy Home — estado operativo
 
-## 201 — validada; publicación y audio público pendientes
+## 201 — voz publicada; corrección adicional de explicación en curso
 
 Comidas y bebidas ofrecen Preparar con Roxy y Ver receta. Preparar abre la guía
 con lectura oficial del primer paso; Ver conserva consulta silenciosa. TTS de
@@ -9,7 +9,14 @@ receta. Cancelación por paso/cierre/identidad/visibilidad, sin avanzar ni inici
 temporizadores por audio. Alternativa del dispositivo explícita en guía común.
 ElevenLabs: pago resuelto por Roberto y síntesis real40586bytes; voz histórica
 verificada y configurada en Home, sin copiar claves ni asignar agente compartido.
-Entorno dep-dajmpfdg1s2s73bbuohg Live48.9s sobre877e675. Código201 aún sin publicar.
+Entorno dep-dajmpfdg1s2s73bbuohg Live48.9s sobre877e675. Código201 publicado b595cd58,Render dep-dajmve6k1f9s73fvru3g Live1m03s.
+Health200/9assetsidénticos; sesión/meta201 conservados. Comida2-Step Chicken
+y café vietnamita alcanzan evento playing de voz oficial. Contador2solicitudes/
+143caracteres. Falso positivo separado demostrado: cita de oración completa en
+paso con varias frases se rechazaba por verbo Añade. Corregido sin admitir
+subcadenas ni omitir condiciones/cantidades.157Python/450Node pasan; falta
+publicar ajuste y comprobar explicación hablada. Aviso hablando al cancelar
+audio también corregido. Diagnóstico892entrada/180salida Luna,USD0.0003944.
 3360Python/11PGomitidas y857Node aprobadas;7pruebas posteriores CSS/checker.
 QA sintética: consulta silenciosa, preparación directa comida/bebida,393px sin
 overflow y avance manual café1→2.4789archivos conservados/3758prototipos idénticos.
