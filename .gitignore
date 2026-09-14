@@ -63,3 +63,6 @@ knowledge/sources/public-downloads-log.json
 _backup/
 *.bak
 *.tmp
+
+# Public, attributed Home exercise-class catalogue required by its Docker image.
+!data/home_fitness_classes_209.json

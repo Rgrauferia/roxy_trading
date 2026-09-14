@@ -1,0 +1,593 @@
+{
+  "version": 1,
+  "product": "roxy-home",
+  "checked_on": "2026-09-14",
+  "classes": [
+    {
+      "id": "nhs-yoga-vinyasa",
+      "title_es": "Yoga Vinyasa: movimiento y respiración",
+      "title_original": "Vinyasa flow yoga video",
+      "modality": "yoga",
+      "modalities": [
+        "yoga"
+      ],
+      "format": "class",
+      "language": "en",
+      "duration_minutes": 50,
+      "duration_note_es": null,
+      "level": null,
+      "equipment": [
+        {
+          "name_es": "Esterilla",
+          "requirement": "optional"
+        }
+      ],
+      "equipment_complete": false,
+      "description_es": "Clase completa que enlaza las posturas con la respiración.",
+      "source_notes_es": [
+        "La fuente la dirige a personas con buena salud y una condición física razonable."
+      ],
+      "source_url": "https://www.nhs.uk/live-well/exercise/pilates-and-yoga/yoga-with-lj/",
+      "publisher": "NHS",
+      "creator": "InstructorLive",
+      "checked_on": "2026-09-14",
+      "source_reviewed_on": "2025-05-14",
+      "embed_url": null,
+      "media_mode": "external_link",
+      "clinical_approval": false,
+      "can_activate_plans": false,
+      "source_updated_on": null
+    },
+    {
+      "id": "nhs-pilates-beginners",
+      "title_es": "Pilates desde las bases",
+      "title_original": "Pilates video for beginners",
+      "modality": "pilates",
+      "modalities": [
+        "pilates"
+      ],
+      "format": "class",
+      "language": "en",
+      "duration_minutes": 45,
+      "duration_note_es": null,
+      "level": "beginner",
+      "equipment": [
+        {
+          "name_es": "Esterilla",
+          "requirement": "optional"
+        }
+      ],
+      "equipment_complete": false,
+      "description_es": "Una clase para comenzar Pilates o repasar sus fundamentos.",
+      "source_notes_es": [],
+      "source_url": "https://www.nhs.uk/live-well/exercise/pilates-and-yoga/pilates-for-beginners/",
+      "publisher": "NHS",
+      "creator": "InstructorLive",
+      "checked_on": "2026-09-14",
+      "source_reviewed_on": "2025-05-14",
+      "embed_url": null,
+      "media_mode": "external_link",
+      "clinical_approval": false,
+      "can_activate_plans": false,
+      "source_updated_on": null
+    },
+    {
+      "id": "nhs-pilates-pyjama",
+      "title_es": "Pilates: continúa practicando",
+      "title_original": "Pyjama pilates video workout",
+      "modality": "pilates",
+      "modalities": [
+        "pilates"
+      ],
+      "format": "class",
+      "language": "en",
+      "duration_minutes": 45,
+      "duration_note_es": null,
+      "level": "basic_experience",
+      "equipment": [],
+      "equipment_complete": false,
+      "description_es": "Clase de Pilates para quien ya tiene experiencia básica.",
+      "source_notes_es": [
+        "La fuente pide experiencia básica de Pilates; no se clasifica como primera sesión."
+      ],
+      "source_url": "https://www.nhs.uk/live-well/exercise/pilates-and-yoga/pyjama-pilates/",
+      "publisher": "NHS",
+      "creator": "InstructorLive",
+      "checked_on": "2026-09-14",
+      "source_reviewed_on": "2025-05-14",
+      "embed_url": null,
+      "media_mode": "external_link",
+      "clinical_approval": false,
+      "can_activate_plans": false,
+      "source_updated_on": null
+    },
+    {
+      "id": "nhs-pilates-chair",
+      "title_es": "Pilates con apoyo de una silla",
+      "title_original": "Chair-based pilates video workout",
+      "modality": "pilates",
+      "modalities": [
+        "pilates"
+      ],
+      "format": "class",
+      "language": "en",
+      "duration_minutes": 30,
+      "duration_note_es": "La fuente indica una duración aproximada de 30 minutos.",
+      "level": null,
+      "equipment": [
+        {
+          "name_es": "Silla con asiento y respaldo firmes y planos",
+          "requirement": "required"
+        }
+      ],
+      "equipment_complete": false,
+      "description_es": "Clase de pie y en silla para quien prefiere apoyo o tiene dificultad para bajar al suelo.",
+      "source_notes_es": [
+        "Combina movimientos de pie y sentados; no toda la clase se realiza en silla.",
+        "La fuente indica consultar antes si hay una lesión en recuperación o una condición de salud."
+      ],
+      "source_url": "https://www.nhs.uk/live-well/exercise/pilates-and-yoga/chair-based-pilates-exercise-video/",
+      "publisher": "NHS",
+      "creator": "InstructorLive",
+      "checked_on": "2026-09-14",
+      "source_reviewed_on": "2025-08-05",
+      "embed_url": null,
+      "media_mode": "external_link",
+      "clinical_approval": false,
+      "can_activate_plans": false,
+      "source_updated_on": null
+    },
+    {
+      "id": "nhs-aerobics-beginners",
+      "title_es": "Cardio: aeróbicos para comenzar",
+      "title_original": "Aerobics video for beginners",
+      "modality": "cardio",
+      "modalities": [
+        "cardio"
+      ],
+      "format": "class",
+      "language": "en",
+      "duration_minutes": 45,
+      "duration_note_es": null,
+      "level": "beginner",
+      "equipment": [],
+      "equipment_complete": false,
+      "description_es": "Clase guiada de aeróbicos para principiantes.",
+      "source_notes_es": [],
+      "source_url": "https://www.nhs.uk/live-well/exercise/aerobic-exercises/aerobics-for-beginners/",
+      "publisher": "NHS",
+      "creator": "InstructorLive",
+      "checked_on": "2026-09-14",
+      "source_reviewed_on": "2023-12-08",
+      "embed_url": null,
+      "media_mode": "external_link",
+      "clinical_approval": false,
+      "can_activate_plans": false,
+      "source_updated_on": null
+    },
+    {
+      "id": "nhs-wake-up",
+      "title_es": "Activa tu mañana",
+      "title_original": "Wake-up workout video",
+      "modality": "cardio",
+      "modalities": [
+        "cardio",
+        "strength"
+      ],
+      "format": "class",
+      "language": "en",
+      "duration_minutes": 45,
+      "duration_note_es": null,
+      "level": "beginner",
+      "equipment": [
+        {
+          "name_es": "Esterilla",
+          "requirement": "optional"
+        }
+      ],
+      "equipment_complete": false,
+      "description_es": "Sesión que combina cardio y ejercicios de fuerza.",
+      "source_notes_es": [],
+      "source_url": "https://www.nhs.uk/live-well/exercise/aerobic-exercises/wake-up-workout/",
+      "publisher": "NHS",
+      "creator": "InstructorLive",
+      "checked_on": "2026-09-14",
+      "source_reviewed_on": "2023-12-08",
+      "embed_url": null,
+      "media_mode": "external_link",
+      "clinical_approval": false,
+      "can_activate_plans": false,
+      "source_updated_on": null
+    },
+    {
+      "id": "nhs-dance-la-bomba",
+      "title_es": "Baile: La Bomba",
+      "title_original": "La Bomba dance exercise video",
+      "modality": "cardio",
+      "modalities": [
+        "cardio"
+      ],
+      "format": "class",
+      "language": "en",
+      "duration_minutes": 45,
+      "duration_note_es": null,
+      "level": null,
+      "equipment": [
+        {
+          "name_es": "Zapatillas deportivas",
+          "requirement": "required"
+        }
+      ],
+      "equipment_complete": false,
+      "description_es": "Clase de baile con música latina, hip hop, Afrobeats y R&B.",
+      "source_notes_es": [],
+      "source_url": "https://www.nhs.uk/live-well/exercise/aerobic-exercises/dance-la-bomba/",
+      "publisher": "NHS",
+      "creator": "InstructorLive",
+      "checked_on": "2026-09-14",
+      "source_reviewed_on": "2025-05-14",
+      "embed_url": null,
+      "media_mode": "external_link",
+      "clinical_approval": false,
+      "can_activate_plans": false,
+      "source_updated_on": null
+    },
+    {
+      "id": "nhs-belly-dance",
+      "title_es": "Danza del vientre para comenzar",
+      "title_original": "Belly dancing exercise video",
+      "modality": "cardio",
+      "modalities": [
+        "cardio"
+      ],
+      "format": "class",
+      "language": "en",
+      "duration_minutes": 45,
+      "duration_note_es": null,
+      "level": "beginner",
+      "equipment": [],
+      "equipment_complete": false,
+      "description_es": "Clase de iniciación a la danza del vientre.",
+      "source_notes_es": [],
+      "source_url": "https://www.nhs.uk/live-well/exercise/aerobic-exercises/belly-dancing-for-beginners/",
+      "publisher": "NHS",
+      "creator": "InstructorLive",
+      "checked_on": "2026-09-14",
+      "source_reviewed_on": "2025-05-14",
+      "embed_url": null,
+      "media_mode": "external_link",
+      "clinical_approval": false,
+      "can_activate_plans": false,
+      "source_updated_on": null
+    },
+    {
+      "id": "nhs-strength-abs",
+      "title_es": "Abdomen en 10 minutos",
+      "title_original": "Abs workout video",
+      "modality": "strength",
+      "modalities": [
+        "strength"
+      ],
+      "format": "class",
+      "language": "en",
+      "duration_minutes": 10,
+      "duration_note_es": null,
+      "level": "basic_fitness",
+      "equipment": [
+        {
+          "name_es": "Esterilla",
+          "requirement": "optional"
+        }
+      ],
+      "equipment_complete": false,
+      "description_es": "Sesión breve centrada en la musculatura abdominal.",
+      "source_notes_es": [
+        "La fuente describe una sesión intensa para personas con una base de condición física."
+      ],
+      "source_url": "https://www.nhs.uk/live-well/exercise/strength-and-resistance/body-blast-abs/",
+      "publisher": "NHS",
+      "creator": "InstructorLive",
+      "checked_on": "2026-09-14",
+      "source_reviewed_on": "2023-12-08",
+      "embed_url": null,
+      "media_mode": "external_link",
+      "clinical_approval": false,
+      "can_activate_plans": false,
+      "source_updated_on": null
+    },
+    {
+      "id": "nhs-strength-arms",
+      "title_es": "Brazos en 10 minutos",
+      "title_original": "Arms workout video",
+      "modality": "strength",
+      "modalities": [
+        "strength"
+      ],
+      "format": "class",
+      "language": "en",
+      "duration_minutes": 10,
+      "duration_note_es": null,
+      "level": "basic_fitness",
+      "equipment": [
+        {
+          "name_es": "Esterilla",
+          "requirement": "optional"
+        }
+      ],
+      "equipment_complete": false,
+      "description_es": "Trabajo breve de fuerza del tren superior.",
+      "source_notes_es": [
+        "La fuente describe una sesión intensa para personas con una base de condición física."
+      ],
+      "source_url": "https://www.nhs.uk/live-well/exercise/strength-and-resistance/body-blast-arms/",
+      "publisher": "NHS",
+      "creator": "InstructorLive",
+      "checked_on": "2026-09-14",
+      "source_reviewed_on": "2023-12-08",
+      "embed_url": null,
+      "media_mode": "external_link",
+      "clinical_approval": false,
+      "can_activate_plans": false,
+      "source_updated_on": null
+    },
+    {
+      "id": "nhs-strength-legs",
+      "title_es": "Piernas en 10 minutos",
+      "title_original": "Legs workout video",
+      "modality": "strength",
+      "modalities": [
+        "strength"
+      ],
+      "format": "class",
+      "language": "en",
+      "duration_minutes": 10,
+      "duration_note_es": null,
+      "level": "basic_fitness",
+      "equipment": [
+        {
+          "name_es": "Esterilla",
+          "requirement": "optional"
+        }
+      ],
+      "equipment_complete": false,
+      "description_es": "Sesión breve centrada en el tren inferior.",
+      "source_notes_es": [
+        "La fuente describe una sesión intensa para personas con una base de condición física."
+      ],
+      "source_url": "https://www.nhs.uk/live-well/exercise/strength-and-resistance/body-blast-legs/",
+      "publisher": "NHS",
+      "creator": "InstructorLive",
+      "checked_on": "2026-09-14",
+      "source_reviewed_on": "2023-12-08",
+      "embed_url": null,
+      "media_mode": "external_link",
+      "clinical_approval": false,
+      "can_activate_plans": false,
+      "source_updated_on": null
+    },
+    {
+      "id": "nhs-strength-bums",
+      "title_es": "Glúteos y caderas en 10 minutos",
+      "title_original": "Glutes video workout",
+      "modality": "strength",
+      "modalities": [
+        "strength"
+      ],
+      "format": "class",
+      "language": "en",
+      "duration_minutes": 10,
+      "duration_note_es": null,
+      "level": "basic_fitness",
+      "equipment": [
+        {
+          "name_es": "Esterilla",
+          "requirement": "optional"
+        }
+      ],
+      "equipment_complete": false,
+      "description_es": "Clase centrada en glúteos y caderas.",
+      "source_notes_es": [
+        "La fuente describe una sesión intensa para personas con una base de condición física."
+      ],
+      "source_url": "https://www.nhs.uk/live-well/exercise/strength-and-resistance/body-blast-bums/",
+      "publisher": "NHS",
+      "creator": "InstructorLive",
+      "checked_on": "2026-09-14",
+      "source_reviewed_on": "2023-12-08",
+      "embed_url": null,
+      "media_mode": "external_link",
+      "clinical_approval": false,
+      "can_activate_plans": false,
+      "source_updated_on": null
+    },
+    {
+      "id": "nhs-strength-waist",
+      "title_es": "Oblicuos en 10 minutos",
+      "title_original": "Waist workout video",
+      "modality": "strength",
+      "modalities": [
+        "strength"
+      ],
+      "format": "class",
+      "language": "en",
+      "duration_minutes": 10,
+      "duration_note_es": null,
+      "level": "basic_fitness",
+      "equipment": [
+        {
+          "name_es": "Esterilla",
+          "requirement": "optional"
+        }
+      ],
+      "equipment_complete": false,
+      "description_es": "Sesión breve centrada en los músculos oblicuos.",
+      "source_notes_es": [
+        "La fuente describe una sesión intensa para personas con una base de condición física."
+      ],
+      "source_url": "https://www.nhs.uk/live-well/exercise/strength-and-resistance/body-blast-waist/",
+      "publisher": "NHS",
+      "creator": "InstructorLive",
+      "checked_on": "2026-09-14",
+      "source_reviewed_on": "2023-12-08",
+      "embed_url": null,
+      "media_mode": "external_link",
+      "clinical_approval": false,
+      "can_activate_plans": false,
+      "source_updated_on": null
+    },
+    {
+      "id": "nhs-warm-up",
+      "title_es": "Preparar el cuerpo: calentamiento",
+      "title_original": "Body warm-up video",
+      "modality": "mobility",
+      "modalities": [
+        "mobility"
+      ],
+      "format": "class",
+      "language": "en",
+      "duration_minutes": null,
+      "duration_note_es": "Duración sin confirmar: la página indica 5 minutos en el título y 10 en su descripción.",
+      "level": "all_levels",
+      "equipment": [],
+      "equipment_complete": false,
+      "description_es": "Una sesión de calentamiento antes de otra actividad.",
+      "source_notes_es": [],
+      "source_url": "https://www.nhs.uk/live-well/exercise/strength-and-resistance/body-blast-warm-up/",
+      "publisher": "NHS",
+      "creator": "InstructorLive",
+      "checked_on": "2026-09-14",
+      "source_reviewed_on": "2023-12-08",
+      "embed_url": null,
+      "media_mode": "external_link",
+      "clinical_approval": false,
+      "can_activate_plans": false,
+      "source_updated_on": null
+    },
+    {
+      "id": "nhs-cool-down",
+      "title_es": "Vuelta a la calma y estiramientos",
+      "title_original": "Cool-down video",
+      "modality": "mobility",
+      "modalities": [
+        "mobility"
+      ],
+      "format": "class",
+      "language": "en",
+      "duration_minutes": 10,
+      "duration_note_es": null,
+      "level": "all_levels",
+      "equipment": [],
+      "equipment_complete": false,
+      "description_es": "Una clase de estiramientos para terminar la actividad.",
+      "source_notes_es": [],
+      "source_url": "https://www.nhs.uk/live-well/exercise/strength-and-resistance/body-blast-cool-down/",
+      "publisher": "NHS",
+      "creator": "InstructorLive",
+      "checked_on": "2026-09-14",
+      "source_reviewed_on": "2023-12-08",
+      "embed_url": null,
+      "media_mode": "external_link",
+      "clinical_approval": false,
+      "can_activate_plans": false,
+      "source_updated_on": null
+    },
+    {
+      "id": "mayo-squat",
+      "title_es": "Sentadilla con peso corporal",
+      "title_original": "Video: Squat exercise",
+      "modality": "calisthenics",
+      "modalities": [
+        "calisthenics",
+        "strength"
+      ],
+      "format": "technique",
+      "language": "en",
+      "duration_minutes": null,
+      "duration_note_es": "Duración no confirmada; es una demostración de técnica, no una clase completa.",
+      "level": null,
+      "equipment": [],
+      "equipment_complete": false,
+      "description_es": "Demostración de una sentadilla con resistencia del propio cuerpo.",
+      "source_notes_es": [
+        "La fuente permite reducir el recorrido y señala detenerse si se pierde la técnica o aparece fatiga."
+      ],
+      "source_url": "https://www.mayoclinic.org/healthy-lifestyle/fitness/multimedia/squat/vid-20084663",
+      "publisher": "Mayo Clinic",
+      "creator": "Mayo Clinic",
+      "checked_on": "2026-09-14",
+      "source_reviewed_on": null,
+      "embed_url": null,
+      "media_mode": "external_link",
+      "clinical_approval": false,
+      "can_activate_plans": false,
+      "source_updated_on": "2025-11-21"
+    },
+    {
+      "id": "mayo-modified-pushup",
+      "title_es": "Flexión de brazos modificada",
+      "title_original": "Video: Modified pushup",
+      "modality": "calisthenics",
+      "modalities": [
+        "calisthenics",
+        "strength"
+      ],
+      "format": "technique",
+      "language": "en",
+      "duration_minutes": null,
+      "duration_note_es": "Duración no confirmada; es una demostración de técnica, no una clase completa.",
+      "level": null,
+      "equipment": [],
+      "equipment_complete": false,
+      "description_es": "Demostración de flexiones con rodillas apoyadas y alternativa contra la pared.",
+      "source_notes_es": [
+        "La variante de pared se presenta como alternativa, no como una equivalencia automática de dificultad."
+      ],
+      "source_url": "https://www.mayoclinic.org/healthy-lifestyle/fitness/multimedia/modified-pushup/vid-20084674",
+      "publisher": "Mayo Clinic",
+      "creator": "Mayo Clinic",
+      "checked_on": "2026-09-14",
+      "source_reviewed_on": null,
+      "embed_url": null,
+      "media_mode": "external_link",
+      "clinical_approval": false,
+      "can_activate_plans": false,
+      "source_updated_on": "2025-11-21"
+    },
+    {
+      "id": "mayo-step-up",
+      "title_es": "Subir a un escalón",
+      "title_original": "Video: Step-up exercise",
+      "modality": "calisthenics",
+      "modalities": [
+        "calisthenics",
+        "strength"
+      ],
+      "format": "technique",
+      "language": "en",
+      "duration_minutes": null,
+      "duration_note_es": "Duración no confirmada; es una demostración de técnica, no una clase completa.",
+      "level": null,
+      "equipment": [
+        {
+          "name_es": "Escalón o plataforma baja y estable",
+          "requirement": "required"
+        }
+      ],
+      "equipment_complete": false,
+      "description_es": "Demostración de un ejercicio con peso corporal sobre un escalón.",
+      "source_notes_es": [
+        "La fuente da prioridad al control y al apoyo completo del pie sobre la altura del escalón."
+      ],
+      "source_url": "https://www.mayoclinic.org/healthy-lifestyle/fitness/multimedia/step-up/vid-20084661",
+      "publisher": "Mayo Clinic",
+      "creator": "Mayo Clinic",
+      "checked_on": "2026-09-14",
+      "source_reviewed_on": null,
+      "embed_url": null,
+      "media_mode": "external_link",
+      "clinical_approval": false,
+      "can_activate_plans": false,
+      "source_updated_on": "2025-11-21"
+    }
+  ]
+}

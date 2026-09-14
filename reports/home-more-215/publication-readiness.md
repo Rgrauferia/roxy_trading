@@ -203,3 +203,7 @@ privado de Ejercicio seguirá indisponible en público hasta configurar su base.
 Esta revisión hizo las correcciones de código descritas por delegación de la tarea
 principal; no hizo push, deploy, cambios de infraestructura ni escrituras en los
 hogares reales.
+
+## Build correction after first publication attempt
+
+Render build1508e764 failed before service switch because data/home_fitness_classes_209.json was excluded by the broad data/*.json Git rule. Local file-existence/Docker-copy checks had not checked Git tracking. Added only the public attributed classes catalogue and a specific ignore exception. Audited every explicit DockerCOPY file against git ls-files: this was the only missing source. No privatedata/fixture added. Public203 remained running. Retry uses unchanged app215 code.
