@@ -297,3 +297,136 @@ def test_companion_invalid_answer_keeps_valid_usage_and_member_charge(tmp_path):
     with pytest.raises(HomeAIBudgetExceeded):
         assistant.recipe_companion("¿Cómo lo mezclo?", recipe_context(), actor_key="member:synthetic")
     assert len(provider.calls) == 1
+
+
+class ProviderFailure(RuntimeError):
+    def __init__(self, status=400, code="unsupported_value", param="reasoning.effort", request_id="req_synthetic199"):
+        super().__init__("SECRET message with question, household, bearer and raw response")
+        self.status_code = status
+        self.code = code
+        self.param = param
+        self.request_id = request_id
+        self.body = {"error": {"message": "SECRET body", "code": code, "param": param}}
+
+
+@pytest.mark.parametrize("status", [400, 401, 403, 404, 408, 409, 422, 429, 500, 502, 503])
+def test_provider_failure_persists_minimal_diagnostics_without_releasing_quota(tmp_path, status):
+    assistant, provider = ai(tmp_path)
+    error = ProviderFailure(status=status)
+    def reject(**kwargs):
+        provider.calls.append(kwargs)
+        raise error
+    provider.create = reject
+    with pytest.raises(ProviderFailure) as caught:
+        call(assistant, actor="member:synthetic", cap=1200)
+    assert caught.value is error
+    snapshot = assistant.budget.snapshot()
+    failure = snapshot["pending_request"]["provider_failure"]
+    assert failure == {"status_code": status, "code": "unsupported_value", "param": "reasoning.effort",
+                       "request_id": "req_synthetic199", "requested_model": "gpt-5.6-luna",
+                       "max_output_tokens": 1200, "usage_verified": False, "disposition": "pending_review"}
+    assert snapshot["requests"] == 1 and snapshot["output_tokens"] == 0
+    assert list(snapshot["actor_requests"].values()) == [1]
+    assert "SECRET" not in assistant.budget.path.read_text()
+    with pytest.raises(HomeAIBudgetStorageError):
+        call(assistant, actor="member:synthetic")
+    assert len(provider.calls) == 1
+
+
+def test_unstructured_timeout_leaves_unknown_diagnostics_pending(tmp_path):
+    assistant, provider = ai(tmp_path)
+    provider.create = lambda **_: (_ for _ in ()).throw(TimeoutError("SECRET URL and input"))
+    with pytest.raises(TimeoutError):
+        call(assistant)
+    failure = assistant.budget.snapshot()["pending_request"]["provider_failure"]
+    assert all(failure[key] is None for key in ("status_code", "code", "param", "request_id"))
+    assert failure["usage_verified"] is False
+    assert "SECRET" not in assistant.budget.path.read_text()
+
+
+def test_untrusted_diagnostic_strings_are_omitted_and_body_messages_never_stored(tmp_path):
+    assistant, provider = ai(tmp_path)
+    error = ProviderFailure(status=True, code="sk-secret-value", param="question SECRET", request_id="https://secret.test")
+    provider.create = lambda **_: (_ for _ in ()).throw(error)
+    with pytest.raises(ProviderFailure):
+        call(assistant)
+    failure = assistant.budget.snapshot()["pending_request"]["provider_failure"]
+    assert all(failure[key] is None for key in ("status_code", "code", "param", "request_id"))
+    raw = assistant.budget.path.read_text()
+    assert "SECRET" not in raw and "sk-secret" not in raw and "https://" not in raw
+
+
+def test_manual_conservative_settlement_retains_failure_and_marks_usage_incomplete(tmp_path):
+    assistant, provider = ai(tmp_path)
+    provider.create = lambda **_: (_ for _ in ()).throw(ProviderFailure())
+    with pytest.raises(ProviderFailure):
+        call(assistant, actor="member:synthetic", cap=1200)
+    before = assistant.budget.snapshot()
+    reservation_id = before["pending_request"]["id"]
+    # Only a deliberate operator reconciliation supplies this known upper bound.
+    assistant.budget.record_output_tokens(1200, reservation_id=reservation_id)
+    settled = assistant.budget.snapshot()
+    assert settled["pending_request"] is None
+    assert settled["requests"] == 1 and settled["output_tokens"] == 1200
+    assert settled["actor_requests"] == before["actor_requests"]
+    assert settled["settled_requests"][reservation_id]["provider_failure"] == before["pending_request"]["provider_failure"]
+    assert settled["usage_summary"]["estimate_status"] == "incomplete"
+    assert settled["usage_summary"]["requests_without_detailed_usage"] == 1
+
+
+def test_diagnostics_cannot_overwrite_another_or_already_diagnosed_reservation(tmp_path):
+    assistant, _ = ai(tmp_path)
+    reservation = assistant.budget.reserve_request()
+    with pytest.raises(HomeAIBudgetStorageError):
+        assistant.budget.record_provider_failure(ProviderFailure(), reservation_id="0" * 32,
+                                                requested_model="gpt-5.6-luna", max_output_tokens=1200)
+    identifier = reservation["reservation_id"]
+    first = assistant.budget.record_provider_failure(ProviderFailure(), reservation_id=identifier,
+                                                     requested_model="gpt-5.6-luna", max_output_tokens=1200)
+    with pytest.raises(HomeAIBudgetStorageError):
+        assistant.budget.record_provider_failure(ProviderFailure(status=503), reservation_id=identifier,
+                                                requested_model="gpt-5.6-luna", max_output_tokens=1200)
+    assert assistant.budget.snapshot()["pending_request"]["provider_failure"] == first
+
+
+def test_corrupt_failure_receipt_blocks_without_resetting_pending(tmp_path):
+    assistant, provider = ai(tmp_path)
+    provider.create = lambda **_: (_ for _ in ()).throw(ProviderFailure())
+    with pytest.raises(ProviderFailure):
+        call(assistant)
+    raw = json.loads(assistant.budget.path.read_text())
+    raw["pending_request"]["provider_failure"]["usage_verified"] = True
+    assistant.budget.path.write_text(json.dumps(raw))
+    before = assistant.budget.path.read_bytes()
+    with pytest.raises(HomeAIBudgetStorageError):
+        assistant.budget.reserve_request()
+    assert assistant.budget.path.read_bytes() == before
+
+
+def test_confirmed_credit_exhaustion_has_curated_message_and_blocks_further_calls(tmp_path):
+    assistant, provider = ai(tmp_path)
+    def reject(**kwargs):
+        provider.calls.append(kwargs)
+        raise ProviderFailure(status=429, code="credit_balance_exhausted", param=None)
+    provider.create = reject
+    with pytest.raises(module.HomeAIConfigurationError, match="no tiene saldo de IA") as first:
+        call(assistant, actor="member:synthetic")
+    assert "SECRET" not in str(first.value)
+    snapshot = assistant.budget.snapshot()
+    assert snapshot["requests"] == 1 and snapshot["output_tokens"] == 0
+    assert snapshot["pending_request"]["provider_failure"]["code"] == "credit_balance_exhausted"
+    with pytest.raises(HomeAIBudgetStorageError, match="no tiene saldo de IA") as next_attempt:
+        call(assistant, actor="member:synthetic")
+    assert next_attempt.value.code == "provider_credit_exhausted"
+    assert len(provider.calls) == 1
+
+
+def test_credit_code_without_matching_429_does_not_claim_billing_cause(tmp_path):
+    assistant, provider = ai(tmp_path)
+    provider.create = lambda **_: (_ for _ in ()).throw(ProviderFailure(status=503, code="credit_balance_exhausted"))
+    with pytest.raises(ProviderFailure):
+        call(assistant)
+    with pytest.raises(HomeAIBudgetStorageError) as caught:
+        call(assistant)
+    assert caught.value.code == "pending_usage"
+    assert "saldo" not in str(caught.value)

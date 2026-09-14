@@ -1,6 +1,6 @@
 # Roxy Home — estado operativo
 
-## 199 — candidato: acompañamiento de recetas con OpenAI y consumo acotado
+## 199 — PUBLICADO; conversación bloqueada por saldo de OpenAI
 
 Guía conversacional implementada para recetas guardadas, bebidas, catálogo abierto
 y MyPlate consultado en directo. Fuente y paso resueltos por servidor; originales
@@ -14,8 +14,20 @@ QA sintética393px sin overflow: guardado e inicio de panqueques, siguiente→pa
 respuesta preventiva de alergia, ausencia de proveedor con error recuperable.
 940 pruebas Node y3376Python aprobadas,11PGomitidas; expectativas de assets199
 actualizadas. Revisión independiente sin bloqueantes nuevos.
-Todavía NO publicado ni probado con OpenAI real. Sin proveedor contratado, cambios
-de claves ni apertura de registro. No convierte1072consultables en1000revisadasES.
+Publicado4652e5200594401ed719cf7c928a8ade2010e97a, Render
+dep-dajknq6k1f9s73fubfkg Live58.9s;health200 y seis archivos byteidénticos.
+Sesión pública conservada. Café vietnamita abre la nueva conversación. Primera
+pregunta502; diagnóstico limitado real prueba modelos.retrieveLuna válido y
+Responses429/credit_balance_exhausted, hostapi.openai.com. SaldoAPI agotado.
+No reintentos adicionales ni pagos. NO se confirmó respuesta real exitosa.
+Primera reserva desconocida provisionada conservadoramente1200tokens de salida
+(máximo enviado, NO consumo comprobado) manteniendo solicitud/recibo. Segundo
+intento de diagnóstico pasó por ledger normal, requests2; reserva siguependiente.
+Hotfix diagnóstico sanitizado preparado: no mensajes/secretos; error de saldo
+comprensible; no liberación automática de cuotas4xx.336pruebas dirigidas pasan.
+Sin proveedor contratado, cambios de claves ni apertura de registro.
+No convierte1072consultables en1000revisadasES. Próximo paso: usuario repone saldo,
+revisar reserva conservada y probar respuesta real antes de darlo por operativo.
 Informe reports/home_release_199_20260913.md.
 
 ## 198 — PUBLICADO: temporizadores explícitos y guía con consultas

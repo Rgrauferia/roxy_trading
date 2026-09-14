@@ -31,10 +31,18 @@ class HomeAIBudgetExceeded(RuntimeError):
     pass
 
 
+_HOME_AI_CREDIT_MESSAGE = (
+    "Roxy no tiene saldo de IA disponible. Las consultas de IA están pausadas hasta revisar "
+    "la facturación de OpenAI. Puedes seguir leyendo los pasos y usando los controles de la receta."
+)
+
+
 class HomeAIBudgetStorageError(HomePrivateStorageError):
     """Uncertain Home accounting blocks provider calls, never resets allowance."""
 
     def __str__(self) -> str:
+        if self.code == "provider_credit_exhausted":
+            return _HOME_AI_CREDIT_MESSAGE
         if self.code == "pending_usage":
             return "Hay una solicitud de IA de Home pendiente de contabilizar. Espera y vuelve a intentar; si persiste, necesita revisión. No hemos reiniciado el presupuesto."
         if self.code == "usage_unavailable":
@@ -68,6 +76,7 @@ def _valid_home_budget(payload: Any) -> bool:
         or not re.fullmatch(r"[0-9a-f]{32}", pending["id"])
         or pending.get("date") != payload["date"]
         or payload["requests"] < 1
+        or ("provider_failure" in pending and not _valid_provider_failure(pending["provider_failure"]))
     ):
         return False
     actor_requests = payload.get("actor_requests", {})
@@ -96,6 +105,7 @@ def _valid_home_budget(payload: Any) -> bool:
             or row["date"] > payload["date"]
             or type(row.get("output_tokens")) is not int
             or row["output_tokens"] < 0
+            or ("provider_failure" in row and not _valid_provider_failure(row["provider_failure"]))
             or ("usage" in row and not _valid_usage_record(row["usage"], row["output_tokens"]))
             or ("actor_digest" in row and (
                 not isinstance(row["actor_digest"], str)
@@ -240,6 +250,9 @@ class HomeAIBudgetLedger:
 
         def apply(payload: dict[str, Any]) -> dict[str, Any]:
             if payload.get("pending_request"):
+                failure = payload["pending_request"].get("provider_failure") or {}
+                if failure.get("status_code") == 429 and failure.get("code") == "credit_balance_exhausted":
+                    raise HomeAIBudgetStorageError("provider_credit_exhausted")
                 raise HomeAIBudgetStorageError("pending_usage")
             if payload["requests"] >= self.request_limit:
                 raise HomeAIBudgetExceeded("Roxy Home alcanzó su límite diario de solicitudes.")
@@ -288,6 +301,8 @@ class HomeAIBudgetLedger:
                     settled[request_id]["actor_digest"] = pending["actor_digest"]
                 if usage is not None:
                     settled[request_id]["usage"] = usage
+                if pending.get("provider_failure"):
+                    settled[request_id]["provider_failure"] = pending["provider_failure"]
                 payload["pending_request"] = None
             elif payload.get("pending_request"):
                 raise HomeAIBudgetStorageError("reservation_required")
@@ -300,6 +315,29 @@ class HomeAIBudgetLedger:
         if request_id == self._reservation_id:
             self._reservation_id = None
         return result
+
+    def record_provider_failure(self, error: Exception, *, reservation_id: str, requested_model: str,
+                                max_output_tokens: int) -> dict[str, Any]:
+        """Retain minimal diagnostics; uncertainty never releases a reservation.
+
+        No message, request body, headers, URL, traceback, question or profile is
+        persisted. Even a provider 4xx remains pending until explicitly reviewed:
+        an HTTP status alone is not a receipt for zero generated tokens.
+        """
+        failure = _provider_failure(error, requested_model=requested_model, max_output_tokens=max_output_tokens)
+        if not _valid_provider_failure(failure):
+            raise HomeAIBudgetStorageError("invalid_failure_receipt")
+
+        def apply(payload: dict[str, Any]) -> dict[str, Any]:
+            pending = payload.get("pending_request")
+            if not pending or pending["id"] != reservation_id:
+                raise HomeAIBudgetStorageError("unknown_reservation")
+            if "provider_failure" in pending and pending["provider_failure"] != failure:
+                raise HomeAIBudgetStorageError("conflicting_failure_receipt")
+            pending["provider_failure"] = failure
+            return dict(failure)
+
+        return self._locked(apply)
 
     def snapshot(self) -> dict[str, Any]:
         # Persist adoption/rollover under the same lock: after an observed legacy
@@ -404,6 +442,45 @@ def _usage_output_tokens(response: Any) -> int:
 
 def _field(value: Any, name: str, default: Any = None) -> Any:
     return value.get(name, default) if isinstance(value, dict) else getattr(value, name, default)
+
+
+def _provider_failure(error: Exception, *, requested_model: str, max_output_tokens: int) -> dict[str, Any]:
+    def token(value: Any, pattern: str) -> str | None:
+        return value if isinstance(value, str) and re.fullmatch(pattern, value) else None
+
+    status = getattr(error, "status_code", None)
+    status = status if type(status) is int and 400 <= status <= 599 else None
+    body = getattr(error, "body", None)
+    body = body.get("error", body) if isinstance(body, dict) else {}
+    body = body if isinstance(body, dict) else {}
+    code = token(getattr(error, "code", None) or body.get("code"), r"[a-z][a-z0-9_]{0,63}")
+    param = token(getattr(error, "param", None) or body.get("param"), r"[a-z][a-z0-9_.\[\]]{0,95}")
+    request_id = token(getattr(error, "request_id", None), r"req_[A-Za-z0-9_-]{1,100}")
+    return {
+        "status_code": status, "code": code, "param": param, "request_id": request_id,
+        "requested_model": token(requested_model, r"[a-z][a-z0-9.-]{0,95}"),
+        "max_output_tokens": max_output_tokens,
+        "usage_verified": False, "disposition": "pending_review",
+    }
+
+
+def _valid_provider_failure(value: Any) -> bool:
+    if not isinstance(value, dict) or set(value) != {
+        "status_code", "code", "param", "request_id", "requested_model", "max_output_tokens", "usage_verified", "disposition",
+    }:
+        return False
+    status = value["status_code"]
+    if status is not None and (type(status) is not int or not 400 <= status <= 599):
+        return False
+    for key, pattern in (
+        ("code", r"[a-z][a-z0-9_]{0,63}"), ("param", r"[a-z][a-z0-9_.\[\]]{0,95}"),
+        ("request_id", r"req_[A-Za-z0-9_-]{1,100}"), ("requested_model", r"[a-z][a-z0-9.-]{0,95}"),
+    ):
+        item = value[key]
+        if item is not None and (not isinstance(item, str) or not re.fullmatch(pattern, item)):
+            return False
+    return (type(value["max_output_tokens"]) is int and value["max_output_tokens"] > 0
+            and value["usage_verified"] is False and value["disposition"] == "pending_review")
 
 
 # USD per million tokens, verified for the approved Home models. Cached-input
@@ -562,6 +639,20 @@ class RoxyHomeAI:
             output_token_limit=config.daily_output_token_limit,
         )
 
+    def _create_with_diagnostics(self, create: Callable[..., Any], request: dict[str, Any], reservation_id: str) -> Any:
+        try:
+            return create(**request)
+        except Exception as exc:
+            # Preserve the pending marker if saving diagnostics itself fails.
+            # Re-raise the original provider exception only after durable evidence.
+            failure = self.budget.record_provider_failure(
+                exc, reservation_id=reservation_id, requested_model=request["model"],
+                max_output_tokens=request["max_output_tokens"],
+            )
+            if failure["status_code"] == 429 and failure["code"] == "credit_balance_exhausted":
+                raise HomeAIConfigurationError(_HOME_AI_CREDIT_MESSAGE) from None
+            raise
+
     def _respond(
         self,
         task: str,
@@ -597,7 +688,7 @@ class RoxyHomeAI:
             actor_key=actor_key, actor_request_limit=self.config.companion_daily_request_limit,
         ) if actor_key is not None else self.budget.reserve_request()
         request["max_output_tokens"] = min(output_limit, self.config.daily_output_token_limit - reservation["output_tokens"])
-        response = create(**request)
+        response = self._create_with_diagnostics(create, request, reservation["reservation_id"])
         usage = _response_usage(response, requested_model=request["model"], tools_requested=current)
         self.budget.record_output_tokens(usage["output_tokens"], reservation_id=reservation["reservation_id"], usage=usage)
         result = _extract_json(_field(response, "output_text", ""))
@@ -683,7 +774,7 @@ class RoxyHomeAI:
             create = self.client.responses.create
             reservation = self.budget.reserve_request()
             request["max_output_tokens"] = min(self.config.max_output_tokens, self.config.daily_output_token_limit - reservation["output_tokens"])
-            response = create(**request)
+            response = self._create_with_diagnostics(create, request, reservation["reservation_id"])
             usage = _response_usage(response, requested_model=request["model"], text_only=False)
             self.budget.record_output_tokens(usage["output_tokens"], reservation_id=reservation["reservation_id"], usage=usage)
             result = _extract_json(_field(response, "output_text", ""))
