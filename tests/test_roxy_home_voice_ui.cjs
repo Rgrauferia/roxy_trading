@@ -173,6 +173,21 @@ test('missing Home conversation configuration is checked before microphone acces
   assert.equal(h.nodes.get('roxyVoiceStart').disabled, false);
 });
 
+test('the dedicated Home turn route starts its own controller without a hosted shared agent',async()=>{
+  const h=harness();let starts=0,options;
+  h.ctx.api=async()=>({status:'CONFIGURED',agent:'roxy_home',voice_mode:'home_turns',provider_health_verified:false});
+  h.ctx.window.RoxyHomeConversation={create:config=>{options=config;return{start:()=>starts++,endSession:()=>{}};}};
+  await h.ctx.startRoxyVoice();assert.equal(starts,1);assert.equal(h.microphoneCalls(),0);assert.equal(typeof options.sendCommand,'function');assert.equal(typeof options.requestSpeech,'function');
+  assert.equal(h.nodes.get('roxyVoiceEnd').disabled,false);
+});
+
+test('closed general conversation cannot apply a late reply or refresh the UI',async()=>{
+  const h=harness(),pending=deferred();let active=true,loads=0;
+  h.ctx.api=()=>pending.promise;h.ctx.load=async()=>loads++;
+  const result=h.ctx.sendRoxyHomeCommand({command:'Consulta',isCurrent:()=>active});active=false;pending.resolve({message:'Respuesta antigua'});
+  await assert.rejects(result,/conversación cambió/);assert.equal(loads,0);assert.doesNotMatch(h.nodes.get('roxyVoiceTranscript').textContent,/antigua/);
+});
+
 test('legacy READY is rejected as unverified configuration before microphone access', async () => {
   const h = harness(); h.ctx.api = async () => ({status:'READY', agent_id:'shared-product-agent'});
   await h.ctx.startRoxyVoice(); assert.equal(h.microphoneCalls(), 0);

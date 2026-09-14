@@ -144,7 +144,7 @@ def test_voice_rejects_path_traversal_before_using_provider(tmp_path):
     assert not session.get_calls and not session.post_calls
 
 
-def test_home_conversation_rejects_missing_home_agent_without_using_shared_agent(tmp_path, monkeypatch):
+def test_home_conversation_rejects_missing_home_credentials_without_using_shared_agent(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
     from tools import roxy_home_service
 
@@ -152,12 +152,13 @@ def test_home_conversation_rejects_missing_home_agent_without_using_shared_agent
     monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "synthetic-user")
     monkeypatch.setenv("ROXY_SHOPPING_LIST_PATH", str(tmp_path / "shopping.json"))
     monkeypatch.delenv("ROXY_HOME_ELEVENLABS_AGENT_ID", raising=False)
+    monkeypatch.delenv("ROXY_HOME_OPENAI_API_KEY", raising=False)
     monkeypatch.setenv("ELEVENLABS_AGENT_ID", "shared-product-agent")
     roxy_home_service._RATE_STATE.clear()
     client = TestClient(roxy_home_service.app)
     response = client.get("/v1/assistant/session/synthetic-user", headers={"Authorization": "Bearer synthetic-home-api-key"})
     assert response.status_code == 503
-    assert "exclusivo de Roxy Home" in response.json()["detail"]
+    assert "agente y la voz oficial de Home" in response.json()["detail"]
     assert "shared-product-agent" not in response.text
 
 

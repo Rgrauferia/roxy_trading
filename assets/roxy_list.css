@@ -597,6 +597,10 @@ dialog > form, dialog > article { display: grid; gap: 14px; padding: 23px; }
 
 .roxy-voice-panel { position: fixed; right: 12px; bottom: calc(82px + env(safe-area-inset-bottom)); z-index: 40; width: min(calc(100% - 24px), 370px); padding: 14px; border: 1px solid rgba(255,255,255,.15); border-radius: 22px; color: white; background: var(--forest-dark); box-shadow: 0 24px 70px rgba(10,31,20,.38); }
 .roxy-voice-panel header { display: grid; grid-template-columns: 46px minmax(0,1fr) auto; gap: 10px; align-items: center; }
+.roxy-voice-panel { max-height:calc(100dvh - 160px);overflow-y:auto; }
+.roxy-voice-panel .roxy-voice-privacy, .roxy-voice-panel .roxy-voice-privacy summary { color:#c7dbc9; }
+.roxy-voice-panel #roxyOfficialListen { display:flex;width:100%;min-height:48px;margin-top:10px;align-items:center;justify-content:center; }
+.roxy-voice-panel #roxyOfficialListen[hidden] { display:none; }
 .roxy-voice-panel header img { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; }
 .roxy-voice-panel header strong, .roxy-voice-panel header small { display: block; }
 .roxy-voice-panel header small { color: #bed2c4; }

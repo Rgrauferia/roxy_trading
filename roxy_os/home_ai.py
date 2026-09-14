@@ -703,6 +703,13 @@ class RoxyHomeAI:
         result["usage"] = usage
         return result
 
+    def translate_recipe(self, context: dict[str, Any], *, actor_key: str) -> dict[str, Any]:
+        from roxy_os.home_recipe_translation import INSTRUCTIONS, schema, task, validate
+        bounded = task(context)
+        result = self._respond(bounded, {}, deep=False, instructions=INSTRUCTIONS,
+                               response_schema=schema(context), actor_key=actor_key)
+        return validate(result, context)
+
     def recipe_companion(self, question: str, context: dict[str, Any], *, actor_key: str) -> dict[str, Any]:
         """One bounded, source-grounded cooking turn; identity stays server-side."""
         from roxy_os.home_recipe_companion import (

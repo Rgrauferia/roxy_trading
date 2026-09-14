@@ -252,3 +252,67 @@ def test_original_english_can_receive_spanish_explanation_without_changing_steps
     assert response.json()["language"] == "es"
     assert setup[4][0][1]["language"] == "es"
     assert setup[4][0][1]["steps"][0].startswith("Boil water.")
+
+
+@pytest.fixture
+def translation(setup, monkeypatch):
+    source = {"title": "Test recipe", "ingredients": [{"text": "1 cup water"}],
+              "source_steps": ["Heat for 5 minutes.", "Stir."], "source_url": "https://myplate.food/recipes/test"}
+    calls = []
+    monkeypatch.setattr(service.myplate_recipes, "get_recipe", lambda slug: {"recipe": deepcopy(source)})
+    def translate(context, *, actor_key):
+        calls.append((context, actor_key))
+        return {"title": "Receta de prueba", "ingredients": ["1 taza de agua"], "steps": ["Calienta durante 5 minutos.", "Remueve."]}
+    monkeypatch.setattr(service, "_home_ai", lambda: SimpleNamespace(translate_recipe=translate))
+    payload = {"source": "myplate", "recipe_id": "test", "recipe_version": service._companion_version(service._myplate_companion_context(source)), "step_index": 0, "language": "en"}
+    return payload, calls
+
+
+def test_translation_is_a_private_scoped_reading_and_voice_reads_its_exact_spanish_step(setup, translation, monkeypatch):
+    from fastapi.responses import Response
+    client, _, member, _, _, _, headers = setup
+    payload, calls = translation
+    response = client.post("/v1/home-food/companion-test/recipe-translation", json=payload, headers=headers)
+    assert response.status_code == 200, response.text
+    assert "no-store" in response.headers["cache-control"]
+    assert calls[0][1] == member["id"] and "preferences" not in calls[0][0]
+    token = response.json()["translation_token"]
+    voice = []
+    monkeypatch.setattr(service, "_official_voice_response", lambda text, user: voice.append((text, user)) or Response(b"audio"))
+    monkeypatch.setattr(service.myplate_recipes, "get_recipe", lambda _: pytest.fail("Signed reading must not re-download the source for every step"))
+    request = {**payload, "language": "es", "translation_token": token, "step_index": 1}
+    result = client.post("/v1/home-food/companion-test/recipe-speech", json=request, headers=headers)
+    assert result.status_code == 200
+    assert voice == [("Remueve.", member["id"])]
+    for changes in ({"recipe_id": "different"}, {"recipe_version": "0"*64}, {"step_index": 12},
+                    {"translation_token": token[:-1] + ("a" if token[-1] != "a" else "b")}, {"language": "en"}):
+        result = client.post("/v1/home-food/companion-test/recipe-speech", json={**request, **changes}, headers=headers)
+        assert result.status_code in (409, 422)
+    assert len(voice) == 1
+    monkeypatch.setattr(service.time, "time", lambda: 10**12)
+    with pytest.raises(service.HTTPException) as error:
+        service._read_recipe_translation(service.RecipeGuideReference(**request), "companion-test")
+    assert error.value.status_code == 409
+
+
+def test_translation_rejects_stale_source_or_wrong_member_before_calling_ai(setup, translation):
+    client, _, _, other, _, _, headers = setup
+    payload, calls = translation
+    for body, head in (({**payload, "recipe_version": "0"*64}, headers),
+                       (payload, {**headers, "X-Roxy-Recipe-Member": other["id"]}),
+                       (payload, {**headers, "Origin": "https://elsewhere.test"})):
+        assert client.post("/v1/home-food/companion-test/recipe-translation", json=body, headers=head).status_code in (403, 409)
+    assert not calls
+
+
+def test_general_home_voice_uses_member_scope_and_never_accepts_another_origin(setup, monkeypatch):
+    from fastapi.responses import Response
+    client, _, member, other, _, _, headers = setup
+    calls = []
+    monkeypatch.setattr(service, "_official_voice_response", lambda text, user: calls.append((text, user)) or Response(b"audio", media_type="audio/mpeg"))
+    path = "/v1/assistant/speech/companion-test"
+    assert client.post(path, json={"text": "Respuesta de Home."}, headers=headers).status_code == 200
+    assert calls == [("Respuesta de Home.", member["id"])]
+    for head in ({}, {**headers, "X-Roxy-Recipe-Member": other["id"]}, {**headers, "Origin": "https://evil.test"}):
+        assert client.post(path, json={"text": "Otro texto"}, headers=head).status_code in (403, 409)
+    assert len(calls) == 1 and trial_access_mode("POST", path) == "unavailable"

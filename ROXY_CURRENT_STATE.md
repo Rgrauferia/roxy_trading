@@ -1,29 +1,57 @@
 # Roxy Home — estado operativo
 
-## 201 — voz publicada; corrección adicional de explicación en curso
+## 202 — VALIDADA LOCALMENTE: agente Home y cocina visual en español
 
-Comidas y bebidas ofrecen Preparar con Roxy y Ver receta. Preparar abre la guía
-con lectura oficial del primer paso; Ver conserva consulta silenciosa. TTS de
-pasos y respuestas desde servidor Home, sin claves en navegador ni cambios a la
-receta. Cancelación por paso/cierre/identidad/visibilidad, sin avanzar ni iniciar
-temporizadores por audio. Alternativa del dispositivo explícita en guía común.
-ElevenLabs: pago resuelto por Roberto y síntesis real40586bytes; voz histórica
-verificada y configurada en Home, sin copiar claves ni asignar agente compartido.
-Entorno dep-dajmpfdg1s2s73bbuohg Live48.9s sobre877e675. Código201 publicado b595cd58,Render dep-dajmve6k1f9s73fvru3g Live1m03s.
-Health200/9assetsidénticos; sesión/meta201 conservados. Comida2-Step Chicken
-y café vietnamita alcanzan evento playing de voz oficial. Contador2solicitudes/
-143caracteres. Falso positivo separado demostrado: cita de oración completa en
-paso con varias frases se rechazaba por verbo Añade. Corregido sin admitir
-subcadenas ni omitir condiciones/cantidades.157Python/450Node pasan; falta
-publicar ajuste y comprobar explicación hablada. Aviso hablando al cancelar
-audio también corregido. Diagnóstico892entrada/180salida Luna,USD0.0003944.
-3360Python/11PGomitidas y857Node aprobadas;7pruebas posteriores CSS/checker.
-QA sintética: consulta silenciosa, preparación directa comida/bebida,393px sin
-overflow y avance manual café1→2.4789archivos conservados/3758prototipos idénticos.
-Caché y contador persistentes propios:200solicitudes/20000caracteres por día UTC,
-reservas fallidas conservadas y caché reutilizada. Agente general Home pendiente;
-no declarar conversación general ni audio físico en teléfono verificados.
-Informe: `reports/home_release_201_20260913.md`.
+Botón general conectado al agente Responses de Home existente, con dictado del
+navegador por turnos y lectura oficial ElevenLabs. Sin nuevo LLM externo ni agente
+compartido. Iniciar consulta configuración Home; voz y comandos conservan límites,
+memoria, permisos y claves Home. Cierre/identidad/ocultación cancelan escucha/audio.
+Guía visual con avatar, paso destacado, navegación numerada y checklist temporal
+para ingredientes. MyPlate se traduce al abrir cada ficha con Luna, preservando
+líneas y cantidades; original accesible, sin catálogo persistente ni conversión de
+unidades. Lectura firmada para voz/consultas durante una hora, vinculada a receta y
+hogar. Etiquetada IA; no revisión culinaria. Proveedor no probado todavía en202.
+2782Python y488Node pasan;11PostgreSQL omitidas. QA sintética: guía y
+conversación separadas,393px sin overflow, cambioES/EN conserva paso2,
+checklist local. Voz real y micrófono físico todavía pendientes en202. Publicar
+y verificar el proveedor antes de afirmar operativo.
+Informe: `reports/home_release_202_20260914.md`. Preservar prototipos y documentos
+anteriores. No afirmar micrófono ni audio físico comprobados.
+
+## 201 — PUBLICADA: preparación uniforme y voz oficial recuperada
+
+Comidas y bebidas tienen Preparar con Roxy y Ver receta. Preparar abre guía y
+voz oficial; Ver conserva lectura silenciosa. TTS de pasos/respuestas desde
+servidor Home, cancelación por pausa/cierre/paso/identidad, sin avanzar ni activar
+temporizadores. Fuente, cantidades, notas y controles existentes conservados.
+Roberto resolvió pago ElevenLabs; prueba corta40586bytes válida. Voz histórica
+verificada y asignada a Home sin copiar claves ni agente compartido. Entorno
+Live48.9s; implementación b595cd58/Render dep-dajmve6k1f9s73fvru3g Live1m03s.
+Comida2-Step Chicken y café vietnamita alcanzaron evento playing oficial real.
+
+Se reprodujo por separado un falso positivo de validación: cita literal completa
+de una oración dentro de un paso largo se rechazaba por Añade. Admite oraciones
+completas de pasos citados; mantiene controles de cantidades, condiciones,
+negaciones y referencias. No se capturó el texto bruto del rechazo público inicial.
+También corregido aviso hablando que persistía al cancelar audio para preguntar.
+Hotfix c8ee2b5429cb04abf15a4ed5370170bfcd460eed publicado; Render
+ dep-dajn23ijnfac73f6kh8g Live58.1s. Health200/ok,3assets finales byteidénticos
+(9verificados en implementación inicial). UI pública9,meta201/guideJS5: pregunta
+sobre phin respondida con cita exacta y voz oficial reproduciendo la explicación;
+paso1/4 intacto, preferencias desmarcadas. Queda abierta y voz pausada.
+
+3360Python/11PGomitidas y857Node aprobadas antes del hotfix;157Python dirigidas,
+450Node y PWA final aprobadas después. QA393px sin overflow; Anterior legible.
+4789archivos previos presentes/3758prototipos byteidénticos. Servidor QA52210
+apagado SIGINT y temporal eliminado automáticamente;QA8cerrada. QA7 no responde
+al cierre y pública3 dejó de responder al recargar:9recuperó misma sesión. No
+causa demostrada del problema de pestañas. Originales no eliminados.
+Ledger OpenAI9solicitudes/3280salida/sin pendientes;2provisiones previas2400
+conservadas. TTSpersistente3solicitudes/518caracteres;repeticionesdesde caché.
+Clave Home y voz configuradas; agente de conversación GENERAL Home sigue sin
+configurar. No afirmar botón general Iniciar operativo ni altavoz físico de teléfono
+comprobado. No redeploy sólo por notas finales. Informe:
+`reports/home_release_201_20260913.md`.
 
 ## 200 — PUBLICADA: receta despejada y herramientas en Más
 

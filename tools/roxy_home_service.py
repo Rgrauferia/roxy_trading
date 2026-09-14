@@ -435,6 +435,7 @@ class RecipeGuideReference(BaseModel):
     step_index: int = Field(ge=0, le=127, strict=True)
     language: str = Field(default="es", pattern="^(es|en)$")
     include_spirit_bases: bool = Field(default=False, strict=True)
+    translation_token: str = Field(default="", max_length=60000)
 
 
 class RecipeCompanionRequest(RecipeGuideReference):
@@ -447,6 +448,11 @@ class RecipeCompanionRequest(RecipeGuideReference):
 class RecipeSpeechRequest(RecipeGuideReference):
     kind: str = Field(default="step", pattern="^(step|response)$")
     text: str = Field(default="", max_length=1200)
+
+
+class AssistantSpeechRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    text: str = Field(min_length=1, max_length=1200)
 
 
 class RecipeImportCommitRequest(BaseModel):
@@ -2453,9 +2459,10 @@ def assistant_session(user_id: str, request: Request, auth: str = Depends(_authe
     """Return Home-only configuration; this is not a provider health check."""
     _rate_limit(request)
     user = _authorize_user(user_id, auth)
-    agent_id = _home_voice_config().agent_id
-    if not agent_id:
-        raise HTTPException(status_code=503, detail="Falta configurar el agente de voz exclusivo de Roxy Home. Puedes escribir y escuchar la respuesta con la voz del dispositivo.")
+    # The Home Responses agent already owns commands, memory and budget. Voice
+    # must use that same agent, rather than a second, unbudgeted hosted LLM.
+    if not os.getenv("ROXY_HOME_OPENAI_API_KEY", "").strip() or not _home_voice_config().configured:
+        raise HTTPException(status_code=503, detail="Revisa la conexión del agente y la voz oficial de Home. Puedes seguir escribiendo.")
     snapshot = _store().snapshot(user, limit=100)
     member = _member_for_auth(auth)
     display_name = member["display_name"] if member else user
@@ -2463,9 +2470,9 @@ def assistant_session(user_id: str, request: Request, auth: str = Depends(_authe
         "status": "CONFIGURED",
         "provider_health_verified": False,
         "provider": "ElevenLabs",
-        "agent_id": agent_id,
-        "voice_mode": "public_websocket",
-        "connection_type": "websocket",
+        "agent": "roxy_home",
+        "voice_mode": "home_turns",
+        "language": "es",
         "user_id": user,
         "dynamic_variables": {
             "user_name": display_name,
@@ -4102,6 +4109,13 @@ def _resolve_companion_recipe(payload: RecipeGuideReference, user: str) -> dict[
     External live content is fetched only on an explicit question, stays in this
     request and is never written to conversations, catalogues, or a cache.
     """
+    if payload.translation_token:
+        if payload.source != "myplate" or payload.language != "es":
+            raise HTTPException(422, "Esta traducción no corresponde a la receta.")
+        context = _read_recipe_translation(payload, user)
+        if not 0 <= payload.step_index < len(context["steps"]):
+            raise HTTPException(409, "Ese paso no está disponible.")
+        return {**context, "step_index": payload.step_index}
     try:
         if payload.source == "saved":
             if not payload.session_id:
@@ -4156,6 +4170,67 @@ def _resolve_companion_recipe(payload: RecipeGuideReference, user: str) -> dict[
         raise HTTPException(409, "Ese paso ya no está disponible. Vuelve a abrir la receta.")
     context["step_index"] = payload.step_index
     return context
+
+
+def _read_recipe_translation(payload: RecipeGuideReference, user: str) -> dict[str, Any]:
+    try:
+        encoded, signature = payload.translation_token.rsplit(".", 1)
+        expected = hmac.new(_api_key().encode(), ("home-recipe-es:" + encoded).encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(signature, expected):
+            raise ValueError
+        data = json.loads(base64.urlsafe_b64decode(encoded))
+        if (data["user"] != user or data["recipe_id"] != payload.recipe_id
+                or data["version"] != payload.recipe_version or data["expires"] < time.time()):
+            raise ValueError
+        return data["context"]
+    except (ValueError, KeyError, TypeError, UnicodeError):
+        raise HTTPException(409, "La traducción caducó o cambió de receta. Vuelve a abrirla.") from None
+
+
+@app.post("/v1/home-food/{user_id}/recipe-translation")
+def translate_home_recipe(user_id: str, payload: RecipeGuideReference, request: Request,
+                          auth: AuthContext = Depends(_authenticate)) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    member = _recipe_profile_member(request, auth)
+    if not _account_same_origin(request):
+        raise HTTPException(403, "Abre la receta desde Roxy Home.")
+    if payload.source != "myplate" or payload.language != "en" or payload.translation_token:
+        raise HTTPException(422, "Selecciona el original de MyPlate para traducir.")
+    context = _resolve_companion_recipe(payload, user)
+    if auth.trial:
+        _account_store().reserve_trial_request(member["id"])
+    translated = _ai_call(lambda: _home_ai().translate_recipe(context, actor_key=member["id"]))
+    current = _account_store().member(member["id"])
+    if (not current or current.get("session_version", 0) != auth.session_version
+            or current.get("storage_user_id") != auth.storage_user_id):
+        raise HTTPException(409, "La sesión cambió. Vuelve a abrir la receta.")
+    context = {**context, **translated, "language": "es"}
+    context.pop("step_index", None)
+    data = {"user": user, "recipe_id": payload.recipe_id, "version": payload.recipe_version,
+            "expires": int(time.time()) + 3600, "context": context}
+    encoded = base64.urlsafe_b64encode(json.dumps(data, ensure_ascii=False, separators=(",", ":")).encode()).decode()
+    signature = hmac.new(_api_key().encode(), ("home-recipe-es:" + encoded).encode(), hashlib.sha256).hexdigest()
+    # Public recipe only. The signed reading lives in the open page for one hour;
+    # there is no persistent translation catalogue, model memory or prefetch.
+    return {"translation": translated, "translation_token": encoded + "." + signature,
+            "language": "es", "label": "Traducción de Roxy · IA", "expires_in": 3600}
+
+
+@app.post("/v1/assistant/speech/{user_id}")
+def speak_home_assistant(user_id: str, payload: AssistantSpeechRequest, request: Request,
+                         auth: AuthContext = Depends(_authenticate)) -> Response:
+    _rate_limit(request)
+    _authorize_user(user_id, auth)
+    member = _recipe_profile_member(request, auth)
+    if not _account_same_origin(request):
+        raise HTTPException(403, "Activa la lectura desde Roxy Home.")
+    response = _official_voice_response(payload.text, member["id"])
+    current = _account_store().member(member["id"])
+    if (not current or current.get("session_version", 0) != auth.session_version
+            or current.get("storage_user_id") != auth.storage_user_id):
+        raise HTTPException(409, "La sesión cambió. Vuelve a abrir Roxy.")
+    return response
 
 
 def _official_voice_response(text: str, user: str) -> Response:

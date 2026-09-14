@@ -38,22 +38,22 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert "script-src 'none'" in privacy.headers["content-security-policy"]
     assert "roxy_privacy.html assets/roxy_privacy.css" in Path("Dockerfile.roxy-home").read_text(encoding="utf-8")
     assert 'href="/lista-manifest.json"' in page.text
-    assert 'name="roxy-home-version" content="201"' in page.text
+    assert 'name="roxy-home-version" content="202"' in page.text
     assert 'href="/assets/vendor/maplibre-gl.css?v=1"' not in page.text
     assert 'src="/assets/vendor/maplibre-gl.js?v=1"' not in page.text
     assert 'src="/assets/roxy_maplibre_loader.js?v=1"' in page.text
-    assert 'href="/assets/roxy_list.css?v=139"' in page.text
-    assert 'src="/assets/roxy_list.js?v=203"' in page.text
+    assert 'href="/assets/roxy_list.css?v=140"' in page.text
+    assert 'src="/assets/roxy_list.js?v=204"' in page.text
     assert '/assets/vendor/maplibre-gl.css?v=1' in worker.text
     assert '/assets/vendor/maplibre-gl.js?v=1' in worker.text
-    assert '/assets/roxy_list.css?v=139' in worker.text
-    assert '/assets/roxy_list.js?v=203' in worker.text
-    for asset in ('roxy_home_weather_renderer.js?v=2', 'roxy_home_map_readiness.js?v=1', 'roxy_home_open_recipes.js?v=7', 'roxy_home_recipe_provider.js?v=2', 'roxy_home_myplate_recipes.js?v=8', 'roxy_home_myplate_recipes.css?v=4'):
+    assert '/assets/roxy_list.css?v=140' in worker.text
+    assert '/assets/roxy_list.js?v=204' in worker.text
+    for asset in ('roxy_home_weather_renderer.js?v=2', 'roxy_home_map_readiness.js?v=1', 'roxy_home_open_recipes.js?v=7', 'roxy_home_recipe_provider.js?v=2', 'roxy_home_myplate_recipes.js?v=9', 'roxy_home_myplate_recipes.css?v=4'):
         assert '/assets/' + asset in worker.text
         assert '/assets/' + asset in page.text
         assert client.get('/assets/' + asset).status_code == 200
-    assert 'roxy-list-shell-v201' in worker.text
-    for asset in ('roxy_recipe_guide.js?v=5', 'roxy_recipe_guide.css?v=3'):
+    assert 'roxy-list-shell-v202' in worker.text
+    for asset in ('roxy_recipe_guide.js?v=6', 'roxy_recipe_guide.css?v=4'):
         assert '/assets/' + asset in page.text and '/assets/' + asset in worker.text
         assert client.get('/assets/' + asset).status_code == 200
     assert page.text.index('roxy_recipe_guide.js') < page.text.index('roxy_home_myplate_recipes.js')
@@ -111,7 +111,7 @@ def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     assert 'id="designProjectForm"' in page.text
     assert '/v1/home-design/' in script.text
     assert 'Revisar productos' in script.text
-    assert "const APP_VERSION = '201'" in script.text
+    assert "const APP_VERSION = '202'" in script.text
     assert '/assets/roxy_home_recipe_provider.js?v=2' in page.text
     assert '/assets/roxy_home_recipe_provider.js?v=2' in worker.text
     assert client.get('/assets/roxy_home_recipe_provider.js').status_code == 200
@@ -650,13 +650,15 @@ def test_roxy_home_is_a_separate_app_surface(monkeypatch):
     assert client.get("/roxy-mobile").status_code == 404
 
 
-def test_roxy_home_exclusive_elevenlabs_agent_can_read_and_update_shopping_list(tmp_path, monkeypatch):
+def test_roxy_home_responses_agent_and_voice_preserve_shopping_permissions(tmp_path, monkeypatch):
     from tools import roxy_home_service
 
     monkeypatch.setenv("ROXY_HOME_API_KEY", "shopping-test-key")
     monkeypatch.setenv("ROXY_STATE_SYNC_USERS", "robert")
     monkeypatch.setenv("ROXY_SHOPPING_LIST_PATH", str(tmp_path / "shopping.json"))
-    monkeypatch.setenv("ROXY_HOME_ELEVENLABS_AGENT_ID", "agent_home_roxy")
+    monkeypatch.setenv("ROXY_HOME_ELEVENLABS_VOICE_ID", "voice_home_roxy")
+    monkeypatch.setenv("ROXY_HOME_ELEVENLABS_API_KEY", "synthetic-home-voice")
+    monkeypatch.setenv("ROXY_HOME_OPENAI_API_KEY", "synthetic-home-ai")
     monkeypatch.setenv("ELEVENLABS_AGENT_ID", "agent_other_product")
     roxy_home_service._RATE_STATE.clear()
     client = TestClient(roxy_home_service.app, base_url="https://roxy.test")
@@ -679,11 +681,13 @@ def test_roxy_home_exclusive_elevenlabs_agent_can_read_and_update_shopping_list(
 
     assert session.status_code == 200
     assert session.json()["provider"] == "ElevenLabs"
-    assert session.json()["agent_id"] == "agent_home_roxy"
+    assert session.json()["agent"] == "roxy_home"
+    assert "agent_id" not in session.json()
+    assert "agent_other_product" not in session.text
     assert session.json()["status"] == "CONFIGURED"
     assert session.json()["provider_health_verified"] is False
-    assert session.json()["voice_mode"] == "public_websocket"
-    assert session.json()["connection_type"] == "websocket"
+    assert session.json()["voice_mode"] == "home_turns"
+    assert session.json()["language"] == "es"
     assert command.status_code == 200
     assert command.json()["ok"] is True
     assert command.json()["agent"] == "shopping"

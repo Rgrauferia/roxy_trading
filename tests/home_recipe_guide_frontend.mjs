@@ -69,7 +69,7 @@ function harness({tts = true, microphone = true, availableVoices = [esVoice, enV
       if (++loops > 20000) throw new Error('timer loop'); const [id, timer] = entry; timers.delete(id); now = timer.due; timer.fn(); }
     now = until;
   }
-  const command = text => { byTag(container, 'input')[0].value = text; byTag(container, 'form')[0].fire('submit'); };
+  const command = text => { byTag(container, 'input').find(el => el.type === 'text').value = text; byTag(container, 'form')[0].fire('submit'); };
   const latestUtterance = () => calls.filter(call => call.type === 'speak').at(-1)?.utterance;
   const startAudio = () => { speech.pending = false; speech.speaking = true; latestUtterance().onstart?.(); };
   const endAudio = () => { speech.pending = false; speech.speaking = false; latestUtterance().onend?.(); };
@@ -121,10 +121,10 @@ test('incomplete steps are rejected as a whole rather than silently shortened', 
   const h = harness(); h.mount({steps:['Paso válido', null, 'Otro paso']}); assert.equal(progress(h.container), 'Pasos no disponibles'); assert.ok(button(h.container, 'Listo, siguiente').disabled); assert.equal(h.calls.length, 0);
 });
 test('missing ingredient list is explained without inventing quantities', () => {
-  const h = harness(); h.mount({ingredients:[]}); h.command('ingredientes'); assert.equal(byTag(h.container, 'details')[0].open, true); assert.match(response(h.container), /no incluye/); assert.equal(byTag(h.container, 'li').length, 0);
+  const h = harness(); h.mount({ingredients:[]}); h.command('ingredientes'); assert.equal(byClass(h.container, 'recipe-guide-ingredients').open, true); assert.match(response(h.container), /no incluye/); assert.equal(byTag(h.container, 'li').length, 0);
 });
 test('ingredients are collapsible and reveal the full original list on command', () => {
-  const h = harness(); h.mount(); const panel = byTag(h.container, 'details')[0]; assert.ok(!panel.open); h.command('ingredientes'); assert.equal(panel.open, true); assert.equal(byTag(panel, 'li').length, 2); assert.equal(h.calls.length, 0);
+  const h = harness(); h.mount(); const panel = byClass(h.container, 'recipe-guide-ingredients'); assert.ok(!panel.open); h.command('ingredientes'); assert.equal(panel.open, true); assert.equal(byTag(panel, 'li').length, 2); assert.equal(h.calls.length, 0);
 });
 test('what do I do now returns only the existing current instruction', () => {
   const h = harness(); h.mount({initialStep:1}); h.command('¿Qué hago ahora?'); assert.equal(response(h.container), 'Cocina durante 15 minutos.'); assert.equal(progress(h.container), 'Paso 2 de 3'); assert.equal(h.calls.length, 0);
@@ -140,7 +140,7 @@ test('typed command variants handle accents, punctuation and whitespace', () => 
   const h = harness(); h.mount(); h.command('  ¡LISTO!  '); assert.equal(progress(h.container), 'Paso 2 de 3'); h.command('ATRÁS'); assert.equal(progress(h.container), 'Paso 1 de 3'); h.command('repite'); assert.equal(response(h.container), 'Lava el arroz.'); h.command('pausa'); assert.ok(button(h.container, 'Reanudar'));
 });
 test('empty text gives a useful prompt and form submit clears the input', () => {
-  const h = harness(); h.mount(); h.command('  '); assert.match(response(h.container), /Escribe un comando/); assert.equal(byTag(h.container, 'input')[0].value, '');
+  const h = harness(); h.mount(); h.command('  '); assert.match(response(h.container), /Escribe un comando/); assert.equal(byTag(h.container, 'input').find(el => el.type === 'text').value, '');
 });
 test('unsupported audio leaves manual and text recipe guidance working', () => {
   const h = harness({tts:false, microphone:false}); h.mount(); assert.equal(button(h.container, 'Escuchar este paso').disabled, true); assert.equal(button(h.container, 'Hablar').disabled, true);
@@ -460,7 +460,7 @@ const settleCompanion = async () => { for (let i = 0; i < 12; i++) await Promise
 const deferredCompanion = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return {promise, resolve, reject}; };
 const companionAnswer = (answer = 'Batir consiste en mezclar con movimientos rápidos.', supporting_steps = [1]) => ({answer, supporting_steps, needs_clarification:false});
 const aiText = h => byClass(h.container, 'recipe-guide-explanation-answer').textContent;
-const preferences = h => byTag(h.container, 'input').find(el => el.type === 'checkbox');
+const preferences = h => byTag(byClass(h.container, 'recipe-guide-preference'), 'input')[0];
 const ask = (h, question = '¿Qué significa batir?') => { h.command(question); return settleCompanion(); };
 
 test('companion is explicit, starts without a profile or history and preserves original source text', async () => {
@@ -579,7 +579,7 @@ for (const invalid of [{}, {answer:'', supporting_steps:[], needs_clarification:
 
 test('AI output is plain text, carries one-based source references, and can request clarification', async () => {
   const h = harness(); h.mount({askQuestion:() => ({answer:'<img src=x onerror=alert(1)> ¿Usas varillas?', supporting_steps:[1,3,1], needs_clarification:true})}); await ask(h);
-  assert.equal(byTag(h.container, 'img').length, 0); assert.match(aiText(h), /^<img/);
+  assert.equal(byTag(byClass(h.container, 'recipe-guide-explanation'), 'img').length, 0); assert.match(aiText(h), /^<img/);
   assert.match(h.container.textContent, /pasos 1, 3/); assert.match(h.container.textContent, /necesita un detalle más/); assert.equal(progress(h.container), 'Paso 1 de 3');
 });
 
@@ -614,7 +614,7 @@ test('deterministic safety notices are not presented as an AI explanation', asyn
 
 test('question and response lengths match the companion API before any retry is offered', async () => {
   const requests = []; const h = harness(); h.mount({askQuestion:params => { requests.push(params); return companionAnswer(); }});
-  assert.equal(byTag(h.container, 'input')[0].maxLength, 600); await ask(h, 'x'.repeat(601));
+  assert.equal(byTag(h.container, 'input').find(el => el.type === 'text').maxLength, 600); await ask(h, 'x'.repeat(601));
   assert.equal(requests.length, 0); assert.match(h.container.textContent, /hasta 600 caracteres/); assert.equal(button(h.container, 'Reintentar pregunta').hidden, true);
   await ask(h, 'x'.repeat(600)); assert.equal(requests.length, 1);
   h.mount({askQuestion:() => companionAnswer('x'.repeat(1601))}); await ask(h);
@@ -671,12 +671,12 @@ test('literal-only guide has compact voice help without claiming it sends questi
   const h = harness(); h.mount(); const privacy = byClass(h.container, 'recipe-guide-privacy');
   assert.equal(privacy.open, false); assert.match(privacy.textContent, /siguiente, listo, repite/);
   assert.equal(byClass(h.container, 'recipe-guide-disclosure').textContent, 'Voz opcional del dispositivo.');
-  assert.equal(byTag(h.container, 'input').filter(el => el.type === 'checkbox').length, 0);
+  assert.equal(byTag(byClass(h.container, 'recipe-guide-input-actions'), 'input').filter(el => el.type === 'checkbox').length, 0);
 });
 
 test('focusActiveQuestion focuses the recipe chat without microphone, network or an automatic question', () => {
   const h = harness(); let asked = 0; const guide = h.mount({askQuestion:() => { asked++; return companionAnswer(); }});
-  const input = byTag(h.container, 'input')[0]; assert.equal(h.window.RoxyRecipeGuide.focusActiveQuestion(), true); assert.equal(input.focused, true);
+  const input = byTag(h.container, 'input').find(el => el.type === 'text'); assert.equal(h.window.RoxyRecipeGuide.focusActiveQuestion(), true); assert.equal(input.focused, true);
   assert.equal(asked, 0); assert.equal(h.microphones.length, 0); assert.deepEqual(h.calls, []); assert.deepEqual(h.forbidden, []);
   guide.dispose(); input.focused = false; assert.equal(h.window.RoxyRecipeGuide.focusActiveQuestion(), false);
   assert.equal(input.focused, false); assert.equal(h.container.children.length, 0);
@@ -685,7 +685,7 @@ test('focusActiveQuestion focuses the recipe chat without microphone, network or
 for (const invalid of ['inactive', 'hidden', 'document', 'identity', 'detached']) {
   test(`focusActiveQuestion cannot focus or reopen an unavailable guide: ${invalid}`, () => {
     const h = harness(); let current = true; const guide = h.mount({isCurrent:() => current, askQuestion:() => companionAnswer()});
-    const input = byTag(h.container, 'input')[0]; input.focused = false;
+    const input = byTag(h.container, 'input').find(el => el.type === 'text'); input.focused = false;
     if (invalid === 'inactive') guide.setActive(false);
     if (invalid === 'hidden') h.container.hidden = true;
     if (invalid === 'document') h.visibility(true);
@@ -699,10 +699,10 @@ for (const invalid of ['inactive', 'hidden', 'document', 'identity', 'detached']
 }
 
 test('focusActiveQuestion chooses the most recently mounted usable chat and skips literal-only guides', () => {
-  const h = harness(); h.mount({askQuestion:() => companionAnswer()}); const firstInput = byTag(h.container, 'input')[0];
+  const h = harness(); h.mount({askQuestion:() => companionAnswer()}); const firstInput = byTag(h.container, 'input').find(el => el.type === 'text');
   const other = h.document.createElement('div'); h.document.body.append(other);
   const newer = h.window.RoxyRecipeGuide.mount(other, {steps:['Otro paso.'], askQuestion:() => companionAnswer()});
-  const secondInput = byTag(other, 'input')[0]; assert.equal(h.window.RoxyRecipeGuide.focusActiveQuestion(), true); assert.equal(secondInput.focused, true); assert.notEqual(firstInput.focused, true);
+  const secondInput = byTag(other, 'input').find(el => el.type === 'text'); assert.equal(h.window.RoxyRecipeGuide.focusActiveQuestion(), true); assert.equal(secondInput.focused, true); assert.notEqual(firstInput.focused, true);
   newer.setActive(false); firstInput.focused = false; assert.equal(h.window.RoxyRecipeGuide.focusActiveQuestion(), true); assert.equal(firstInput.focused, true);
   h.mount(); assert.equal(h.window.RoxyRecipeGuide.focusActiveQuestion(), false); newer.dispose(); assert.equal(h.window.RoxyRecipeGuide.focusActiveQuestion(), false);
 });

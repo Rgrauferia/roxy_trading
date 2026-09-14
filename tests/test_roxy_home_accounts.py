@@ -117,7 +117,9 @@ def test_two_personal_sessions_share_existing_home_data_and_personalize_roxy(tmp
     monkeypatch.setenv("ROXY_HOME_ACCOUNTS_PATH", str(tmp_path / "accounts.json"))
     monkeypatch.setenv("ROXY_SHOPPING_LIST_PATH", str(tmp_path / "shopping.json"))
     monkeypatch.setenv("ROXY_HOME_MEMORY_PATH", str(tmp_path / "food.json"))
-    monkeypatch.setenv("ROXY_HOME_ELEVENLABS_AGENT_ID", "agent_home_test")
+    monkeypatch.setenv("ROXY_HOME_ELEVENLABS_VOICE_ID", "voice_home_test")
+    monkeypatch.setenv("ROXY_HOME_ELEVENLABS_API_KEY", "synthetic-home-voice")
+    monkeypatch.setenv("ROXY_HOME_OPENAI_API_KEY", "synthetic-home-ai")
     roxy_home_service._RATE_STATE.clear()
     roxy_home_service._LOGIN_RATE_STATE.clear()
 
@@ -177,7 +179,9 @@ def test_two_personal_sessions_share_existing_home_data_and_personalize_roxy(tmp
     assert personalized.json()["message"].startswith("Claro, Roxy.")
     assert {row["name"] for row in owner_after.json()["items"]} == {"Leche existente", "pan"}
     assert owner_voice.status_code == 200
-    assert owner_voice.json()["agent_id"] == "agent_home_test"
+    assert owner_voice.json()["agent"] == "roxy_home"
+    assert owner_voice.json()["voice_mode"] == "home_turns"
+    assert "synthetic-home" not in owner_voice.text
     assert owner_voice.json()["dynamic_variables"]["user_name"] == "Robert"
     assert partner_cannot_invite.status_code == 403
     assert legacy_after_migration.status_code == 409

@@ -37,6 +37,8 @@ function harness({guide = false} = {}) {
     get parentNode() { return this.parent; }
     append(...elements) { elements.forEach(el => { el.parent = this; this.children.push(el); }); }
     appendChild(el) { this.append(el); return el; }
+    insertBefore(el, before) { el.parent=this; const index=this.children.indexOf(before); if(index<0)this.children.push(el);else this.children.splice(index,0,el);return el; }
+    after(el) { this.parent?.insertBefore(el,this.parent.children[this.parent.children.indexOf(this)+1]); }
     replaceChildren(...elements) { this.children.forEach(el => { el.parent = null; }); this.children = []; this._text = ''; this.append(...elements); }
     remove() { if (this.parent) { this.parent.children.splice(this.parent.children.indexOf(this), 1); this.parent = null; } }
     contains(el) { return this === el || this.children.some(child => child.contains(el)); }
@@ -789,4 +791,27 @@ test('food card preparation opens the voice guide directly and binds the authori
   assert.equal(spoken[0].recipe_version,version); assert.equal(spoken[0].source,'myplate');
   assert.equal(spoken[0].recipe_id,rows[0].slug); assert.equal(spoken[0].signal,controller.signal);
   assert.deepEqual(h.storageWrites,[]);
+});
+
+test('Spanish reading is requested once, preserves position across original toggle and binds voice to the signed translation',async()=>{
+  const h=harness({guide:true}),panel=h.container(),calls=[],spoken=[],version='d'.repeat(64);
+  const mock=server({intercept:call=>call.url.pathname.endsWith('/synthetic-000')?{recipe:detail(rows[0]),companion_version:version}:undefined});
+  const translation={title:'Ficha sintética en español',ingredients:['1/2 taza sintética A','1.5 cucharadas sintéticas B'],steps:['Paso sintético completo en español.']};
+  await start(h,panel,mock,{translate:params=>{calls.push(params);return{translation,translation_token:'signed-test-only'};},speech:params=>spoken.push(params)});
+  await button(panel,'Preparar con Roxy').click();assert.equal(calls.length,1);assert.equal(calls[0].language,'en');assert.equal(calls[0].recipe_version,version);
+  let opts=h.guideMounts.at(-1).options;assert.equal(opts.language,'es');assert.equal(opts.title,translation.title);
+  await opts.requestSpeech({language:'es',step_index:0,kind:'step',text:''});assert.equal(spoken[0].translation_token,'signed-test-only');
+  assert.equal(byClass(panel,'myplate-directions')[0].textContent,translation.steps[0]);
+  await button(panel,'Ver original en inglés').click();opts=h.guideMounts.at(-1).options;assert.equal(opts.language,'en');
+  assert.equal(byClass(panel,'myplate-directions')[0].textContent,detail(rows[0]).directions);
+  await button(panel,'Volver al español').click();assert.equal(h.guideMounts.at(-1).options.language,'es');assert.equal(calls.length,1);assert.deepEqual(h.storageWrites,[]);
+});
+
+test('closing a pending translation cancels it and does not start a late spoken guide',async()=>{
+  const h=harness({guide:true}),panel=h.container(),pending=deferred(),calls=[];
+  const mock=server({intercept:call=>call.url.pathname.endsWith('/synthetic-000')?{recipe:detail(rows[0]),companion_version:'e'.repeat(64)}:undefined});
+  await start(h,panel,mock,{translate:params=>{calls.push(params);return pending.promise;}});
+  await button(panel,'Preparar con Roxy').click();assert.equal(h.guideMounts.length,0);
+  await button(panel,'Volver a las recetas').click();assert.equal(calls[0].signal.aborted,true);
+  pending.resolve({translation:{title:'Late',ingredients:['a','b'],steps:['late']},translation_token:'late'});await settle();assert.equal(h.guideMounts.length,0);assert.doesNotMatch(panel.textContent,/Late/);
 });

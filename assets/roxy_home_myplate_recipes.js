@@ -53,7 +53,7 @@
 
   function setActive(container, active) { renders.get(container)?.activate(Boolean(active)); }
 
-  function render(container, {user, identity = '', api, companion, speech, hidden = false, active = true, isCurrent = () => true,
+  function render(container, {user, identity = '', api, companion, speech, translate, preferredLanguage='es', hidden = false, active = true, isCurrent = () => true,
     browseGroup = 'all', autoLoad = false, preset = null, personalRevision = 0}) {
     if (!container) return;
     const group = ['all', 'food', 'dessert'].includes(browseGroup) ? browseGroup : 'all';
@@ -77,10 +77,10 @@
     const heading = node('header', null, 'myplate-heading');
     const introduction = node('div');
     const title = node('h2'); introduction.append(title);
-    const total = node('p', 'Originales en inglés · MyPlate.food', 'myplate-total');
+    const total = node('p', 'Guía en español · originales de MyPlate.food', 'myplate-total');
     introduction.append(total); heading.append(introduction);
-    const intro = node('p', 'Abre una receta para ver sus ingredientes y preparación originales.', 'myplate-intro');
-    const language = node('p', 'Originales en inglés · enlace al español cuando existe.', 'myplate-note myplate-language');
+    const intro = node('p', 'Abre una receta para leerla en español y prepararla con Roxy.', 'myplate-intro');
+    const language = node('p', 'Originales en inglés · guía en español con Roxy al abrir cada receta.', 'myplate-note myplate-language');
     const quota = node('p', '100 fichas completas/día · cupo compartido de Roxy; después, consulta la fuente.', 'myplate-note myplate-quota');
     const explore = button('Explorar recetas', () => void load(1), 'myplate-button myplate-primary');
     const start = node('div', null, 'myplate-start'); start.append(intro, explore);
@@ -137,7 +137,7 @@
     };
     const stop = () => { state.generation++; state.controller?.abort(); state.controller = null; state.deadline = 0; state.expire = null; setBusy(false); };
     const paused = () => { status.textContent = 'Consulta interrumpida. Puedes reintentar cuando quieras.'; retry.hidden = false; };
-    const purgeDetail = () => { state.guide?.dispose(); state.guide = null; state.selected = null; detailBody.replaceChildren(); detail.hidden = true; heading.hidden = false; credit.open = false; };
+    const purgeDetail = () => { state.translationController?.abort(); state.translationController = null; state.guide?.dispose(); state.guide = null; state.selected = null; detailBody.replaceChildren(); detail.hidden = true; heading.hidden = false; credit.open = false; };
     const closeDetail = () => {
       stop(); purgeDetail(); retry.hidden = true; status.textContent = ''; browser.hidden = !state.loaded;
       start.hidden = state.loaded; if (state.loaded) search.focus({preventScroll:true});
@@ -197,7 +197,7 @@
       article.append(photo(summary));
       const body = node('div', null, 'myplate-card-body');
       const title = node('h3', summary.title); title.lang = 'en'; title.tabIndex = -1;
-      const meta = node('p', summary.category ? `${categoryLabels[summary.category] || summary.category} · EN` : 'Original en inglés', 'myplate-card-meta');
+      const meta = node('p', summary.category ? `${categoryLabels[summary.category] || summary.category} · guía en español` : 'Guía en español · original EN', 'myplate-card-meta');
       const open = button('Ver receta', () => { if (!state.busy) void openRecipe(summary); });
       open.setAttribute('aria-label', `Ver receta: ${summary.title}`);
       const prepare = button('Preparar con Roxy', () => { if (!state.busy) void openRecipe(summary, true); }, 'myplate-button myplate-primary');
@@ -209,7 +209,7 @@
       stop(); purgeDetail(); state.page = page; state.loaded = false; state.initialLoadRequested = false; state.loadAttempted = true;
       retry.hidden = true; start.hidden = true; personalNotice.hidden = true; personalNotice.textContent = ''; categoryButtons();
       browser.hidden = false; grid.replaceChildren(); clear.hidden = true; pagination.hidden = true;
-      total.textContent = 'Originales en inglés · MyPlate.food';
+      total.textContent = 'Guía en español · originales de MyPlate.food';
       const generation = state.generation, controller = new AbortController(); state.controller = controller; setBusy(true);
       status.textContent = 'Consultando las recetas de la fuente…';
       const offset = (page - 1) * 24;
@@ -272,7 +272,9 @@
       detailBody.replaceChildren();
       const title = node('h3', recipe.title, 'myplate-detail-title'); title.lang = 'en'; title.tabIndex = -1;
       const recipeHeading = node('div', null, 'myplate-detail-heading'); recipeHeading.append(title);
-      detailBody.append(recipeHeading, node('p', 'Original en inglés · voz en inglés', 'myplate-note'), photo(recipe, true));
+      const languageNote = node('p', 'Original en inglés · preparando lectura en español…', 'myplate-note');
+      const recipePhoto = photo(recipe, true);
+      detailBody.append(recipeHeading, languageNote, recipePhoto);
       const fit = recipe.personal_fit;
       if (fit && ['conflict','needs_review','unrestricted'].includes(fit.status)) {
         const assessment = node('aside', null, 'myplate-personal-fit'); assessment.setAttribute('role','status');
@@ -284,17 +286,23 @@
       const recipeBody = node('div'); const guideHost = node('div');
       const sourceSteps = Array.isArray(recipe.source_steps) && recipe.source_steps_language === 'en' &&
         recipe.source_steps.every(step => typeof step === 'string' && step.trim()) && recipe.source_steps.join('') === recipe.directions ? recipe.source_steps : [recipe.directions];
+      let reading = null, guideIndex = 0, wantsGuide = prepare, originalSelected = false;
+      const readingCurrent = () => current() && !detail.hidden && state.selected?.slug === recipe.slug && title.isConnected;
       const beginGuide = () => {
         if (!current() || detail.hidden || !window.RoxyRecipeGuide?.mount) return;
-        state.guide?.dispose(); recipeBody.hidden = true; startGuide.hidden = true;
-        const guide = window.RoxyRecipeGuide.mount(guideHost, {title:recipe.title, steps:sourceSteps,
-          ingredients:recipe.ingredients.map(item => item.note ? `${item.text} (${item.note})` : item.text),
-          language:'en', startWithVoice:true, sourceLabel:'MyPlate.food · original en inglés',
-          requestSpeech:typeof speech==='function'?params=>speech({...params,source:'myplate',recipe_id:recipe.slug,recipe_version:companionVersion}):undefined,
+        wantsGuide = true;
+        if (state.translationController && !reading && !originalSelected) { languageNote.textContent = 'Roxy está preparando tu guía en español…'; return; }
+        const es = reading && !originalSelected;
+        state.guide?.dispose(); recipeBody.hidden = true; startGuide.hidden = true; recipePhoto.hidden = true;
+        const reference = {source:'myplate',recipe_id:recipe.slug,recipe_version:companionVersion,...(es?{translation_token:reading.translation_token}:{})};
+        const guide = window.RoxyRecipeGuide.mount(guideHost, {title:es?reading.translation.title:recipe.title, steps:es?reading.translation.steps:sourceSteps,
+          ingredients:es?reading.translation.ingredients:recipe.ingredients.map(item => item.note ? `${item.text} (${item.note})` : item.text),
+          language:es?'es':'en', startWithVoice:true, initialStep:guideIndex,onStepChange:index=>{guideIndex=index;}, sourceLabel:es?'MyPlate.food · traducción de Roxy (IA)':'MyPlate.food · original en inglés',
+          requestSpeech:typeof speech==='function'?params=>speech({...params,...reference}):undefined,
           askQuestion:typeof companion==='function'&&/^[a-f0-9]{64}$/.test(companionVersion||'')?
-            params=>companion({...params,source:'myplate',recipe_id:recipe.slug,recipe_version:companionVersion}):undefined,
+            params=>companion({...params,...reference}):undefined,
           isCurrent:() => current() && !detail.hidden && state.selected?.slug === recipe.slug,
-          onClose:() => { if (state.guide !== guide || !current() || detail.hidden || !startGuide.isConnected) return; state.guide = null; recipeBody.hidden = false; startGuide.hidden = false; startGuide.focus({preventScroll:true}); }});
+          onClose:() => { if (state.guide !== guide || !current() || detail.hidden || !startGuide.isConnected) return; wantsGuide = false; state.guide = null; recipeBody.hidden = false; recipePhoto.hidden = false; startGuide.hidden = false; startGuide.focus({preventScroll:true}); }});
         state.guide = guide;
       };
       const startGuide = button('Paso a paso con Roxy', beginGuide, 'myplate-button myplate-primary');
@@ -313,7 +321,38 @@
       });
       recipeBody.append(ingredients, node('h4', 'Preparación'));
       const directions = node('div', recipe.directions, 'myplate-directions'); directions.lang = 'en'; recipeBody.append(directions);
-      if (recipe.notes) { const notes = node('p', recipe.notes, 'myplate-source-notes'); notes.lang = 'en'; recipeBody.append(node('h4', 'Notas de la receta'), notes); }
+      if (recipe.notes) { const notes = node('p', recipe.notes, 'myplate-source-notes'); notes.lang = 'en'; const originalNotes=node('details');originalNotes.append(node('summary','Notas originales · inglés'),notes);recipeBody.append(originalNotes); }
+      const toggleLanguage = button('Ver original en inglés', () => {
+        if (!readingCurrent() || !reading) return;
+        originalSelected = !originalSelected; paintReading(); if(wantsGuide)beginGuide();
+      }); toggleLanguage.hidden = true; detailBody.insertBefore(toggleLanguage,recipeBody);
+      function paintReading(){
+        const es=reading&&!originalSelected;
+        title.textContent=es?reading.translation.title:recipe.title;title.lang=es?'es':'en';
+        languageNote.textContent=es?'En español · traducción de Roxy (IA) · cantidades originales':'Original en inglés · voz en inglés';
+        ingredients.replaceChildren();ingredients.lang=es?'es':'en';
+        (es?reading.translation.ingredients:recipe.ingredients.map(item=>item.note?`${item.text} (${item.note})`:item.text)).forEach(text=>ingredients.append(node('li',text)));
+        directions.textContent=es?reading.translation.steps.join('\n\n'):recipe.directions;directions.lang=es?'es':'en';
+        toggleLanguage.textContent=es?'Ver original en inglés':'Volver al español';toggleLanguage.hidden=!reading;
+      }
+      async function prepareSpanish(){
+        if(preferredLanguage==='en'){languageNote.textContent='Original en inglés · según tu idioma preferido';if(prepare&&fit?.status!=='conflict')beginGuide();return;}
+        if(typeof translate!=='function'){languageNote.textContent='Original en inglés · español disponible en el enlace de la fuente';if(prepare&&fit?.status!=='conflict')beginGuide();return;}
+        const controller=new AbortController();state.translationController=controller;
+        const timer=setTimeout(()=>controller.abort(),45000);
+        try{
+          const result=await translate({source:'myplate',recipe_id:recipe.slug,recipe_version:companionVersion,step_index:0,language:'en',signal:controller.signal});
+          if(controller.signal.aborted||!readingCurrent())return;
+          if(!result?.translation_token||typeof result.translation?.title!=='string'||result.translation.steps?.length!==sourceSteps.length||result.translation.ingredients?.length!==recipe.ingredients.length)throw new Error('No se pudo validar la traducción.');
+          reading=result;state.translationController=null;paintReading();
+          if(wantsGuide&&fit?.status!=='conflict')beginGuide();
+        }catch(error){
+          if(!readingCurrent())return;
+          languageNote.textContent='No se pudo preparar el español. Conservamos el original; puedes reintentar o abrir el español en la fuente.';
+          const retrySpanish=button('Reintentar español',()=>{retrySpanish.remove();void prepareSpanish();});languageNote.after(retrySpanish);
+          wantsGuide=false;
+        }finally{clearTimeout(timer);if(state.translationController===controller)state.translationController=null;}
+      }
       const recipeInfo = information('Información de la receta'), recipeCredits = recipeInfo.content;
       recipeHeading.append(recipeInfo.control);
       if (recipe.description) { const description = node('p', recipe.description); description.lang = 'en'; recipeCredits.append(description); }
@@ -328,7 +367,7 @@
         node('p', '100 fichas completas al día y 20 consultas por minuto, con cupo compartido de Roxy. El catálogo se consulta en directo. Algunas imágenes de la fuente se han ampliado con IA.', 'myplate-note'));
       detailBody.append(node('p', 'Antes de empezar, revisa ingredientes, alergias y preparación completa.', 'myplate-note'));
       title.focus({preventScroll:false});
-      if (prepare && fit?.status !== 'conflict') beginGuide();
+      void prepareSpanish();
     }
     form.addEventListener('submit', event => {
       event.preventDefault(); if (state.busy) return;
@@ -341,7 +380,7 @@
         state.group = nextGroup; state.category = baseCategory(); state.query = ''; search.value = '';
         state.page = 1; state.totalPages = 0; state.canNext = false; state.loaded = false; state.loadAttempted = false;
         state.initialLoadRequested = true; status.textContent = ''; retry.hidden = true; pagination.hidden = true;
-        clear.hidden = true; browser.hidden = true; start.hidden = false; total.textContent = 'Originales en inglés · MyPlate.food';
+        clear.hidden = true; browser.hidden = true; start.hidden = false; total.textContent = 'Guía en español · originales de MyPlate.food';
       }
       if (nextAutoLoad && !state.autoLoad && !state.loaded && !state.loadAttempted) state.initialLoadRequested = true;
       state.autoLoad = nextAutoLoad; groupHeading(); categoryButtons(); setBusy(state.busy);

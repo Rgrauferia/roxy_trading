@@ -51,4 +51,24 @@
 .recipe-guide .recipe-guide-explanation-answer { margin: 0; color: #375038; line-height: 1.75; white-space: pre-wrap; }
 .recipe-guide-conversation-only { margin: 0; }
 .recipe-guide-conversation-only .recipe-guide-conversation { border-top: 0; padding-top: 0; }
+.recipe-guide .recipe-guide-welcome { display:flex;align-items:center;gap:13px;margin-bottom:24px; }
+.recipe-guide .recipe-guide-welcome img { width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid #cbbb91; }
+.recipe-guide .recipe-guide-welcome p { margin:5px 0 0;font-size:14px;color:#56694e; }
+.recipe-guide .recipe-guide-eyebrow { font-size:10px;font-weight:800;letter-spacing:.12em;color:#77704b; }
+.recipe-guide .recipe-guide-map { display:flex;gap:8px;flex-wrap:wrap;margin:16px 0; }
+.recipe-guide .recipe-guide-map .recipe-guide-step-link { flex:0 0 44px;width:44px;min-height:44px;padding:6px;border-radius:50%;background:transparent;font-size:14px; }
+.recipe-guide .recipe-guide-map .recipe-guide-step-link[aria-current="step"] { background:var(--guide-green);border-color:var(--guide-green);color:white;box-shadow:0 0 0 4px #dce5d3; }
+.recipe-guide .recipe-guide-step-card { position:relative;padding:24px 22px 18px;border:1px solid #e1ddc9;border-radius:18px;background:#fffef8;box-shadow:0 8px 24px #34452b08;margin:22px 0 16px; }
+.recipe-guide .recipe-guide-step-badge { float:right;margin:-6px 0 8px 12px;font:400 40px/1.1 Georgia,serif;color:#d2c397; }
+.recipe-guide .recipe-guide-step-card .recipe-guide-step { margin:18px 0 6px;font-size:clamp(24px,4.8vw,34px);line-height:1.45; }
+.recipe-guide .recipe-guide-navigation .recipe-guide-button { min-height:60px;font-size:16px; }
+.recipe-guide .recipe-guide-preview { margin-top:18px;padding:15px 0;border-top:1px solid #d8dfce;color:#54694f;font-size:13px; }
+.recipe-guide .recipe-guide-preview summary { cursor:pointer;min-height:32px;font-weight:700; }
+.recipe-guide .recipe-guide-preview p { line-height:1.7;white-space:pre-wrap; }
+.recipe-guide .recipe-guide-ingredients ul { list-style:none;padding:0; }
+.recipe-guide .recipe-guide-ingredient-check { display:flex;gap:12px;align-items:flex-start;padding:8px 0;cursor:pointer; }
+.recipe-guide .recipe-guide-ingredient-check input { flex:0 0 22px;width:22px;height:22px;margin-top:3px;accent-color:var(--guide-green); }
+.recipe-guide .recipe-guide-ingredient-check input:checked + span { color:#738267;text-decoration:line-through; }
+.roxy-voice-privacy { color:#59664f;font-size:12px;line-height:1.6;margin-top:14px; }
+.roxy-voice-privacy summary { cursor:pointer;min-height:36px;padding:8px 0; }
 @media (max-width: 370px) { .recipe-guide { padding: 15px; } .recipe-guide .recipe-guide-controls > button { flex-basis: 100%; } .recipe-guide .recipe-guide-command-row { grid-template-columns: minmax(0, 1fr); } .recipe-guide .recipe-guide-navigation { grid-template-columns: minmax(0, 1fr); } }

@@ -1,12 +1,12 @@
 {
   "product": "roxy-home",
-  "updated_on": "2026-09-13",
+  "updated_on": "2026-09-14",
   "deployment_branch": "codex/roxy-home-nfc",
   "public_url": "https://roxy-home.onrender.com/lista#recetas",
   "last_verified_public_version": 201,
-  "deployed_implementation_commit": "b595cd58680d0814d48575be5b0d8c02fc7612e4",
-  "candidate_version": 201,
-  "candidate_status": "201_public_voice_verified_explanation_fix_pending",
+  "deployed_implementation_commit": "c8ee2b5429cb04abf15a4ed5370170bfcd460eed",
+  "candidate_version": 202,
+  "candidate_status": "201_published_official_recipe_voice_and_answer_verified",
   "candidate_199": {
     "published": true,
     "implementation_commit": "4652e5200594401ed719cf7c928a8ade2010e97a",
@@ -734,7 +734,7 @@
     "Aderezo César photo showed a salad; quarantine until an exact replacement is visually reviewed",
     "Only five manufacturer ingredient panels screened; restrictions fail closed, not clinical allergy clearance"
   ],
-  "next_step": "201 implementation: verify food/drink direct preparation and official ElevenLabs playback in production, then record evidence. Preserve recipes, household records and prototypes. General Home voice agent remains unconfigured; separate 199 validation evaluation remains pending.",
+  "next_step": "Publish and verify Home202: Spanish MyPlate reading and general Home agent response with official voice. Local QA complete; preserve data/prototypes.",
   "launch": {
     "five_day_web_beta": "requested_not_scheduled",
     "app_store": "target_next_month_not_guaranteed",
@@ -1001,7 +1001,7 @@
     "environment_seconds": 48.9,
     "payment_recovery_verified": "User resolved ElevenLabs payment; bounded real synthesis 40586bytes.",
     "report": "reports/home_release_201_20260913.md",
-    "next_step": "201 implementation: verify food/drink direct preparation and official ElevenLabs playback in production, then record evidence. Preserve recipes, household records and prototypes. General Home voice agent remains unconfigured; separate 199 validation evaluation remains pending.",
+    "next_step": "201 published and verified: food/drink preparation and official step/reply voice work; complete-sentence citation false positive fixed and public phin response spoken. Next configure/verify a dedicated general Home conversation agent without sharing other products' keys, tools or memory; continue broader recipe validation and remaining catalogue/demo work. Preserve household records and prototypes. Physical phone audio unverified; no redeploy solely for final notes.",
     "production_user_data_modified": false,
     "tests_python": {
       "passed": 3360,
@@ -1024,7 +1024,49 @@
       "output_tokens": 180,
       "estimated_text_cost_usd": 0.0003944,
       "targeted_python": 157,
-      "targeted_node": 450
-    }
+      "targeted_node": 450,
+      "public_followup_verified": true
+    },
+    "followup_commit": "c8ee2b5429cb04abf15a4ed5370170bfcd460eed",
+    "followup_deploy": "dep-dajn23ijnfac73f6kh8g",
+    "followup_seconds": 58.1,
+    "final_public_proof": "Health200/ok,3finalassetsidentical. Public9 session/meta201/guideJS5 preserved; phin explanation accepted including exact sentence citation, then official audio eventplaying; step1of4 unchanged, preferencesoff, audio paused.",
+    "general_home_agent_configured": false,
+    "official_tts_configured": true,
+    "physical_phone_audio_verified": false,
+    "final_ai_counts": {
+      "requests": 9,
+      "output_tokens": 3280,
+      "pending": 0,
+      "unknown_prior_provisions": 2400,
+      "known_input_tokens": 6268,
+      "known_estimated_text_cost_usd": 0.0023096,
+      "cost_estimate_status": "incomplete_includes_two_prior_unknown_requests"
+    },
+    "final_tts_counts": {
+      "requests": 3,
+      "characters": 518,
+      "date": "2026-09-14"
+    },
+    "cleanup": "Own QA52210 SIGINT; syntheticdirectoryauto removed; QA8 closed/viewportreset; QA7 CDP close timeout. Public3 stopped responding afterreload; new9 same session marked deliverable. Original user tabs not deleted."
+  },
+  "candidate_202": {
+    "published": false,
+    "report": "reports/home_release_202_20260914.md",
+    "next_step": "Publish and verify Home202: Spanish MyPlate reading and general Home agent response with official voice. Local QA complete; preserve data/prototypes.",
+    "tests_initial": {
+      "python": 98,
+      "node": 321
+    },
+    "voice_architecture": "Existing Home Responses command agent + browser dictation + official Home ElevenLabs TTS; no hosted shared agent",
+    "physical_phone_audio_verified": false,
+    "tests_python": {
+      "passed": 2782,
+      "skipped_postgresql": 11,
+      "seconds": 88.38
+    },
+    "tests_node": 488,
+    "qa": "Synthetic393px nooverflow, step2 preserved ES/EN, ingredient checklist, separate general Home response and recoverable offline voice failure",
+    "preservation": "4789 previous files present;3758 prototypes byteidentical"
   }
 }

@@ -58,6 +58,9 @@
     const root = node('section', null, 'recipe-guide'); root.setAttribute('aria-labelledby', `${id}-heading`);
     const head = node('div', null, 'recipe-guide-heading');
     const heading = node('h4', 'Vamos paso a paso'); heading.id = `${id}-heading`;
+    const welcome = node('div',null,'recipe-guide-welcome');
+    const portrait = node('img');portrait.src='/assets/roxy_home_avatar.jpg';portrait.alt='Roxy';portrait.width=48;portrait.height=48;
+    const welcomeCopy=node('div');welcomeCopy.append(node('span','COCINA CON ROXY','recipe-guide-eyebrow'),node('p','A tu ritmo. Un paso a la vez.'));welcome.append(portrait,welcomeCopy);
     const subtitle = node('p', title, 'recipe-guide-title'); subtitle.lang = language;
     const listen = (el, type, fn) => { el.addEventListener(type, fn); cleanups.push(() => el.removeEventListener(type, fn)); };
     const button = (text, action, className = '') => {
@@ -70,6 +73,13 @@
     const progress = node('p', '', 'recipe-guide-progress');
     const meter = node('progress', null, 'recipe-guide-meter'); meter.max = Math.max(1, steps.length); meter.setAttribute('aria-label', 'Paso actual de la receta');
     const step = node('p', '', 'recipe-guide-step'); step.lang = language; step.tabIndex = -1;
+    const stepCard=node('div',null,'recipe-guide-step-card');
+    const stepBadge=node('span','','recipe-guide-step-badge');stepBadge.setAttribute('aria-hidden','true');
+    const now=node('span','AHORA','recipe-guide-eyebrow');stepCard.append(stepBadge,now,step);
+    const stepMap=node('nav',null,'recipe-guide-map');stepMap.setAttribute('aria-label','Ir a un paso');
+    const stepButtons=steps.map((_,index)=>{const item=button(String(index+1),()=>move(index-state.index),'recipe-guide-step-link');item.setAttribute('aria-label',`Ir al paso ${index+1}`);stepMap.append(item);return item;});
+    const preview=node('details',null,'recipe-guide-preview');preview.append(node('summary','Después de este paso'));
+    const previewText=node('p');previewText.lang=language;preview.append(previewText);
     const guidance = node('p', '', 'recipe-guide-guidance'); guidance.setAttribute('role', 'status'); guidance.setAttribute('aria-live', 'polite');
     const nav = node('div', null, 'recipe-guide-navigation'); nav.setAttribute('aria-label', 'Pasos de la receta');
     const previous = button('Anterior', () => move(-1));
@@ -89,8 +99,11 @@
     const ingredientPanel = node('details', null, 'recipe-guide-ingredients');
     const ingredientSummary = node('summary', `Ingredientes${ingredients.length ? ` (${ingredients.length})` : ''}`);
     const ingredientList = node('ul'); ingredientList.lang = language;
-    ingredients.forEach(line => ingredientList.append(node('li', line)));
+    let readyCount=0;
+    const readyNote=node('p',ingredients.length?'Marca lo que ya tienes preparado.':'','recipe-guide-note');
+    ingredients.forEach(line => {const item=node('li'),label=node('label',null,'recipe-guide-ingredient-check'),check=node('input');check.type='checkbox';check.checked=false;label.append(check,node('span',line));listen(check,'change',()=>{readyCount+=check.checked?1:-1;readyNote.textContent=`${readyCount} de ${ingredients.length} ingredientes preparados`;});item.append(label);ingredientList.append(item);});
     ingredientPanel.append(ingredientSummary, ingredients.length ? ingredientList : node('p', 'No hay una lista de ingredientes disponible en esta ficha.'));
+    if(ingredients.length)ingredientPanel.append(readyNote);
     const conversation = node('div', null, 'recipe-guide-conversation');
     const form = node('form', null, 'recipe-guide-command-form');
     const label = node('label', 'Dime cómo seguimos'); label.htmlFor = `${id}-command`;
@@ -151,10 +164,10 @@
     conversation.append(form, inputActions, micStatus, response, hearResponse);
     if (askQuestion) conversation.append(companionStatus, companionActions, explanation);
     conversation.append(privacy);
-    root.append(head, subtitle, source, progress, meter, step, guidance, nav, controls, audioStatus, ingredientPanel, conversation);
+    root.append(welcome,head,subtitle,source,progress,meter,stepMap,stepCard,guidance,nav,controls,audioStatus,preview,ingredientPanel,conversation);
     if (conversationOnly) {
       root.className += ' recipe-guide-conversation-only';
-      [head, subtitle, source, progress, meter, step, guidance, nav, controls, ingredientPanel].forEach(el => { el.hidden = true; });
+      [welcome,head,subtitle,source,progress,meter,stepMap,stepCard,step,guidance,nav,controls,preview,ingredientPanel].forEach(el => { el.hidden = true; });
       if (requestSpeech) inputActions.append(deviceVoice);
     }
     container.append(root);
@@ -214,6 +227,9 @@
       progress.textContent = steps.length ? `Paso ${state.index + 1} de ${steps.length}` : 'Pasos no disponibles';
       meter.value = steps.length ? state.index + 1 : 0;
       step.textContent = steps[state.index] || 'Esta ficha no contiene una secuencia completa de pasos legibles.';
+      stepBadge.textContent=String(state.index+1).padStart(2,'0');
+      stepButtons.forEach((item,index)=>{item.setAttribute('aria-current',index===state.index?'step':'false');item.setAttribute('aria-pressed',String(index===state.index));});
+      preview.hidden=conversationOnly||state.index>=steps.length-1;previewText.textContent=steps[state.index+1]||'';
       guidance.textContent = !steps.length ? 'Vuelve a la receta para revisar la fuente.' : state.paused ? 'En pausa. Conservamos tu paso.' :
         state.index === steps.length - 1 ? 'Este es el último paso de la fuente. Puedes repetirlo o volver a la receta.' : 'Cuando termines este paso, dime «listo» o toca Siguiente.';
       previous.disabled = !steps.length || state.index === 0; next.disabled = !steps.length || state.index === steps.length - 1;
@@ -572,7 +588,7 @@
         if (state.active && !scopeValid()) suspend();
       },
     };
-    const questionGuide = {focus:() => {
+    const questionGuide = {pause:suspend,focus:() => {
       if (!usable()) return false;
       input.focus({preventScroll:false}); return true;
     }};
@@ -591,5 +607,6 @@
     for (const guide of [...questionGuides].reverse()) if (guide.focus()) return true;
     return false;
   }
-  window.RoxyRecipeGuide = Object.freeze({mount, focusActiveQuestion});
+  function pauseActive(){for(const guide of questionGuides)guide.pause();}
+  window.RoxyRecipeGuide = Object.freeze({mount, focusActiveQuestion, pauseActive});
 })();
