@@ -52,7 +52,7 @@ function harness({tts = true, microphone = true, availableVoices = [esVoice, enV
   };
   window.MutationObserver = class { constructor(callback) { this.callback = callback; this.connected = false; observers.push(this); } observe() { this.connected = true; } disconnect() { this.connected = false; } };
   const deny = name => { forbidden.push(name); throw new Error(`Forbidden ${name}`); };
-  vm.runInNewContext(code, {window, document, setTimeout(fn, delay = 0) { const id = ++timerSequence; timers.set(id, {fn, due:now + delay}); return id; }, clearTimeout(id) { timers.delete(id); },
+  vm.runInNewContext(code, {window, document, AbortController, setTimeout(fn, delay = 0) { const id = ++timerSequence; timers.set(id, {fn, due:now + delay}); return id; }, clearTimeout(id) { timers.delete(id); },
     fetch() { deny('fetch'); }, localStorage:{getItem() { deny('read localStorage'); }, setItem() { deny('write localStorage'); }}, sessionStorage:{getItem() { deny('read sessionStorage'); }, setItem() { deny('write sessionStorage'); }}, indexedDB:{open() { deny('indexedDB'); }}});
   const container = new Element('div'); document.body.append(container);
   const mount = (options = {}) => window.RoxyRecipeGuide.mount(container, {title:'Arroz de la fuente', steps:['Lava el arroz.', 'Cocina durante 15 minutos.', 'Deja reposar.'], ingredients:['1 taza de arroz', '2 tazas de agua'], sourceLabel:'Fuente de prueba', ...options});
@@ -447,4 +447,255 @@ test('source answer waiting for a voice is discarded on a member switch', () => 
   const h = harness({availableVoices:[]}); let current = true; h.mount({...sourceFixtures.en, language:'en', isCurrent:() => current});
   button(h.container, 'Hablar').click(); h.micResult('How long?'); current = false; h.setVoices([esVoice, enVoice]); h.tick(60000);
   assert.equal(h.calls.length, 0); assert.equal(h.timers.size, 0);
+});
+
+const settleCompanion = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
+const deferredCompanion = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return {promise, resolve, reject}; };
+const companionAnswer = (answer = 'Batir consiste en mezclar con movimientos rápidos.', supporting_steps = [1]) => ({answer, supporting_steps, needs_clarification:false});
+const aiText = h => byClass(h.container, 'recipe-guide-explanation-answer').textContent;
+const preferences = h => byTag(h.container, 'input').find(el => el.type === 'checkbox');
+const ask = (h, question = '¿Qué significa batir?') => { h.command(question); return settleCompanion(); };
+
+test('companion is explicit, starts without a profile or history and preserves original source text', async () => {
+  const calls = []; const h = harness(); h.mount({askQuestion:params => { calls.push(params); return companionAnswer(); }});
+  assert.equal(preferences(h).checked, false); h.tick(10000); assert.equal(calls.length, 0);
+  await ask(h); assert.equal(calls.length, 1);
+  const request = calls[0]; assert.equal(request.question, '¿Qué significa batir?'); assert.equal(request.step_index, 0); assert.equal(request.language, 'es');
+  assert.equal(request.include_preferences, false); assert.equal(request.history.length, 0); assert.ok(request.signal instanceof AbortSignal);
+  assert.equal(aiText(h), companionAnswer().answer); assert.match(h.container.textContent, /Explicación de Roxy · IA/);
+  assert.match(h.container.textContent, /Referencia en la receta: paso 1/); assert.equal(stepText(h.container), 'Lava el arroz.');
+  assert.equal(response(h.container), ''); assert.equal(h.calls.length, 0); assert.deepEqual(h.forbidden, []);
+});
+
+test('literal commands and source queries remain local even with a companion', async () => {
+  const calls = []; const h = harness(); h.mount({askQuestion:params => { calls.push(params); return companionAnswer(); }});
+  for (const query of ['listo', 'atrás', 'repite', 'pausa', 'reanudar', 'qué hago ahora', 'ingredientes', 'cuánto tiempo', 'a qué temperatura']) await ask(h, query);
+  assert.equal(calls.length, 0); assert.equal(progress(h.container), 'Paso 1 de 3');
+});
+
+test('busy companion never duplicates submissions and only retries after a deliberate click', async () => {
+  const pending = deferredCompanion(), calls = []; const h = harness();
+  h.mount({askQuestion:params => { calls.push(params); return calls.length === 1 ? pending.promise : companionAnswer(); }});
+  await ask(h); assert.equal(button(h.container, 'Enviar').disabled, true); assert.equal(button(h.container, 'Hablar').disabled, true);
+  await ask(h); assert.equal(calls.length, 1);
+  pending.reject(new Error('sensitive backend internals')); await settleCompanion();
+  assert.match(h.container.textContent, /No pude responder ahora/); assert.doesNotMatch(h.container.textContent, /sensitive backend internals/);
+  h.tick(60000); await settleCompanion(); assert.equal(calls.length, 1);
+  button(h.container, 'Reintentar pregunta').click(); await settleCompanion(); assert.equal(calls.length, 2);
+  assert.equal(calls[1].question, calls[0].question); assert.equal(calls[1].history.length, 0); assert.equal(aiText(h), companionAnswer().answer);
+});
+
+test('a never-settling companion is aborted at 30 seconds and late completion stays ignored', async () => {
+  const pending = deferredCompanion(), calls = []; const h = harness(); h.mount({askQuestion:params => { calls.push(params); return pending.promise; }});
+  await ask(h); h.tick(29999); assert.equal(calls[0].signal.aborted, false); h.tick(1);
+  assert.equal(calls[0].signal.aborted, true); assert.match(h.container.textContent, /respuesta tardó demasiado/);
+  pending.resolve(companionAnswer('Respuesta tardía')); await settleCompanion(); assert.equal(aiText(h), '');
+  assert.equal(button(h.container, 'Enviar').disabled, false); assert.equal(h.timers.size, 0);
+});
+
+test('explicit cancellation neither retries nor retains a late answer', async () => {
+  const pending = deferredCompanion(), calls = []; const h = harness(); h.mount({askQuestion:params => { calls.push(params); return pending.promise; }});
+  await ask(h); button(h.container, 'Cancelar pregunta').click(); assert.equal(calls[0].signal.aborted, true);
+  pending.resolve(companionAnswer('No debe aparecer')); await settleCompanion(); h.tick(60000);
+  assert.equal(aiText(h), ''); assert.equal(calls.length, 1); assert.equal(button(h.container, 'Reintentar pregunta').hidden, true);
+});
+
+for (const endScope of ['next', 'pause', 'close', 'dispose', 'member', 'hidden', 'inactive', 'detached', 'remount']) {
+  test(`companion aborts and ignores a late response on ${endScope}`, async () => {
+    const pending = deferredCompanion(), calls = []; const h = harness(); let current = true;
+    const guide = h.mount({isCurrent:() => current, askQuestion:params => { calls.push(params); return pending.promise; }});
+    await ask(h);
+    if (endScope === 'next') button(h.container, 'Listo, siguiente').click();
+    if (endScope === 'pause') button(h.container, 'Pausar').click();
+    if (endScope === 'close') button(h.container, 'Volver a la receta').click();
+    if (endScope === 'dispose') guide.dispose();
+    if (endScope === 'member') { current = false; h.tick(200); }
+    if (endScope === 'hidden') h.visibility(true);
+    if (endScope === 'inactive') guide.setActive(false);
+    if (endScope === 'detached') { h.container.remove(); h.mutation(); }
+    if (endScope === 'remount') h.mount({steps:['Otra receta.']});
+    assert.equal(calls[0].signal.aborted, true);
+    pending.resolve(companionAnswer('Respuesta privada tardía')); await settleCompanion(); h.tick(60000);
+    assert.doesNotMatch(h.container.textContent, /Respuesta privada tardía/); assert.equal(h.calls.length, 0); assert.equal(h.timers.size, 0);
+  });
+}
+
+test('history contains only four completed question/answer pairs and cannot be mutated by the callback', async () => {
+  const requests = []; const h = harness();
+  h.mount({askQuestion:params => { requests.push(params); return companionAnswer(`Respuesta ${requests.length}`); }});
+  for (let i = 1; i <= 6; i++) await ask(h, `Explica la técnica ${i}`);
+  const history = requests[5].history;
+  assert.equal(history.length, 8); assert.equal(history[0].content, 'Explica la técnica 2'); assert.equal(history[7].content, 'Respuesta 5');
+  assert.equal(history.filter(entry => entry.role === 'user').length, 4); assert.equal(history.filter(entry => entry.role === 'assistant').length, 4);
+  history[6].content = 'Alterado desde fuera'; await ask(h, 'Otra técnica');
+  assert.equal(requests[6].history.some(entry => entry.content === 'Alterado desde fuera'), false); assert.deepEqual(h.forbidden, []);
+});
+
+test('profile opt-in and withdrawal reset history, abort pending requests and stay private to this mount', async () => {
+  const pending = deferredCompanion(), calls = []; const h = harness();
+  const options = {askQuestion:params => { calls.push(params); return calls.length === 2 ? pending.promise : companionAnswer(); }};
+  h.mount(options); await ask(h);
+  preferences(h).checked = true; preferences(h).fire('change'); await ask(h, 'Explica mi técnica');
+  assert.equal(calls[1].include_preferences, true); assert.equal(calls[1].history.length, 0);
+  preferences(h).checked = false; preferences(h).fire('change'); assert.equal(calls[1].signal.aborted, true);
+  pending.resolve(companionAnswer('Preferencia privada')); await settleCompanion(); await ask(h, 'Explica otra técnica');
+  assert.equal(calls[2].include_preferences, false); assert.equal(calls[2].history.length, 0); assert.doesNotMatch(h.container.textContent, /Preferencia privada/);
+  h.mount(options); assert.equal(preferences(h).checked, false); await ask(h); assert.equal(calls[3].history.length, 0);
+});
+
+test('idle completed conversation is cleared when identity is lost', async () => {
+  const calls = []; const h = harness(); let current = true;
+  h.mount({isCurrent:() => current, askQuestion:params => { calls.push(params); return companionAnswer(); }});
+  preferences(h).checked = true; preferences(h).fire('change'); await ask(h);
+  current = false; h.tick(200); assert.equal(aiText(h), ''); assert.equal(preferences(h).checked, false);
+  current = true; await ask(h); assert.equal(calls[1].history.length, 0); assert.equal(calls[1].include_preferences, false);
+});
+
+for (const mode of ['typed', 'microphone', 'listening']) {
+  test(`companion speech respects the user's audio selection: ${mode}`, async () => {
+    const h = harness(); h.mount({askQuestion:() => companionAnswer()});
+    if (mode === 'listening') { button(h.container, 'Escuchar este paso').click(); h.startAudio(); h.endAudio(); }
+    if (mode === 'microphone') { button(h.container, 'Hablar').click(); h.micResult('¿Qué significa batir?'); await settleCompanion(); }
+    else await ask(h);
+    if (mode === 'typed') assert.equal(h.calls.length, 0);
+    else assert.equal(h.latestUtterance().text, companionAnswer().answer);
+    if (mode === 'typed') { button(h.container, 'Escuchar explicación').click(); assert.equal(h.latestUtterance().text, aiText(h)); }
+  });
+}
+
+for (const invalid of [{}, {answer:'', supporting_steps:[], needs_clarification:false}, companionAnswer('Texto', [0]), companionAnswer('Texto', [4]), {...companionAnswer(), needs_clarification:'yes'}]) {
+  test(`invalid companion output is rejected without displaying an unsupported answer: ${JSON.stringify(invalid)}`, async () => {
+    const h = harness(); h.mount({askQuestion:() => invalid}); await ask(h);
+    assert.equal(aiText(h), ''); assert.match(h.container.textContent, /No recibí una respuesta completa/); assert.equal(stepText(h.container), 'Lava el arroz.');
+  });
+}
+
+test('AI output is plain text, carries one-based source references, and can request clarification', async () => {
+  const h = harness(); h.mount({askQuestion:() => ({answer:'<img src=x onerror=alert(1)> ¿Usas varillas?', supporting_steps:[1,3,1], needs_clarification:true})}); await ask(h);
+  assert.equal(byTag(h.container, 'img').length, 0); assert.match(aiText(h), /^<img/);
+  assert.match(h.container.textContent, /pasos 1, 3/); assert.match(h.container.textContent, /necesita un detalle más/); assert.equal(progress(h.container), 'Paso 1 de 3');
+});
+
+test('conversationOnly delegates commands without duplicating source navigation or mutating the step', async () => {
+  const commands = [], questions = []; const h = harness(); h.mount({conversationOnly:true, initialStep:1,
+    onCommand:command => commands.push(command), askQuestion:params => { questions.push(params); return companionAnswer(); }});
+  for (const name of ['recipe-guide-heading', 'recipe-guide-title', 'recipe-guide-progress', 'recipe-guide-step', 'recipe-guide-navigation', 'recipe-guide-controls', 'recipe-guide-ingredients']) assert.equal(byClass(h.container, name).hidden, true);
+  for (const command of ['siguiente', 'atrás', 'pausa', 'reanudar', 'repite']) await ask(h, command);
+  assert.deepEqual(commands, ['next','previous','pause','resume','repeat']); assert.equal(progress(h.container), 'Paso 2 de 3'); assert.equal(questions.length, 0);
+  await ask(h); assert.equal(questions[0].step_index, 1); assert.equal(progress(h.container), 'Paso 2 de 3');
+});
+
+test('conversationOnly without external command support explains how to use existing recipe controls', async () => {
+  const h = harness(); h.mount({conversationOnly:true}); h.command('siguiente');
+  assert.match(response(h.container), /Usa los botones de la receta/); assert.equal(progress(h.container), 'Paso 1 de 3');
+});
+
+test('parent audio hook runs before recognition and speech and a disposed scope never starts audio', () => {
+  const events = []; const h = harness(); let guide;
+  guide = h.mount({onBeforeMedia:() => events.push('before')}); button(h.container, 'Hablar').click(); assert.deepEqual(events, ['before']);
+  h.micResult('repite'); assert.deepEqual(events, ['before','before']); assert.equal(h.calls.filter(call => call.type === 'speak').length, 1);
+  guide.dispose(); guide = h.mount({onBeforeMedia:() => guide.dispose()}); button(h.container, 'Escuchar este paso').click();
+  assert.equal(h.container.children.length, 0); assert.equal(h.calls.filter(call => call.type === 'speak').length, 1);
+});
+
+test('deterministic safety notices are not presented as an AI explanation', async () => {
+  const h = harness(); h.mount({askQuestion:() => ({...companionAnswer('No puedo confirmar que sea compatible con tu alergia.', []), mode:'safety_notice', needs_clarification:true})});
+  await ask(h, '¿Puedo tomarlo con alergia?');
+  const panel = byClass(h.container, 'recipe-guide-explanation'); assert.match(panel.textContent, /Aviso de seguridad de Roxy/);
+  assert.doesNotMatch(panel.textContent, /Explicación de Roxy · IA|necesita un detalle más/); assert.ok(button(h.container, 'Escuchar aviso'));
+});
+
+test('question and response lengths match the companion API before any retry is offered', async () => {
+  const requests = []; const h = harness(); h.mount({askQuestion:params => { requests.push(params); return companionAnswer(); }});
+  assert.equal(byTag(h.container, 'input')[0].maxLength, 600); await ask(h, 'x'.repeat(601));
+  assert.equal(requests.length, 0); assert.match(h.container.textContent, /hasta 600 caracteres/); assert.equal(button(h.container, 'Reintentar pregunta').hidden, true);
+  await ask(h, 'x'.repeat(600)); assert.equal(requests.length, 1);
+  h.mount({askQuestion:() => companionAnswer('x'.repeat(1601))}); await ask(h);
+  assert.equal(aiText(h), ''); assert.match(h.container.textContent, /No recibí una respuesta completa/);
+});
+
+for (const replyLanguage of [undefined, 'es', 'en', 'fr']) {
+  test(`AI response uses its declared language or Spanish UI fallback, independently from an English source: ${replyLanguage}`, async () => {
+    const h = harness(); h.mount({language:'en', steps:['Whisk the eggs.'], askQuestion:() => ({...companionAnswer('Explicación de la técnica'), language:replyLanguage})});
+    button(h.container, 'Hablar').click(); h.micResult('¿Qué significa batir?'); await settleCompanion();
+    const expected = replyLanguage === 'en' ? 'en' : 'es';
+    assert.equal(h.latestUtterance().lang, expected); assert.equal(byClass(h.container, 'recipe-guide-explanation-answer').lang, expected);
+    assert.equal(stepText(h.container), 'Whisk the eggs.'); assert.equal(byClass(h.container, 'recipe-guide-step').lang, 'en');
+    h.startAudio(); h.endAudio(); button(h.container, 'Escuchar explicación').click(); assert.equal(h.latestUtterance().lang, expected);
+  });
+}
+
+for (const [statusCode, detail, expected, retryable] of [
+  [409, 'Esta versión ya no está disponible.', /Esta versión ya no está disponible.*Vuelve a abrir la receta/, false],
+  [422, 'Completa tus gustos de recetas para poder incluirlos.', /Completa tus gustos de recetas.*Revisa tu pregunta o tus gustos/, false],
+  [422, '[object Object],[object Object]', /Falta revisar la pregunta o tu perfil/, false],
+  [422, '[{"loc":["body","question"],"input":"privado"}]', /Falta revisar la pregunta o tu perfil/, false],
+  [503, 'El acompañamiento de Roxy no está habilitado.', /El acompañamiento de Roxy no está habilitado.*Puedes continuar/, true],
+  [503, 'HTTP 503', /La conversación de Roxy no está disponible ahora/, true],
+  [429, 'quota internals', /La conversación alcanzó su límite/, true],
+]) {
+  test(`companion errors offer a specific recovery and retry only when useful: ${statusCode} ${detail}`, async () => {
+    let calls = 0; const h = harness(); h.mount({askQuestion:() => { calls++; throw Object.assign(new Error(detail), {status:statusCode}); }});
+    await ask(h); assert.match(h.container.textContent, expected); assert.equal(button(h.container, 'Reintentar pregunta').hidden, !retryable);
+    assert.doesNotMatch(h.container.textContent, /\[object Object\]|quota internals|"loc"|"input"/); assert.equal(button(h.container, 'Enviar').disabled, false);
+    h.tick(60000); await settleCompanion(); assert.equal(calls, 1); assert.equal(stepText(h.container), 'Lava el arroz.');
+  });
+}
+
+test('compact companion keeps OpenAI disclosure and opt-in visible while longer explanations stay in closed privacy details', async () => {
+  const h = harness(); h.mount({askQuestion:() => companionAnswer()});
+  const privacy = byClass(h.container, 'recipe-guide-privacy'), disclosure = byClass(h.container, 'recipe-guide-disclosure');
+  const preference = preferences(h), note = descendants(privacy).find(el => el.id === preference.getAttribute('aria-describedby'));
+  assert.equal(privacy.open, false); assert.equal(byTag(privacy, 'summary')[0].textContent, 'Voz y privacidad');
+  assert.equal(privacy.textContent.includes('Las preguntas abiertas se envían a OpenAI'), true);
+  assert.equal(privacy.textContent.includes('«Hablar» pide permiso de micrófono'), true);
+  assert.ok(note); assert.match(note.textContent, /tus cocinas, alergias, alimentos que evitas y experiencia/);
+  assert.equal(preference.getAttribute('aria-details'), privacy.id); assert.equal(preference.checked, false);
+  assert.equal(descendants(privacy).includes(preference), false); assert.equal(descendants(privacy).includes(disclosure), false);
+  assert.equal(disclosure.hidden, false); assert.match(disclosure.textContent, /Preguntas a OpenAI · voz opcional del dispositivo/);
+  assert.equal(disclosure.parentNode, byTag(h.container, 'form')[0]); assert.equal(byTag(privacy, 'a')[0].href, '/privacy#guia-ia');
+  const conversation = byClass(h.container, 'recipe-guide-conversation'), explanation = byClass(h.container, 'recipe-guide-explanation');
+  assert.ok(conversation.children.indexOf(explanation) < conversation.children.indexOf(privacy));
+  assert.equal(byClass(h.container, 'recipe-guide-step').hidden, false); assert.equal(byClass(h.container, 'recipe-guide-navigation').hidden, false);
+  await ask(h); assert.equal(explanation.hidden, false); assert.equal(privacy.open, false); assert.equal(aiText(h), companionAnswer().answer);
+});
+
+test('literal-only guide has compact voice help without claiming it sends questions to OpenAI', () => {
+  const h = harness(); h.mount(); const privacy = byClass(h.container, 'recipe-guide-privacy');
+  assert.equal(privacy.open, false); assert.match(privacy.textContent, /siguiente, listo, repite/);
+  assert.equal(byClass(h.container, 'recipe-guide-disclosure').textContent, 'Voz opcional del dispositivo.');
+  assert.equal(byTag(h.container, 'input').filter(el => el.type === 'checkbox').length, 0);
+});
+
+test('focusActiveQuestion focuses the recipe chat without microphone, network or an automatic question', () => {
+  const h = harness(); let asked = 0; const guide = h.mount({askQuestion:() => { asked++; return companionAnswer(); }});
+  const input = byTag(h.container, 'input')[0]; assert.equal(h.window.RoxyRecipeGuide.focusActiveQuestion(), true); assert.equal(input.focused, true);
+  assert.equal(asked, 0); assert.equal(h.microphones.length, 0); assert.deepEqual(h.calls, []); assert.deepEqual(h.forbidden, []);
+  guide.dispose(); input.focused = false; assert.equal(h.window.RoxyRecipeGuide.focusActiveQuestion(), false);
+  assert.equal(input.focused, false); assert.equal(h.container.children.length, 0);
+});
+
+for (const invalid of ['inactive', 'hidden', 'document', 'identity', 'detached']) {
+  test(`focusActiveQuestion cannot focus or reopen an unavailable guide: ${invalid}`, () => {
+    const h = harness(); let current = true; const guide = h.mount({isCurrent:() => current, askQuestion:() => companionAnswer()});
+    const input = byTag(h.container, 'input')[0]; input.focused = false;
+    if (invalid === 'inactive') guide.setActive(false);
+    if (invalid === 'hidden') h.container.hidden = true;
+    if (invalid === 'document') h.visibility(true);
+    if (invalid === 'identity') current = false;
+    if (invalid === 'detached') h.container.remove();
+    assert.equal(h.window.RoxyRecipeGuide.focusActiveQuestion(), false); assert.equal(input.focused, false);
+    if (invalid === 'inactive') assert.equal(byClass(h.container, 'recipe-guide').hidden, true);
+    if (invalid === 'hidden') assert.equal(h.container.hidden, true);
+    assert.equal(h.microphones.length, 0); assert.deepEqual(h.calls, []); assert.deepEqual(h.forbidden, []);
+  });
+}
+
+test('focusActiveQuestion chooses the most recently mounted usable chat and skips literal-only guides', () => {
+  const h = harness(); h.mount({askQuestion:() => companionAnswer()}); const firstInput = byTag(h.container, 'input')[0];
+  const other = h.document.createElement('div'); h.document.body.append(other);
+  const newer = h.window.RoxyRecipeGuide.mount(other, {steps:['Otro paso.'], askQuestion:() => companionAnswer()});
+  const secondInput = byTag(other, 'input')[0]; assert.equal(h.window.RoxyRecipeGuide.focusActiveQuestion(), true); assert.equal(secondInput.focused, true); assert.notEqual(firstInput.focused, true);
+  newer.setActive(false); firstInput.focused = false; assert.equal(h.window.RoxyRecipeGuide.focusActiveQuestion(), true); assert.equal(firstInput.focused, true);
+  h.mount(); assert.equal(h.window.RoxyRecipeGuide.focusActiveQuestion(), false); newer.dispose(); assert.equal(h.window.RoxyRecipeGuide.focusActiveQuestion(), false);
 });

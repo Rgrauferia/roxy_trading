@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '198';
+  const APP_VERSION = '199';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -472,6 +472,17 @@
     if(!isCurrent())throw new Error('Tu sesión cambió. Vuelve a entrar.');
     return result;
   }}
+  function recipeCompanionBridge(owner,memberId,isCurrent){
+    if(account.mode!=='member'||!memberId)return undefined;
+    return async({signal,...payload})=>{
+      if(!isCurrent()||account.id!==memberId||user!==owner)throw new Error('Tu sesión cambió. Vuelve a abrir la receta.');
+      const result=await api(`/v1/home-food/${encodeURIComponent(owner)}/recipe-companion`,{
+        method:'POST',signal,headers:{'X-Roxy-Recipe-Member':memberId},body:JSON.stringify(payload),
+      });
+      if(!isCurrent()||account.id!==memberId||user!==owner)throw new Error('Tu sesión cambió. Vuelve a abrir la receta.');
+      return result;
+    };
+  }
   async function prepareRecipePreferences(isCurrent,{force=false}={}){
     if(account.mode!=='member'){clearRecipePreferences();return true}
     const memberId=account.id;
@@ -1287,6 +1298,7 @@
     const sourceOwner=user, sourceIdentity=collectionIdentity();
     const sourceMember=account.id;
     const sourceContext={user,identity:sourceIdentity,api:(path,options={})=>api(path,{...options,headers:{...(options.headers||{}),...(sourceMember?{'X-Roxy-Recipe-Member':sourceMember}:{})}}),isCurrent:()=>recipeSourcesReady()&&user===sourceOwner&&collectionIdentity()===sourceIdentity};
+    sourceContext.companion=recipeCompanionBridge(sourceOwner,sourceMember,sourceContext.isCurrent);
     const sourceActive=recipeSourcesReady()&&activePanel==='recipes';
     const myplateSelected=!petMode&&['personal','all','food','dessert'].includes(recipeCollection);
     const personalPreset=recipeCollection==='personal'?selectedRecipePreset():null;
@@ -2775,7 +2787,34 @@
     clearInterval(cookingTimerTick);
     cookingTimerTick=setInterval(renderCookingTimers,1000);
     if(!$('cookingDialog').open)$('cookingDialog').showModal();
+    showCookingCompanion(data);
     if(currentCookingVideo)renderCookingVideo(currentCookingVideo.status,currentCookingVideo);
+  }
+  let cookingCompanion=null,cookingCompanionScope='';
+  function disposeCookingCompanion(){cookingCompanion?.dispose();cookingCompanion=null;cookingCompanionScope='';}
+  function showCookingCompanion(data){
+    const host=$('cookingCompanion');
+    const owner=user,memberId=account.id,identity=collectionIdentity(),session=data.session;
+    const scope=JSON.stringify([identity,session.id,data.step_number,data.current_step,session.status]);
+    if(scope===cookingCompanionScope&&cookingCompanion)return;
+    disposeCookingCompanion();
+    if(!host||!window.RoxyRecipeGuide?.mount||account.mode!=='member'||session.status==='COMPLETED'||data.recipe.audience==='pet')return;
+    const current=()=>user===owner&&account.id===memberId&&collectionIdentity()===identity&&Boolean($('cookingDialog')?.open)&&
+      currentCooking?.session?.id===session.id&&currentCooking?.step_number===data.step_number&&currentCooking?.current_step===data.current_step&&currentCooking?.session?.status===session.status;
+    const companion=recipeCompanionBridge(owner,memberId,current);
+    cookingCompanionScope=scope;
+    cookingCompanion=window.RoxyRecipeGuide.mount(host,{
+      conversationOnly:true,title:recipeDisplayTitle(data.recipe),steps:data.recipe.steps,
+      ingredients:(data.recipe.ingredients||[]).map(item=>[item.quantity,item.unit,item.name].filter(value=>value!==undefined&&value!=='').join(' ')),
+      language:'es',initialStep:data.step_number-1,isCurrent:current,onBeforeMedia:stopCookingSpeech,
+      askQuestion:params=>{stopCookingSpeech();return companion({...params,source:'saved',recipe_id:data.recipe.id,session_id:session.id})},
+      onCommand:command=>{
+        if(!current())return;
+        if(command==='next'||command==='previous')void updateCooking(command);
+        else if(command==='repeat'||command==='resume')void speakCurrentStep();
+        else if(command==='pause'){stopCookingSpeech();cookingSpeechStatus('Voz detenida. Tu paso se conserva.')}
+      },
+    });
   }
   function prepareCookingTimer(data){
     // A zero/missing suggestion means "choose", never parse prose again in JS.
@@ -2813,19 +2852,25 @@
     if(!currentCooking)return;
     try{await api(`/v1/home-food/${encodeURIComponent(user)}/cooking-sessions/${encodeURIComponent(currentCooking.session.id)}/timers/${encodeURIComponent(timerId)}`,{method:'DELETE'});await resumeCooking(currentCooking.session.id);announce('Temporizador cancelado')}catch(error){announce(error.message)}
   }
+  let cookingActionPending=false;
   async function updateCooking(action){
-    if(!currentCooking)return;
+    if(!currentCooking||cookingActionPending)return;
+    const owner=user,identity=collectionIdentity(),sessionId=currentCooking.session.id;
+    const current=()=>user===owner&&collectionIdentity()===identity&&currentCooking?.session?.id===sessionId&&Boolean($('cookingDialog')?.open);
+    cookingActionPending=true;$('nextStepButton').disabled=true;$('previousStepButton').disabled=true;
     try{
-      const data=await api(`/v1/home-food/${encodeURIComponent(user)}/cooking-sessions/${encodeURIComponent(currentCooking.session.id)}`,{method:'POST',body:JSON.stringify({action})});
+      const data=await api(`/v1/home-food/${encodeURIComponent(owner)}/cooking-sessions/${encodeURIComponent(sessionId)}`,{method:'POST',body:JSON.stringify({action})});
+      if(!current())return;
       showCooking(data);await load({quiet:true});
-      if(['next','previous'].includes(action)&&data.session.status!=='COMPLETED')speakCurrentStep();
-    }catch(error){announce(error.message);}
+      if(current()&&['next','previous'].includes(action)&&data.session.status!=='COMPLETED')speakCurrentStep();
+    }catch(error){if(current())announce(error.message);}
+    finally{cookingActionPending=false;if(current()){$('nextStepButton').disabled=currentCooking.session.status==='COMPLETED';$('previousStepButton').disabled=currentCooking.step_number<=1||currentCooking.session.status==='COMPLETED'}}
   }
   let roxyDeviceSpeech=null,roxyCookingSpeechJob=null,roxySpeechLifecycleReady=false;
   function ensureRoxySpeechLifecycle(){
     if(roxySpeechLifecycleReady)return;roxySpeechLifecycleReady=true;
-    $('cookingDialog')?.addEventListener('close',()=>stopCookingSpeech());
-    $('cookingDialog')?.addEventListener('cancel',()=>stopCookingSpeech());
+    $('cookingDialog')?.addEventListener('close',()=>{stopCookingSpeech();disposeCookingCompanion()});
+    $('cookingDialog')?.addEventListener('cancel',()=>{stopCookingSpeech();disposeCookingCompanion()});
     document.addEventListener('visibilitychange',()=>{if(document.hidden){stopCookingSpeech();stopRoxyDeviceSpeech()}});
     window.addEventListener('pagehide',()=>{stopCookingSpeech();stopRoxyDeviceSpeech()});
   }
@@ -3141,7 +3186,7 @@
     catch(error){if(current())roxyVoiceStatus('No pude enviar el mensaje. Conservé tu texto para que puedas reintentar.',true)}
     finally{button.disabled=false}
   }
-  function openRoxyVoice(){$('roxyVoicePanel').hidden=false;$('roxyVoiceLauncher').setAttribute('aria-expanded','true');$('roxyVoiceLauncher').classList.add('active');if(!roxyVoiceConversation&&!roxyVoiceStarting&&!roxyReadableResponse)roxyVoiceStatus('Pulsa Iniciar para conectar la voz o escribe tu mensaje.');$('roxyVoiceStart').focus()}
+  function openRoxyVoice(){if(window.RoxyRecipeGuide?.focusActiveQuestion?.())return;$('roxyVoicePanel').hidden=false;$('roxyVoiceLauncher').setAttribute('aria-expanded','true');$('roxyVoiceLauncher').classList.add('active');if(!roxyVoiceConversation&&!roxyVoiceStarting&&!roxyReadableResponse)roxyVoiceStatus('Pulsa Iniciar para conectar la voz o escribe tu mensaje.');$('roxyVoiceStart').focus()}
   function closeRoxyVoice(){stopRoxyDeviceSpeech('response');void endRoxyVoice();$('roxyVoicePanel').hidden=true;$('roxyVoiceLauncher').setAttribute('aria-expanded','false');$('roxyVoiceLauncher').classList.remove('active');$('roxyVoiceLauncher').focus()}
   async function loadElevenLabs(){if(roxyElevenLabsModule)return roxyElevenLabsModule;let lastError=null;for(const url of roxyVoiceUrls){try{roxyElevenLabsModule=await import(url);return roxyElevenLabsModule}catch(error){lastError=error}}throw lastError||new Error('ElevenLabs SDK no disponible')}
   function currentShoppingSummary(){const rows=activeItems();return{pending_count:rows.length,total_quantity:rows.reduce((total,item)=>total+Number(item.quantity||0),0),items:rows.slice(0,50).map(item=>({name:item.name,quantity:item.quantity,unit:item.unit,category:item.category}))}}

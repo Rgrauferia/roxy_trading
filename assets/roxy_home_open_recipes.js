@@ -82,7 +82,7 @@
     const anchor = node('a'); anchor.href = url; anchor.download = `roxy-${spanish ? 'es' : 'original'}-${String(recipe.id).replace(/[^a-z0-9-]/gi, '')}.txt`;
     document.body.append(anchor); anchor.click(); anchor.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  function recipeCard(recipe, card, isCurrent, beforeStart) {
+  function recipeCard(recipe, card, isCurrent, beforeStart, companion) {
     const spanish = translationOf(recipe);
     let useSpanish = Boolean(spanish);
     const original = {title:recipe.title, time:recipe.time_original, ingredients:recipe.ingredients_original,
@@ -163,6 +163,10 @@
         title:value.title, steps:value.steps, ingredients:value.ingredients, language:language(),
         sourceLabel:useSpanish ? 'la traducción al español de Wikibooks' : `Wikibooks, original en ${language() === 'es' ? 'español' : 'inglés'}`,
         initialStep:position, isCurrent:() => recipeCurrent() && reading,
+        askQuestion:typeof companion === 'function' ? params => {
+          if (!recipeCurrent() || params.signal.aborted) return Promise.reject(new Error('recipe_inactive'));
+          return companion({...params, source:'open', recipe_id:recipe.id, recipe_version:recipe.source_sha256});
+        } : undefined,
         onStepChange:index => { if (recipeCurrent() && reading) position = index; },
         onClose:() => { stopReader(); if (recipeCurrent()) start.focus({preventScroll:true}); },
       });
@@ -176,13 +180,13 @@
     const state = renders.get(container);
     if (state) state.activate(Boolean(active));
   }
-  function render(container, {user, identity = '', api, hidden = false, active = true, isCurrent = () => true}) {
+  function render(container, {user, identity = '', api, companion, hidden = false, active = true, isCurrent = () => true}) {
     if (!container) return;
     const signature = JSON.stringify([user, identity, hidden]);
     const previousState = renders.get(container);
-    if (previousState?.signature === signature) { previousState.isCurrent = isCurrent; previousState.activate(active); return; }
+    if (previousState?.signature === signature) { previousState.isCurrent = isCurrent; previousState.companion = companion; previousState.activate(active); return; }
     previousState?.dispose();
-    const state = {signature, active:Boolean(active), isCurrent, loaded:false, version:'', pages:[''], next:'',
+    const state = {signature, active:Boolean(active), isCurrent, companion, loaded:false, version:'', pages:[''], next:'',
       generation:0, controller:null, detailRequests:new Map(), readers:new Map(), cache:new Map(), timer:null};
     state.activate = () => {}; state.dispose = () => {};
     renders.set(container, state);
@@ -250,7 +254,10 @@
       state.readers.get(card)?.dispose();
       state.readers.set(card, recipeCard(recipe, card, current, () => {
         for (const [otherCard, reader] of state.readers) { if (otherCard !== card) reader.stop(); }
-      }));
+      }, typeof state.companion === 'function' ? params => {
+        if (typeof state.companion !== 'function') return Promise.reject(new Error('companion_unavailable'));
+        return state.companion(params);
+      } : undefined));
     };
     const versionChanged = () => {
       stop(); state.cache.clear(); state.version = ''; state.pages = ['']; state.next = ''; state.loaded = false;

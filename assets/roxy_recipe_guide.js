@@ -1,6 +1,7 @@
 (() => {
   'use strict';
   const mounts = new WeakMap();
+  const questionGuides = new Set();
   let sequence = 0;
   const node = (tag, text, className) => {
     const el = document.createElement(tag);
@@ -14,10 +15,13 @@
 
   /**
    * mount(container, {title, steps: string[], ingredients: string[], language='es',
-   *   sourceLabel, isCurrent=()=>true, onClose, initialStep=0, onStepChange})
+   *   sourceLabel, isCurrent=()=>true, onClose, initialStep=0, onStepChange,
+   *   askQuestion, conversationOnly=false, onCommand, onBeforeMedia})
    * returns {dispose(), setActive(boolean)}. Step indices are zero-based.
    * Supply intact, already validated source/translation lines and their actual
-   * language. No fetching, translation, storage or recipe completion occurs here.
+   * language. Source text is never changed. Optional askQuestion receives an
+   * AbortSignal and at most four transient question/answer turns; no storage.
+   * Supporting step references returned by askQuestion are one-based.
    * On language/recipe changes dispose and mount with the corresponding lines;
    * initialStep/onStepChange allow language switches to retain the same position.
    * isCurrent must include the parent identity/dialog scope. Call setActive(false)
@@ -26,7 +30,9 @@
   function mount(container, options = {}) {
     if (!container || typeof container.append !== 'function') throw new TypeError('Recipe guide needs a container.');
     mounts.get(container)?.dispose();
-    const {title = '', sourceLabel = '', isCurrent = () => true, onClose, onStepChange} = options;
+    const {title = '', sourceLabel = '', isCurrent = () => true, onClose, onStepChange, onCommand, onBeforeMedia} = options;
+    const askQuestion = typeof options.askQuestion === 'function' ? options.askQuestion : null;
+    const conversationOnly = options.conversationOnly === true;
     const steps = linesValid(options.steps) ? options.steps.slice() : [];
     const ingredients = linesValid(options.ingredients) ? options.ingredients.slice() : [];
     const suppliedLanguage = typeof options.language === 'string' ? options.language : 'es';
@@ -43,6 +49,7 @@
       speechToken:0, utterance:null, voiceRequest:null, recognition:null, micToken:0,
       audioTimer:null, voiceTimer:null, cancelTimer:null, micTimer:null, scopeTimer:null,
       ownCancellationPending:false,
+      companionRequest:null, companionTimer:null, companionHistory:[], retryQuestion:null,
     };
     const cleanups = [];
     const root = node('section', null, 'recipe-guide'); root.setAttribute('aria-labelledby', `${id}-heading`);
@@ -66,7 +73,7 @@
     const next = button('Listo, siguiente', () => move(1), 'recipe-guide-primary');
     nav.append(previous, next);
     const controls = node('div', null, 'recipe-guide-controls');
-    const hear = button('Escuchar este paso', () => { if (!usable() || !steps.length) return; state.paused = false; state.voiceEnabled = true; paint(); speakStep(); });
+    const hear = button('Escuchar este paso', () => { if (!usable() || !steps.length) return; cancelCompanion(); state.paused = false; state.voiceEnabled = true; paint(); speakStep(); });
     const repeat = button('Repetir', () => repeatStep());
     const pause = button('Pausar', () => togglePause());
     controls.append(hear, repeat, pause);
@@ -94,8 +101,49 @@
     });
     hearResponse.hidden = true; hearResponse.disabled = true;
     const deviceNote = node('p', 'Voz del dispositivo, opcional. «Hablar» pide permiso de micrófono para un solo comando y activa la respuesta hablada; el navegador puede procesar el audio mediante su servicio. Los fragmentos se leen en su idioma original. Puedes usar los botones o escribir.', 'recipe-guide-note recipe-guide-device-note');
-    conversation.append(form, help, talk, micStatus, response, hearResponse);
-    root.append(head, subtitle, source, progress, meter, step, guidance, nav, controls, audioStatus, ingredientPanel, conversation, deviceNote);
+    const inputActions = node('div', null, 'recipe-guide-input-actions'); inputActions.append(talk);
+    const disclosure = node('p', askQuestion ? 'Roxy responde con IA sobre esta receta. Preguntas a OpenAI · voz opcional del dispositivo.' : 'Voz opcional del dispositivo.', 'recipe-guide-note recipe-guide-disclosure'); disclosure.id = `${id}-disclosure`;
+    form.append(disclosure); input.setAttribute('aria-describedby', `${disclosure.id} ${help.id}`);
+    const privacy = node('details', null, 'recipe-guide-privacy'); privacy.id = `${id}-privacy`; privacy.open = false;
+    privacy.append(node('summary', 'Voz y privacidad'), help, deviceNote);
+    const preferenceLabel = node('label', null, 'recipe-guide-preference');
+    const preference = node('input'); preference.type = 'checkbox'; preference.checked = false;
+    preference.setAttribute('aria-describedby', `${id}-preferences`);
+    preference.setAttribute('aria-details', privacy.id);
+    preferenceLabel.append(preference, node('span', 'Usar mis gustos en esta conversación'));
+    const preferenceNote = node('p', 'Al activarlo se envían a OpenAI tus cocinas, alergias, alimentos que evitas y experiencia. Solo se usa tu perfil, nunca el de otro miembro del hogar.', 'recipe-guide-note'); preferenceNote.id = `${id}-preferences`;
+    const companionNote = node('p', 'Las preguntas abiertas se envían a OpenAI con esta receta. Esta conversación se conserva solo mientras está abierta.', 'recipe-guide-note');
+    const companionStatus = node('p', '', 'recipe-guide-companion-status'); companionStatus.setAttribute('role', 'status'); companionStatus.setAttribute('aria-live', 'polite');
+    const companionActions = node('div', null, 'recipe-guide-controls');
+    const cancelQuestion = button('Cancelar pregunta', () => { if (!usable()) return; cancelCompanion(); companionStatus.textContent = 'Pregunta cancelada.'; });
+    const retryQuestion = button('Reintentar pregunta', () => { if (state.retryQuestion) requestCompanion(state.retryQuestion); });
+    cancelQuestion.hidden = true; retryQuestion.hidden = true; companionActions.hidden = true; companionActions.append(cancelQuestion, retryQuestion);
+    const explanation = node('section', null, 'recipe-guide-explanation'); explanation.hidden = true; explanation.setAttribute('aria-labelledby', `${id}-explanation`);
+    const explanationHeading = node('h5', 'Explicación de Roxy · IA'); explanationHeading.id = `${id}-explanation`;
+    const explanationQuestion = node('p', '', 'recipe-guide-explanation-question');
+    const explanationAnswer = node('p', '', 'recipe-guide-explanation-answer'); explanationAnswer.setAttribute('aria-live', 'polite');
+    const explanationReferences = node('p', '', 'recipe-guide-note');
+    const explanationClarification = node('p', '', 'recipe-guide-note');
+    const hearExplanation = button('Escuchar explicación', () => {
+      if (!usable() || !explanationAnswer.textContent) return;
+      state.voiceEnabled = true; state.paused = false; paint(); speakText(explanationAnswer.textContent, explanationAnswer.lang || 'es');
+    }); hearExplanation.disabled = !speechAvailable;
+    explanation.append(explanationHeading, explanationQuestion, explanationAnswer, explanationReferences, explanationClarification, hearExplanation);
+    if (askQuestion) {
+      input.maxLength = 600; input.placeholder = '¿Qué significa batir? ¿Cómo sé si está bien mezclado?';
+      help.textContent = 'Dime siguiente, repite o pausa. También puedes preguntar por una técnica o un paso; los ingredientes, tiempos y temperaturas de la fuente se consultan directamente.';
+      inputActions.append(preferenceLabel);
+      privacy.append(companionNote, preferenceNote);
+    }
+    const privacyLink = node('a', 'Cómo se usan tus preguntas y tu voz'); privacyLink.href = '/privacy#guia-ia'; privacy.append(privacyLink);
+    conversation.append(form, inputActions, micStatus, response, hearResponse);
+    if (askQuestion) conversation.append(companionStatus, companionActions, explanation);
+    conversation.append(privacy);
+    root.append(head, subtitle, source, progress, meter, step, guidance, nav, controls, audioStatus, ingredientPanel, conversation);
+    if (conversationOnly) {
+      root.className += ' recipe-guide-conversation-only';
+      [head, subtitle, source, progress, meter, step, guidance, nav, controls, ingredientPanel].forEach(el => { el.hidden = true; });
+    }
     container.append(root);
 
     const clearTimer = name => { if (state[name] != null) clearTimeout(state[name]); state[name] = null; };
@@ -110,7 +158,7 @@
       state.scopeTimer = setTimeout(() => {
         state.scopeTimer = null;
         if (!scopeValid()) { suspend(); return; }
-        if (state.utterance || state.voiceRequest || state.recognition) watchScope();
+        if (state.utterance || state.voiceRequest || state.recognition || state.companionRequest || state.companionHistory.length) watchScope();
       }, 200);
     }
     function stopSpeech() {
@@ -137,7 +185,7 @@
     function suspend() {
       if (state.disposed) return;
       const hadMedia = Boolean(state.utterance || state.voiceRequest || state.recognition);
-      stopSpeech(); stopRecognition(); clearTimer('scopeTimer');
+      stopSpeech(); stopRecognition(); cancelCompanion(); clearConversation(); clearTimer('scopeTimer');
       if (hadMedia) { state.paused = true; audioStatus.textContent = 'Guía pausada. Puedes continuar desde este paso.'; micStatus.textContent = ''; paint(); }
     }
     function paint() {
@@ -153,6 +201,7 @@
     }
     function move(delta) {
       if (!usable() || !steps.length) return;
+      cancelCompanion(); clearExplanation();
       stopSpeech(); stopRecognition(); micStatus.textContent = ''; audioStatus.textContent = ''; response.textContent = ''; hearResponse.hidden = true; hearResponse.disabled = true;
       const target = Math.max(0, Math.min(steps.length - 1, state.index + delta));
       if (target === state.index) { reply(delta > 0 ? 'Estás en el último paso. Puedes repetirlo o volver a la receta.' : 'Estás en el primer paso.'); return; }
@@ -164,6 +213,7 @@
     }
     function repeatStep() {
       if (!usable() || !steps.length) return;
+      cancelCompanion(); clearExplanation();
       response.lang = language; response.textContent = steps[state.index];
       state.paused = false; paint();
       // Repetir repeats text immediately. Once listening is selected, it also reads it.
@@ -171,6 +221,7 @@
     }
     function togglePause(force) {
       if (!usable() || !steps.length) return;
+      cancelCompanion();
       state.paused = typeof force === 'boolean' ? force : !state.paused;
       stopSpeech(); stopRecognition(); micStatus.textContent = '';
       audioStatus.textContent = state.paused ? 'Voz detenida. El paso se conserva.' : '';
@@ -187,6 +238,7 @@
     }
     function speakText(text, spokenLanguage, kind = 'response') {
       if (!usable() || state.paused || !text) return;
+      if (!prepareMedia()) return;
       stopSpeech(); stopRecognition(); micStatus.textContent = '';
       if (!speechAvailable) { audioStatus.textContent = 'Este navegador no ofrece lectura en voz alta. Puedes continuar con los botones o escribir.'; return; }
       state.voiceRequest = {token:state.speechToken, index:state.index, text, language:spokenLanguage, kind, cancelWaits:0};
@@ -259,6 +311,102 @@
       response.lang = replyLanguage; response.textContent = text; hearResponse.hidden = !text; hearResponse.disabled = !speechAvailable || !text;
       if (state.voiceEnabled && !state.paused) speakText(text, replyLanguage);
     }
+    function prepareMedia() {
+      try { if (typeof onBeforeMedia === 'function') onBeforeMedia(); }
+      catch (_) { audioStatus.textContent = 'No se pudo preparar el audio. Puedes continuar por texto.'; return false; }
+      return usable();
+    }
+    function clearExplanation() {
+      explanation.hidden = true; explanationQuestion.textContent = ''; explanationAnswer.textContent = '';
+      explanationReferences.textContent = ''; explanationClarification.textContent = '';
+    }
+    function companionControls() {
+      const busy = Boolean(state.companionRequest);
+      conversation.setAttribute('aria-busy', String(busy)); send.disabled = busy;
+      talk.disabled = busy || !Recognition; cancelQuestion.hidden = !busy;
+      retryQuestion.hidden = busy || !state.retryQuestion;
+      companionActions.hidden = !busy && !state.retryQuestion;
+    }
+    function cancelCompanion() {
+      const request = state.companionRequest; state.companionRequest = null;
+      clearTimer('companionTimer'); state.retryQuestion = null;
+      if (request) { request.controller.abort(); companionStatus.textContent = ''; }
+      companionControls();
+    }
+    function clearConversation() {
+      state.companionHistory = []; state.retryQuestion = null; preference.checked = false;
+      clearExplanation(); companionStatus.textContent = ''; companionControls();
+    }
+    function requestCompanion(value) {
+      if (!usable() || !askQuestion || state.companionRequest) return;
+      const question = String(value).trim();
+      if (!question || question.length > 600) { companionStatus.textContent = 'Escribe una pregunta de hasta 600 caracteres.'; return; }
+      stopSpeech(); stopRecognition(); clearExplanation();
+      response.textContent = ''; hearResponse.hidden = true; hearResponse.disabled = true;
+      let controller;
+      try { controller = new AbortController(); }
+      catch (_) { companionStatus.textContent = 'Este navegador no permite iniciar la conversación. Los controles de la receta siguen disponibles.'; return; }
+      const request = {controller, question, index:state.index};
+      state.companionRequest = request; state.retryQuestion = null;
+      const params = {question, step_index:state.index, language, include_preferences:preference.checked === true,
+        history:state.companionHistory.map(turn => ({...turn})), signal:controller.signal};
+      const fresh = () => usable() && state.companionRequest === request && request.index === state.index && !controller.signal.aborted;
+      companionStatus.textContent = 'Roxy está preparando la respuesta…'; companionControls(); watchScope();
+      const fail = (message, retryable = true) => {
+        if (!fresh()) return;
+        state.companionRequest = null; clearTimer('companionTimer'); controller.abort();
+        state.retryQuestion = retryable ? question : null; companionStatus.textContent = message; companionControls();
+      };
+      state.companionTimer = setTimeout(() => fail('La respuesta tardó demasiado. Puedes reintentar esta pregunta.'), 30000);
+      Promise.resolve().then(() => fresh() ? askQuestion(params) : null).then(result => {
+        if (!fresh()) return;
+        if (!result || typeof result.answer !== 'string' || !result.answer.trim() || result.answer.length > 1600 ||
+          !Array.isArray(result.supporting_steps) || result.supporting_steps.some(index => !Number.isInteger(index) || index < 1 || index > steps.length) ||
+          typeof result.needs_clarification !== 'boolean') { fail('No recibí una respuesta completa. Puedes reintentar esta pregunta.'); return; }
+        state.companionRequest = null; clearTimer('companionTimer'); companionStatus.textContent = ''; companionControls();
+        state.companionHistory.push({role:'user', content:question}, {role:'assistant', content:result.answer});
+        state.companionHistory = state.companionHistory.slice(-8);
+        const safetyNotice = result.mode === 'safety_notice';
+        const replyLanguage = ['es', 'en'].includes(result.language) ? result.language : 'es';
+        explanationHeading.textContent = safetyNotice ? 'Aviso de seguridad de Roxy' : 'Explicación de Roxy · IA';
+        hearExplanation.textContent = safetyNotice ? 'Escuchar aviso' : 'Escuchar explicación';
+        explanationQuestion.textContent = question; explanationAnswer.textContent = result.answer; explanationAnswer.lang = replyLanguage;
+        const references = [...new Set(result.supporting_steps)];
+        explanationReferences.textContent = references.length ? `Referencia en la receta: ${references.length === 1 ? 'paso' : 'pasos'} ${references.join(', ')}.` : '';
+        explanationClarification.textContent = result.needs_clarification && !safetyNotice ? 'Roxy necesita un detalle más. Puedes responder en el mismo campo.' : '';
+        explanation.hidden = false;
+        if (state.voiceEnabled && !state.paused) speakText(result.answer, replyLanguage);
+      }).catch(error => {
+        // Only controlled service errors may expose their short, plain-language
+        // detail. Validation arrays, transport failures and raw objects do not.
+        const message = typeof error?.message === 'string' ? error.message.trim() : '';
+        const detail = message && message.length <= 500 && !/[\[\]{}<>]/.test(message) && !/^HTTP\s+\d+$/i.test(message) ? message : '';
+        if (error?.status === 409) fail(`${detail || 'La receta cambió desde que la abriste.'} Vuelve a abrir la receta antes de preguntar.`, false);
+        else if (error?.status === 422) fail(`${detail || 'Falta revisar la pregunta o tu perfil.'} Revisa tu pregunta o tus gustos antes de volver a enviarla.`, false);
+        else if (error?.status === 503) fail(`${detail || 'La conversación de Roxy no está disponible ahora.'} Puedes continuar con los pasos de la receta.`);
+        else fail(error?.status === 429 ? 'La conversación alcanzó su límite. Puedes volver a intentarlo más tarde.' : 'No pude responder ahora. Puedes reintentar esta pregunta.');
+      });
+    }
+    listen(preference, 'change', () => {
+      if (!usable()) return;
+      const selected = preference.checked === true;
+      cancelCompanion(); stopSpeech(); clearConversation(); preference.checked = selected;
+      companionStatus.textContent = selected ? 'Las próximas preguntas usarán tus gustos. Empezamos una conversación nueva.' : 'Las próximas preguntas no incluirán tu perfil. Empezamos una conversación nueva.';
+    });
+    function localCommand(command) {
+      if (!conversationOnly) {
+        if (command === 'next') move(1);
+        else if (command === 'previous') move(-1);
+        else if (command === 'repeat') repeatStep();
+        else togglePause(command === 'pause');
+        return;
+      }
+      cancelCompanion(); stopSpeech(); stopRecognition(); clearExplanation();
+      if (typeof onCommand !== 'function') { reply('Usa los botones de la receta para avanzar, repetir o pausar.'); return; }
+      try {
+        Promise.resolve(onCommand(command)).catch(() => { if (usable()) reply('No pude cambiar el paso. Usa los botones de la receta.'); });
+      } catch (_) { reply('No pude cambiar el paso. Usa los botones de la receta.'); }
+    }
     function sourceAnswer(command) {
       // Retrieval only: do not interpret safety, substitutions, doneness, totals,
       // conversions or compound instructions, even if they mention a quantity.
@@ -286,22 +434,25 @@
       response.lang = 'es';
       const command = normalized(value).replace(/^(?:roxy\s+)?(?:por favor\s+|please\s+)?/, '').replace(/\s+(?:por favor|please)$/, '');
       if (!command) { reply('Escribe un comando, por ejemplo «siguiente» o «qué hago ahora».'); return; }
-      if (/^(siguiente|listo|lista|ya|ya esta|ya termine|siguiente paso|next|done)$/.test(command)) { move(1); return; }
-      if (/^(atras|anterior|paso anterior|back|previous)$/.test(command)) { move(-1); return; }
-      if (/^(repite|repetir|repite el paso|repeat)$/.test(command)) { repeatStep(); return; }
-      if (/^(pausa|pausar|para|detente|pause|stop)$/.test(command)) { togglePause(true); return; }
-      if (/^(reanudar|continua|continuar|resume)$/.test(command)) { togglePause(false); return; }
+      if (/^(siguiente|listo|lista|ya|ya esta|ya termine|siguiente paso|next|done)$/.test(command)) { localCommand('next'); return; }
+      if (/^(atras|anterior|paso anterior|back|previous)$/.test(command)) { localCommand('previous'); return; }
+      if (/^(repite|repetir|repite el paso|repeat)$/.test(command)) { localCommand('repeat'); return; }
+      if (/^(pausa|pausar|para|detente|pause|stop)$/.test(command)) { localCommand('pause'); return; }
+      if (/^(reanudar|continua|continuar|resume)$/.test(command)) { localCommand('resume'); return; }
       if (/^(que hago ahora|que sigue|en que paso estoy|cual es el paso|what do i do now)$/.test(command)) {
+        cancelCompanion(); clearExplanation();
         response.lang = language; response.textContent = steps[state.index] || 'No hay pasos disponibles en esta ficha.';
         if (state.voiceEnabled && !state.paused) speakStep(); return;
       }
       stopSpeech();
       const answer = sourceAnswer(command);
-      if (answer) { reply(answer.text, answer.language); return; }
+      if (answer) { cancelCompanion(); clearExplanation(); reply(answer.text, answer.language); return; }
+      if (askQuestion) { requestCompanion(value); return; }
       reply('Puedo leer el paso y mostrar fragmentos originales de ingredientes, tiempos o temperaturas. No puedo responder preguntas abiertas, calcular ajustes, proponer sustituciones ni verificar alergias, seguridad o punto de cocción.');
     }
     function startRecognition() {
       if (!usable()) return;
+      if (state.companionRequest || !prepareMedia()) return;
       if (state.recognition) { stopRecognition(); micStatus.textContent = 'Micrófono detenido.'; return; }
       if (!Recognition) { micStatus.textContent = 'Este navegador no admite comandos de voz. Puedes escribir el comando o usar los botones.'; return; }
       stopSpeech(); audioStatus.textContent = ''; response.textContent = ''; hearResponse.hidden = true; hearResponse.disabled = true; stopRecognition();
@@ -347,8 +498,9 @@
     observer?.observe(document.documentElement || document.body, {subtree:true, childList:true, attributes:true, attributeFilter:['hidden', 'open', 'style', 'class']});
     function dispose() {
       if (state.disposed) return;
-      stopSpeech(); stopRecognition(); clearTimer('scopeTimer'); state.disposed = true;
+      stopSpeech(); stopRecognition(); cancelCompanion(); clearConversation(); clearTimer('scopeTimer'); state.disposed = true;
       observer?.disconnect(); cleanups.splice(0).forEach(cleanup => cleanup()); root.remove();
+      questionGuides.delete(questionGuide);
       if (mounts.get(container) === controller) mounts.delete(container);
     }
     const controller = {
@@ -361,12 +513,21 @@
         if (state.active && !scopeValid()) suspend();
       },
     };
+    const questionGuide = {focus:() => {
+      if (!usable()) return false;
+      input.focus({preventScroll:false}); return true;
+    }};
+    if (askQuestion) questionGuides.add(questionGuide);
     mounts.set(container, controller); paint();
     if (!speechAvailable) audioStatus.textContent = 'Este navegador no ofrece lectura en voz alta. Puedes continuar con los botones o escribir.';
     if (!Recognition) { talk.disabled = true; micStatus.textContent = 'Comandos de voz no disponibles en este navegador. Puedes escribir.'; }
     if (!scopeValid()) suspend();
-    else step.focus({preventScroll:false});
+    else if (!conversationOnly) step.focus({preventScroll:false});
     return controller;
   }
-  window.RoxyRecipeGuide = Object.freeze({mount});
+  function focusActiveQuestion() {
+    for (const guide of [...questionGuides].reverse()) if (guide.focus()) return true;
+    return false;
+  }
+  window.RoxyRecipeGuide = Object.freeze({mount, focusActiveQuestion});
 })();

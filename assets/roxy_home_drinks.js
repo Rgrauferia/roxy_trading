@@ -44,12 +44,12 @@
   }
   const sourceLink = (parent, row) => { if (!safeSource(row.source_url)) return; const a = node('a', 'Ver receta y autoría en la fuente'); a.href = row.source_url; a.target = '_blank'; a.rel = 'noopener noreferrer'; parent.append(a); };
   function setActive(container, active) { renders.get(container)?.activate(Boolean(active)); }
-  function render(container, {user, identity = '', api, hidden = false, active = true, autoLoad = false, isCurrent = () => true}) {
+  function render(container, {user, identity = '', api, companion, hidden = false, active = true, autoLoad = false, isCurrent = () => true}) {
     if (!container) return;
     const signature = JSON.stringify([user, identity, hidden]); const previous = renders.get(container);
-    if (previous?.signature === signature) { previous.isCurrent = isCurrent; previous.autoLoad = autoLoad === true; previous.activate(active); return; }
+    if (previous?.signature === signature) { previous.isCurrent = isCurrent; previous.companion = companion; previous.autoLoad = autoLoad === true; previous.activate(active); return; }
     previous?.dispose(); container.replaceChildren(); container.hidden = hidden;
-    const state = {signature, active:Boolean(active), autoLoad:autoLoad === true, autoLoadAttempted:false, isCurrent, rows:[], counts:{}, page:1, category:'all', spiritBase:'', query:'',
+    const state = {signature, active:Boolean(active), autoLoad:autoLoad === true, autoLoadAttempted:false, isCurrent, companion, rows:[], counts:{}, page:1, category:'all', spiritBase:'', query:'',
       loaded:false, busy:false, adult:false, generation:0, controller:null, detailGeneration:0, detailController:null, detailId:'',
       utterance:null, speechToken:0, guide:null, returnFocus:null};
     state.activate = () => {}; state.dispose = () => {}; renders.set(container, state); if (hidden) return;
@@ -240,6 +240,10 @@
           title:spanish ? row.title_es : row.title, steps:stepLines(), ingredients:ingredientLines(), language:lang(),
           sourceLabel:spanish ? 'la traducción al español de Open Drinks' : 'Open Drinks, original en inglés',
           initialStep:position, isCurrent:() => recipeCurrent() && reading,
+          askQuestion:typeof state.companion === 'function' ? params => {
+            if (!recipeCurrent() || typeof state.companion !== 'function' || params.signal.aborted) return Promise.reject(new Error('recipe_inactive'));
+            return state.companion({...params, source:'drink', recipe_id:row.id, recipe_version:row.source_sha256, include_spirit_bases:state.adult});
+          } : undefined,
           onStepChange:index => { if (recipeCurrent() && reading) position = index; },
           onClose:() => { state.guide = null; if (!recipeCurrent()) return; reading = false; paint(); start.focus({preventScroll:true}); },
         });

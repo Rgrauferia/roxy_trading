@@ -99,6 +99,38 @@ async function start(h, panel, mock, options = {}) {
 }
 const dialog = panel => all(panel, 'dialog')[0];
 
+for (const alcoholic of [false, true]) test(`drink companion carries the exact recipe hash and adult choice: ${alcoholic}`, async () => {
+  const row = rows[alcoholic ? 4 : 0], requests = [], h = harness({guide:true}), panel = h.container(), mock = server(payload([row]));
+  await start(h, panel, mock, {companion:params => { requests.push(params); return {answer:'Mueve la mezcla con suavidad.', supporting_steps:[1], needs_clarification:false}; }});
+  if (alcoholic) {
+    await category(panel, 'cocktail').click(); const check = all(dialog(panel), 'input')[0]; check.checked = true;
+    await check.emit('change'); await button(panel, 'Ver cócteles con alcohol').click();
+  }
+  await button(panel, 'Preparar bebida').click(); await button(panel, 'Paso a paso con Roxy').click();
+  assert.equal(requests.length, 0);
+  const form = byClass(panel, 'recipe-guide-command-form')[0], input = all(form, 'input')[0]; input.value = '¿Qué significa mezclar?'; await form.emit('submit');
+  assert.equal(requests.length, 1); const request = requests[0];
+  assert.equal(request.source, 'drink'); assert.equal(request.recipe_id, row.id); assert.equal(request.recipe_version, row.source_sha256);
+  assert.equal(request.include_spirit_bases, alcoholic); assert.equal(request.include_preferences, false); assert.equal(request.history.length, 0);
+  assert.equal(request.language, 'es'); assert.equal(request.step_index, 0); assert.ok(request.signal instanceof AbortSignal);
+  assert.equal(byClass(panel, 'recipe-guide-explanation-answer')[0].textContent, 'Mueve la mezcla con suavidad.');
+  assert.deepEqual(h.storageWrites, []); assert.equal(h.speechCalls.length, 0);
+  const oldGuide = h.guideMounts[0].options; await button(panel, 'Cerrar bebida').click();
+  await assert.rejects(oldGuide.askQuestion({...request, signal:new AbortController().signal}), /recipe_inactive/); assert.equal(requests.length, 1);
+});
+
+test('closing a drink cancels companion context and a language switch starts a fresh conversation', async () => {
+  const pending = deferred(), requests = [], h = harness({guide:true}), panel = h.container(), mock = server(payload(rows.slice(0,1)));
+  await start(h, panel, mock, {companion:params => { requests.push(params); return requests.length === 1 ? pending.promise : {answer:'Mix gently.', supporting_steps:[1], needs_clarification:false}; }});
+  await button(panel, 'Preparar bebida').click(); await button(panel, 'Paso a paso con Roxy').click();
+  let form = byClass(panel, 'recipe-guide-command-form')[0]; all(form, 'input')[0].value = '¿Cómo mezclo esto?'; await form.emit('submit');
+  await button(panel, 'Ver original en inglés').click(); assert.equal(requests[0].signal.aborted, true);
+  pending.resolve({answer:'Respuesta del idioma anterior', supporting_steps:[1], needs_clarification:false}); await settle();
+  assert.ok(!panel.textContent.includes('Respuesta del idioma anterior'));
+  form = byClass(panel, 'recipe-guide-command-form')[0]; all(form, 'input')[0].value = 'What does mixing mean?'; await form.emit('submit');
+  assert.equal(requests[1].language, 'en'); assert.equal(requests[1].history.length, 0); assert.equal(requests[1].include_preferences, false);
+});
+
 test('Roxy guide receives literal bilingual drinks, preserves the reading position and requires explicit listening', async () => {
   const h = harness({guide:true}), panel = h.container(), mock = server(payload(rows.slice(0, 1)));
   await start(h, panel, mock); await button(panel, 'Preparar bebida').click();

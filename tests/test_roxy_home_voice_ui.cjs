@@ -15,7 +15,7 @@ const executable = section('  let roxyDeviceSpeech=', '  function populateHomeFo
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return {promise, resolve}; };
 function harness({provider = true, fetchReply, audioReject = false, speechAvailable = true} = {}) {
   const nodes = new Map(), timers = new Map(), audio = [], spoken = [], requests = [], messages = [], revoked = [];
-  let nextTimer = 0, cancellations = 0, automaticTimers = 0, microphoneCalls = 0;
+  let nextTimer = 0, cancellations = 0, automaticTimers = 0, microphoneCalls = 0, companionDisposals = 0;
   function element(id = '') {
     const listeners = new Map();
     return {id, textContent:'', hidden:false, disabled:false, value:'', open:false, children:[], listeners,
@@ -54,11 +54,13 @@ function harness({provider = true, fetchReply, audioReject = false, speechAvaila
     stopSynchronizedStepVideo() {}, startAutomaticStepTimer:() => { automaticTimers++; }, announce:text => messages.push(text),
     api:async () => { throw new Error('Unexpected backend request'); }, load:async () => {},
     activeItems:() => [], activePersonName:() => 'Synthetic member',
+    disposeCookingCompanion:() => { companionDisposals++; },
   };
   vm.createContext(ctx); vm.runInContext(executable, ctx);
   const tick = delay => { for (const [id, value] of [...timers]) if (value.delay === delay && timers.has(id)) value.callback(); };
   return {ctx, nodes, spoken, requests, messages, audio, timers, revoked, document, synth, tick,
-    cancellations:() => cancellations, automaticTimers:() => automaticTimers, microphoneCalls:() => microphoneCalls};
+    cancellations:() => cancellations, automaticTimers:() => automaticTimers, microphoneCalls:() => microphoneCalls,
+    companionDisposals:() => companionDisposals};
 }
 
 test('failed official step request reads the full same step on the device without an ElevenLabs conversation', async () => {
@@ -121,6 +123,7 @@ test('closing cooking stops a device utterance and detaches its timer callback',
   const h = harness({provider:false}); await h.ctx.speakCurrentStep(); const speech = h.spoken[0];
   await h.nodes.get('cookingDialog').emit('close');
   assert.equal(speech.onend, null); assert.equal(h.cancellations(), 1); assert.equal(h.automaticTimers(), 0);
+  assert.equal(h.companionDisposals(), 1);
 });
 
 test('a device speech start timeout restores a retry button and never starts a cooking timer', async () => {

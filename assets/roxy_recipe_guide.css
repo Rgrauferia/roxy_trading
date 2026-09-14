@@ -34,4 +34,21 @@
 .recipe-guide .recipe-guide-command-row input { width: 100%; min-width: 0; min-height: 48px; padding: 11px 13px; border: 1px solid #bec9b0; border-radius: 13px; background: #fffdf8; color: var(--guide-ink); font: inherit; font-size: 16px; line-height: 1.5; }
 .recipe-guide .recipe-guide-response { margin: 14px 0 0; padding: 14px 16px; border-left: 3px solid #b69a56; border-radius: 0 12px 12px 0; background: #fffdf8; color: #375038; line-height: 1.75; white-space: pre-wrap; }
 .recipe-guide .recipe-guide-device-note { margin: 18px 0 0; font-size: 11px; }
+.recipe-guide .recipe-guide-disclosure { margin: 7px 0 0; font-size: 11px; }
+.recipe-guide .recipe-guide-input-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 10px; }
+.recipe-guide .recipe-guide-input-actions .recipe-guide-preference { flex: 1 1 220px; margin: 0; font-size: 13px; }
+.recipe-guide .recipe-guide-privacy { margin-top: 16px; color: #59664f; font-size: 12px; line-height: 1.6; }
+.recipe-guide .recipe-guide-privacy summary { min-height: 36px; display: list-item; padding: 7px 0; color: var(--guide-green); cursor: pointer; }
+.recipe-guide .recipe-guide-privacy a { color: var(--guide-green); text-underline-offset: 3px; }
+.recipe-guide .recipe-guide-privacy .recipe-guide-device-note { margin: 10px 0; font-size: 12px; }
+.recipe-guide .recipe-guide-preference { display: flex; align-items: flex-start; gap: 10px; margin-top: 16px; color: var(--guide-ink); font-size: 14px; line-height: 1.5; cursor: pointer; }
+.recipe-guide .recipe-guide-preference input { flex: 0 0 auto; width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--guide-green); }
+.recipe-guide .recipe-guide-companion-status { color: #52654a; font-size: 13px; line-height: 1.6; }
+.recipe-guide .recipe-guide-companion-status:empty { display: none; }
+.recipe-guide .recipe-guide-explanation { margin-top: 18px; padding: 16px; border: 1px solid #c6d6c8; border-radius: 15px; background: #fffdf8; }
+.recipe-guide .recipe-guide-explanation h5 { margin: 0 0 12px; color: var(--guide-ink); font-size: 15px; line-height: 1.5; }
+.recipe-guide .recipe-guide-explanation-question { margin: 0 0 10px; color: #59664f; font-size: 13px; white-space: pre-wrap; }
+.recipe-guide .recipe-guide-explanation-answer { margin: 0; color: #375038; line-height: 1.75; white-space: pre-wrap; }
+.recipe-guide-conversation-only { margin: 0; }
+.recipe-guide-conversation-only .recipe-guide-conversation { border-top: 0; padding-top: 0; }
 @media (max-width: 370px) { .recipe-guide { padding: 15px; } .recipe-guide .recipe-guide-controls > button { flex-basis: 100%; } .recipe-guide .recipe-guide-command-row { grid-template-columns: minmax(0, 1fr); } .recipe-guide .recipe-guide-navigation { grid-template-columns: minmax(0, 1fr); } }

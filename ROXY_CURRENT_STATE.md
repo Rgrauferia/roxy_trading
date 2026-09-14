@@ -1,6 +1,24 @@
 # Roxy Home — estado operativo
 
-## 198 — candidato probado: temporizadores explícitos y guía con consultas
+## 199 — candidato: acompañamiento de recetas con OpenAI y consumo acotado
+
+Guía conversacional implementada para recetas guardadas, bebidas, catálogo abierto
+y MyPlate consultado en directo. Fuente y paso resueltos por servidor; originales
+sin modificar. Responses Luna, sin web, store=False; respuestas estructuradas y
+referencias a pasos. Preferencias individuales sólo con checkbox explícito; historial
+temporal de ocho mensajes, borrado al cerrar/cambiar identidad o consentimiento.
+Límites por miembro y registro de tokens/coste estimado, sin reintentos automáticos.
+Guardas de seguridad gratuitas; no dietas veterinarias ni recetas nuevas inventadas.
+Voz del dispositivo opcional; controles de siguiente/repetir siguen siendo locales.
+QA sintética393px sin overflow: guardado e inicio de panqueques, siguiente→paso2,
+respuesta preventiva de alergia, ausencia de proveedor con error recuperable.
+940 pruebas Node y3376Python aprobadas,11PGomitidas; expectativas de assets199
+actualizadas. Revisión independiente sin bloqueantes nuevos.
+Todavía NO publicado ni probado con OpenAI real. Sin proveedor contratado, cambios
+de claves ni apertura de registro. No convierte1072consultables en1000revisadasES.
+Informe reports/home_release_199_20260913.md.
+
+## 198 — PUBLICADO: temporizadores explícitos y guía con consultas
 
 Se reprodujo fallo real de parseo: 2–3 se convertía en23 antes de sugerir/iniciar
 temporizadores. Backend conserva puntuación y sólo sugiere un tiempo inequívoco;
@@ -20,7 +38,17 @@ tiempo ausente explícito, listo→paso2, evento voz «Leyendo la respuesta» ob
 No micrófono ni altavoz físico comprobados. TabQA41 dejó de responder al recargar;
 42 recupera la misma sesión. No causa demostrada ni fallo ignorado.
 No amplía catálogo, paga proveedor ni habilita registro. MyPlate ES/copia comercial
-requiere acuerdo;1072consultables no son1000recetasES aprobadas. Publicación pendiente.
+requiere acuerdo;1072consultables no son1000recetasES aprobadas.
+Publicado d671f847ce3477e4b19089b0b21ce6feff08b63e; Render
+dep-dajgsknqj5pc73b88sn0 Live en 48.7s. Reinicio 502 transitorio recuperado;
+health200 y cinco archivos públicos byte-idénticos. Navegador público: versión198,
+sesión y Panqueques paso3 conservados, retrato48px/tarjeta74px, fotos visibles cargan.
+Café vietnamita: pregunta sobre leche devuelve cantidades originales, Escuchar
+respuesta alcanza «Leyendo la respuesta» y listo avanza a2/4 con «Leyendo este paso».
+Verificación pública1049px sin overflow; móvil393px probado en QA sintética.
+QA10627 detenido limpiamente; directorio temporal sintético eliminado automáticamente.
+Pestañas42/43 cerradas, viewport reset, pública38 preservada. QA41 no responde al
+cierre por CDP; no servidor activo ni datos QA restantes. No redeploy sólo por notas.
 Informe reports/home_release_198_20260913.md. Prototipos y datos públicos intactos.
 
 ## 197 — PUBLICADO: recetas compactas, carga recuperable y pasos legibles

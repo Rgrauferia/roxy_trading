@@ -53,7 +53,7 @@
 
   function setActive(container, active) { renders.get(container)?.activate(Boolean(active)); }
 
-  function render(container, {user, identity = '', api, hidden = false, active = true, isCurrent = () => true,
+  function render(container, {user, identity = '', api, companion, hidden = false, active = true, isCurrent = () => true,
     browseGroup = 'all', autoLoad = false, preset = null, personalRevision = 0}) {
     if (!container) return;
     const group = ['all', 'food', 'dessert'].includes(browseGroup) ? browseGroup : 'all';
@@ -245,7 +245,7 @@
         if (generation !== state.generation || controller.signal.aborted) return;
         if (!current()) { paused(); return; }
         if (!validDetail(data?.recipe, summary.slug)) throw new Error('invalid_recipe');
-        showRecipe(data.recipe, summary); status.textContent = '';
+        showRecipe(data.recipe, summary, data.companion_version); status.textContent = '';
       } catch (error) {
         if (generation !== state.generation) return;
         if (!current() || (controller.signal.aborted && error?.name !== 'TimeoutError')) { paused(); return; }
@@ -254,7 +254,7 @@
         status.focus({preventScroll:false});
       } finally { if (generation === state.generation) { state.controller = null; setBusy(false); } }
     }
-    function showRecipe(recipe, summary) {
+    function showRecipe(recipe, summary, companionVersion) {
       detailBody.replaceChildren();
       const title = node('h3', recipe.title, 'myplate-detail-title'); title.lang = 'en'; title.tabIndex = -1;
       detailBody.append(title, node('p', 'Original en inglés · voz en inglés', 'myplate-note'), photo(recipe, true));
@@ -275,6 +275,8 @@
         const guide = window.RoxyRecipeGuide.mount(guideHost, {title:recipe.title, steps:sourceSteps,
           ingredients:recipe.ingredients.map(item => item.note ? `${item.text} (${item.note})` : item.text),
           language:'en', sourceLabel:'MyPlate.food · original en inglés',
+          askQuestion:typeof companion==='function'&&/^[a-f0-9]{64}$/.test(companionVersion||'')?
+            params=>companion({...params,source:'myplate',recipe_id:recipe.slug,recipe_version:companionVersion}):undefined,
           isCurrent:() => current() && !detail.hidden && state.selected?.slug === recipe.slug,
           onClose:() => { if (state.guide !== guide || !current() || detail.hidden || !startGuide.isConnected) return; state.guide = null; recipeBody.hidden = false; startGuide.hidden = false; startGuide.focus({preventScroll:true}); }});
         state.guide = guide;

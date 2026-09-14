@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import json
 import os
 import re
 import threading
@@ -64,6 +65,7 @@ from roxy_os.home_recipe_photos import (
 from roxy_os.home_accounts import HomeAccountStore, HomeAccountStorageError, HomeTrialLimitError
 from roxy_os.home_recipe_profile import RecipeProfileConflictError, RecipeProfileValidationError
 from roxy_os.home_recipe_discovery import discovery_presets, assess_recipe_fit, screen_recipe_summaries
+from roxy_os.home_recipe_companion import build_task as companion_build_task, safe_direct_answer, preferences_for_companion
 from roxy_os.home_demo import registration_config, verify_signup_token, trial_access_mode, DEMO_NOTICE_VERSION
 from roxy_os.home_client_identity import client_ip_identity, HomeClientIdentityError
 from roxy_os.home_calendar import DEFAULT_TIMEZONE, HomeCalendarStore, parse_calendar_command
@@ -161,7 +163,7 @@ async def home_account_storage_error(_request: Request, exc: HomeAccountStorageE
 
 @app.exception_handler(RequestValidationError)
 async def private_account_validation_error(request: Request, exc: RequestValidationError):
-    if request.url.path.startswith("/v1/home-account/"):
+    if request.url.path.startswith("/v1/home-account/") or request.url.path.endswith("/recipe-companion"):
         # Pydantic's default error body contains the original input, including
         # passwords/codes. Keep field names and types, never submitted secrets.
         errors = [{"loc": row["loc"], "type": row["type"], "msg": "Revisa este campo."}
@@ -416,6 +418,27 @@ class RecipeImportRequest(BaseModel):
     audience: str = Field(default="human", pattern="^(human|pet)$")
     pet_species: str = Field(default="", max_length=32)
     pet_id: str = Field(default="", max_length=80)
+
+
+class RecipeCompanionTurn(BaseModel):
+    model_config = {"extra": "forbid"}
+    role: str = Field(pattern="^(user|assistant)$")
+    content: str = Field(min_length=1, max_length=1600)
+
+
+class RecipeCompanionRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    source: str = Field(pattern="^(saved|drink|open|myplate)$")
+    recipe_id: str = Field(min_length=1, max_length=160)
+    recipe_version: str = Field(default="", max_length=64, pattern="^(?:[a-f0-9]{64})?$")
+    session_id: str = Field(default="", max_length=100)
+    step_index: int = Field(ge=0, le=127, strict=True)
+    question: str = Field(min_length=1, max_length=600)
+    language: str = Field(default="es", pattern="^(es|en)$")
+    reply_language: str = Field(default="es", pattern="^(es|en)$")
+    include_preferences: bool = Field(default=False, strict=True)
+    include_spirit_bases: bool = Field(default=False, strict=True)
+    history: list[RecipeCompanionTurn] = Field(default_factory=list, max_length=8)
 
 
 class RecipeImportCommitRequest(BaseModel):
@@ -4052,6 +4075,133 @@ def _myplate_recipe_error(exc: myplate_recipes.MyPlateRecipeError) -> HTTPExcept
     return HTTPException(status_code=status, detail=messages[status], headers=headers)
 
 
+def _myplate_companion_context(recipe: dict[str, Any]) -> dict[str, Any]:
+    return {"title": recipe.get("title", ""), "language": "en", "source": "MyPlate.food",
+            "source_url": recipe.get("source_url", ""),
+            "ingredients": [item["text"] + (f" ({item['note']})" if item.get("note") else "")
+                            for item in recipe.get("ingredients", [])],
+            "steps": recipe.get("source_steps") or [recipe.get("directions", "")]}
+
+
+def _companion_version(context: dict[str, Any]) -> str:
+    return hashlib.sha256(json.dumps(context, ensure_ascii=False, sort_keys=True,
+                                    separators=(",", ":")).encode()).hexdigest()
+
+
+def _resolve_companion_recipe(payload: RecipeCompanionRequest, user: str) -> dict[str, Any]:
+    """Resolve IDs through authorized stores, never trust a client recipe body.
+
+    External live content is fetched only on an explicit question, stays in this
+    request and is never written to conversations, catalogues, or a cache.
+    """
+    try:
+        if payload.source == "saved":
+            if not payload.session_id:
+                raise HTTPException(422, "Abre primero la guía de esta receta.")
+            detail = _home_food_store().cooking_session_detail(user, payload.session_id)
+            row = detail["recipe"]
+            if (str(row["id"]) != payload.recipe_id or detail["step_number"] - 1 != payload.step_index
+                    or detail["session"]["status"] == "COMPLETED"):
+                raise HTTPException(409, "El paso cambió. Revisa la guía y vuelve a preguntar.")
+            if row.get("audience") == "pet" or row.get("pet_id") or row.get("category") == "PETS":
+                raise HTTPException(422, "Esta guía conversacional es para recetas de personas, no alimentación veterinaria.")
+            context = {"title": row["title"], "language": "es", "source": "Roxy Home",
+                       "source_url": "", "steps": row["steps"],
+                       "ingredients": [" ".join(str(item.get(key, "")) for key in ("quantity", "unit", "name")).strip()
+                                       for item in row["ingredients"]]}
+        elif payload.source == "drink":
+            row = drink_detail(payload.recipe_id, include_spirit_bases=True)["drink"]
+            if row.get("alcoholic") and not payload.include_spirit_bases:
+                raise HTTPException(403, "Abre primero la selección de cócteles para adultos.")
+            if payload.recipe_version != row["source_sha256"]:
+                raise HTTPException(409, "La receta cambió. Vuelve a abrir su ficha.")
+            es = payload.language == "es"
+            context = {"title": row["title_es"] if es else row["title"], "language": payload.language,
+                       "source": "Open Drinks · MIT", "source_url": row["source_url"],
+                       "ingredients": row["ingredients_es"] if es else row["ingredients"],
+                       "steps": row["steps_es"] if es else row["steps"]}
+        elif payload.source == "open":
+            row = open_recipe_detail(payload.recipe_id)["recipe"]
+            if payload.recipe_version != row["source_sha256"]:
+                raise HTTPException(409, "La receta cambió. Vuelve a abrir su ficha.")
+            translation = row.get("translation") if payload.language != row["language"] else None
+            if payload.language != row["language"] and not translation:
+                raise HTTPException(422, "No hay una traducción revisada para este idioma.")
+            context = {"title": translation["title"] if translation else row["title"], "language": payload.language,
+                       "source": "Wikibooks · CC BY-SA 4.0", "source_url": row.get("source_url", ""),
+                       "ingredients": translation["ingredients"] if translation else row["ingredients_original"],
+                       "steps": translation["steps"] if translation else row["steps_original"]}
+        else:
+            if not payload.recipe_version:
+                raise HTTPException(409, "Vuelve a abrir la receta para conectar la guía.")
+            row = myplate_recipes.get_recipe(payload.recipe_id)["recipe"]
+            context = _myplate_companion_context(row)
+            if payload.language != "en" or payload.recipe_version != _companion_version(context):
+                raise HTTPException(409, "La fuente cambió. Vuelve a abrir la receta antes de continuar.")
+    except myplate_recipes.MyPlateRecipeError as exc:
+        raise _myplate_recipe_error(exc) from None
+    except (KeyError, DrinkNotFound, OpenRecipeNotFound):
+        raise HTTPException(404, "No encontré esta receta o sesión. Vuelve a abrirla desde Recetas.") from None
+    except (RecipeReviewRequired, ValueError):
+        raise HTTPException(422, "Esta ficha necesita revisión antes de usar la guía.") from None
+    if not 0 <= payload.step_index < len(context["steps"]):
+        raise HTTPException(409, "Ese paso ya no está disponible. Vuelve a abrir la receta.")
+    context["step_index"] = payload.step_index
+    return context
+
+
+@app.post("/v1/home-food/{user_id}/recipe-companion")
+def ask_home_recipe_companion(user_id: str, payload: RecipeCompanionRequest, request: Request,
+                             auth: AuthContext = Depends(_authenticate)) -> dict[str, Any]:
+    _rate_limit(request)
+    user = _authorize_user(user_id, auth)
+    member = _recipe_profile_member(request, auth)
+    if not _account_same_origin(request):
+        raise HTTPException(403, "Haz tu pregunta desde la guía de Roxy Home.")
+    context = _resolve_companion_recipe(payload, user)
+    original_version = _companion_version(context)
+    context["source_language"] = context["language"]
+    context["language"] = payload.reply_language
+    profile_revision = None
+    if payload.include_preferences:
+        envelope = _account_store().get_recipe_profile(member["id"])
+        profile_revision = envelope["revision"]
+        context["preferences"] = preferences_for_companion(envelope.get("profile"))
+        if not context["preferences"]:
+            raise HTTPException(422, "Configura tus gustos o desmarca Usar mis gustos para esta pregunta.")
+        fit = assess_recipe_fit(envelope["profile"], context["ingredients"], title=context["title"])
+        if fit["status"] == "conflict":
+            return {"answer": "Esta receta entra en conflicto con tus respuestas. Elige otra receta y revisa sus ingredientes y etiquetas; no adaptaré esta preparación como si fuera segura para ti.",
+                    "supporting_steps": [], "needs_clarification": True, "mode": "safety_notice", "preferences_used": False}
+    context["history"] = [turn.model_dump() for turn in payload.history]
+    try:
+        # Validate bounds before consuming any provider quota. Original text is
+        # not silently shortened to fit a token allowance.
+        companion_build_task(payload.question, context)
+        result = safe_direct_answer(payload.question, context)
+    except ValueError:
+        raise HTTPException(422, "La pregunta o la ficha excede el alcance de esta guía. Puedes seguir leyendo los pasos originales.") from None
+    if result is not None:
+        return {**result, "mode": "safety_notice", "preferences_used": False}
+    if auth.trial:
+        # This new route is admitted as local at authentication; quota is taken
+        # here only after authentication, scope and the free safety redirects.
+        _account_store().reserve_trial_request(member["id"])
+    result = _ai_call(lambda: _home_ai().recipe_companion(payload.question, context, actor_key=member["id"]))
+    current_member = _account_store().member(member["id"])
+    if (not current_member or current_member.get("session_version", 0) != auth.session_version
+            or current_member.get("storage_user_id") != auth.storage_user_id):
+        raise HTTPException(409, "La sesión cambió. Vuelve a entrar antes de continuar.")
+    if payload.include_preferences and _account_store().get_recipe_profile(member["id"])["revision"] != profile_revision:
+        raise HTTPException(409, "Tus gustos cambiaron mientras respondía. Revisa los ajustes y vuelve a preguntar.")
+    if payload.source == "saved":
+        if _companion_version(_resolve_companion_recipe(payload, user)) != original_version:
+            raise HTTPException(409, "La receta cambió mientras respondía. Vuelve a abrir la guía.")
+    return {"answer": result["answer"], "supporting_steps": result["supporting_steps"],
+            "needs_clarification": result["needs_clarification"], "mode": "ai_explanation",
+            "preferences_used": payload.include_preferences, "model_profile": "luna", "language": payload.reply_language}
+
+
 @app.get("/v1/home-food/{user_id}/myplate-recipes")
 def search_home_myplate_recipes(
     user_id: str, request: Request,
@@ -4101,6 +4251,7 @@ def read_home_myplate_recipe(
         profile = _account_store().get_recipe_profile(member["id"]).get("profile")
     try:
         result = myplate_recipes.get_recipe(slug)
+        result["companion_version"] = _companion_version(_myplate_companion_context(result["recipe"]))
         if profile and profile.get("completed"):
             row = result.get("recipe") or {}
             lines = [str(item.get("text") or "") + " " + str(item.get("note") or "") for item in row.get("ingredients", [])]

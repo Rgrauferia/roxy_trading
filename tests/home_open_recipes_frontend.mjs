@@ -117,6 +117,32 @@ function server(rows = fullRows(), {version = 'fixture-v1', intercept} = {}) {
 }
 const searchFor = async (h, panel, query) => { const search = control(panel, 'Buscar en español o inglés', 'input'); search.value = query; await search.emit('input'); await h.tick(300); };
 
+test('open recipe companion carries the exact source hash and cancels when its card closes', async () => {
+  const h = harness({guide:true}), panel = h.container(), rows = fullRows(true).slice(0,1), mock = server(rows), requests = [], pending = deferred();
+  h.render(panel, {user:'reader', identity:'member-a', api:mock.api, companion:params => { requests.push(params); return pending.promise; }});
+  await h.open(panel.firstChild); const card = cards(panel)[0]; await h.open(card); await findButton(card, 'Paso a paso con Roxy').click();
+  const form = all(card, 'form').find(el => el.className === 'recipe-guide-command-form'); all(form, 'input')[0].value = '¿Qué significa batir?'; await form.emit('submit');
+  assert.equal(requests.length, 1); const request = requests[0];
+  assert.equal(request.source, 'open'); assert.equal(request.recipe_id, rows[0].id); assert.equal(request.recipe_version, rows[0].source_sha256);
+  assert.equal(request.language, 'es'); assert.equal(request.step_index, 0); assert.equal(request.include_preferences, false); assert.equal(request.history.length, 0);
+  assert.ok(request.signal instanceof AbortSignal); assert.equal(Object.hasOwn(request, 'include_spirit_bases'), false);
+  const options = h.guideMounts[0].options; await h.close(card); assert.equal(request.signal.aborted, true);
+  pending.resolve({answer:'Respuesta de una ficha cerrada', supporting_steps:[1], needs_clarification:false}); await settle();
+  assert.ok(!panel.textContent.includes('Respuesta de una ficha cerrada')); assert.equal(h.speechCalls.length, 0);
+  await assert.rejects(options.askQuestion({...request, signal:new AbortController().signal}), /recipe_inactive/); assert.equal(requests.length, 1);
+});
+
+test('open recipe language change creates an independent companion conversation', async () => {
+  const h = harness({guide:true}), panel = h.container(), rows = fullRows(true).slice(0,1), mock = server(rows), requests = [];
+  h.render(panel, {user:'reader', identity:'member-a', api:mock.api, companion:params => { requests.push(params); return {answer:'A technique explanation.', supporting_steps:[1], needs_clarification:false}; }});
+  await h.open(panel.firstChild); const card = cards(panel)[0]; await h.open(card); await findButton(card, 'Paso a paso con Roxy').click();
+  let form = all(card, 'form').find(el => el.className === 'recipe-guide-command-form'); all(form, 'input')[0].value = '¿Qué significa batir?'; await form.emit('submit');
+  await findButton(card, 'Ver original en inglés').click();
+  form = all(card, 'form').find(el => el.className === 'recipe-guide-command-form'); all(form, 'input')[0].value = 'What does whisking mean?'; await form.emit('submit');
+  assert.equal(requests.length, 2); assert.equal(requests[1].language, 'en'); assert.equal(requests[1].history.length, 0); assert.equal(requests[1].include_preferences, false);
+  assert.equal(requests[1].recipe_id, requests[0].recipe_id); assert.equal(requests[1].recipe_version, requests[0].recipe_version);
+});
+
 test('Roxy source guide mounts exact bilingual text, preserves position and starts speech only after listening', async () => {
   const h = harness({guide:true}), panel = h.container(), rows = fullRows(true).slice(0, 1), mock = server(rows);
   h.render(panel, {user:'reader', identity:'member-a', api:mock.api}); await h.open(panel.firstChild); const card = cards(panel)[0]; await h.open(card);

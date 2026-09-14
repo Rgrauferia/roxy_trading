@@ -85,6 +85,10 @@ def trial_access_mode(method: str, path: str) -> str:
         return "local"
     if re.fullmatch(r"/v1/assistant/command/[^/]+", path) and method == "POST":
         return "ai"
+    if method == "POST" and re.fullmatch(r"/v1/home-food/[^/]+/recipe-companion", path):
+        # Route explicitly reserves demo AI quota after validating member,
+        # recipe/step and free safety replies. No bypass of the global ledger.
+        return "local"
     if method == "GET" and re.fullmatch(r"/v1/(?:shopping|home-food|home-daily|home-weather|home-plants|home-calendar|home-design|home-commerce)/[^/]+", path):
         return "local"
     if path == "/v1/home-family" or re.fullmatch(r"/v1/home-family/(?:location|profile|places(?:/[^/]+)?|members/[^/]+/history|connections/[^/]+)", path):
