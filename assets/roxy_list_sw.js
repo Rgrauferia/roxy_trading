@@ -21,7 +21,7 @@ SHELL_VERSIONED.push('/assets/roxy_fitness.js?v=5','/assets/roxy_fitness.css?v=6
 // product/pet library during installation competes with the first visible page.
 // Programme assets may be cached when requested, not an extra install download.
 // Guide media code is cached on first use, not another install-time download.
-SHELL_VERSIONED.push('/assets/roxy_home_conversation.js?v=1','/assets/roxy_recipe_guide.js?v=6','/assets/roxy_recipe_guide.css?v=4');
+SHELL_VERSIONED.push('/assets/roxy_home_conversation.js?v=2','/assets/roxy_recipe_guide.js?v=6','/assets/roxy_recipe_guide.css?v=4');
 // The welcome contains public UI only; member answers stay out of all caches.
 SHELL_VERSIONED.push('/assets/roxy_recipe_onboarding.js?v=1','/assets/roxy_recipe_onboarding.css?v=1');
 SHELL_VERSIONED.push('/assets/roxy_home_recovery.js?v=1','/assets/roxy_home_recovery.css?v=1');

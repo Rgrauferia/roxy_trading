@@ -1067,6 +1067,10 @@
     },
     "tests_node": 488,
     "qa": "Synthetic393px nooverflow, step2 preserved ES/EN, ingredient checklist, separate general Home response and recoverable offline voice failure",
-    "preservation": "4789 previous files present;3758 prototypes byteidentical"
+    "preservation": "4789 previous files present;3758 prototypes byteidentical",
+    "implementation_commit": "8fceed2f67ccc2f93d92c90017959108071d2403",
+    "initial_deploy": "dep-dajngeajnfac73f6tskg",
+    "initial_deploy_seconds": 59.4,
+    "package_fix": "Public check found missing conversation COPY; fixing and retesting all HTML scripts against Docker sources."
   }
 }

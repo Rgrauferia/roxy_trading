@@ -41,6 +41,7 @@ COPY assets/roxy_home_map_readiness.js ./assets/roxy_home_map_readiness.js
 COPY assets/roxy_home_open_recipes.js ./assets/roxy_home_open_recipes.js
 COPY assets/roxy_home_myplate_recipes.js assets/roxy_home_myplate_recipes.css ./assets/
 COPY assets/roxy_recipe_guide.js assets/roxy_recipe_guide.css ./assets/
+COPY assets/roxy_home_conversation.js ./assets/roxy_home_conversation.js
 COPY assets/roxy_recipe_onboarding.js assets/roxy_recipe_onboarding.css ./assets/
 COPY assets/roxy_home_drinks.js assets/roxy_home_drinks.css assets/open-drinks-license.txt ./assets/
 COPY data/home_open_drinks.json ./data/home_open_drinks.json

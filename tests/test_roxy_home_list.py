@@ -6,6 +6,20 @@ from fastapi.testclient import TestClient
 from roxy_os.shopping_list import ShoppingListStore, normalize_shopping_name
 
 
+def test_every_home_page_script_is_in_the_production_docker_copy_set():
+    import re
+    import shlex
+    root = Path(__file__).resolve().parents[1]
+    sources = []
+    for line in (root / "Dockerfile.roxy-home").read_text().splitlines():
+        if line.startswith("COPY "):
+            sources.extend(shlex.split(line)[1:-1])
+    for script in re.findall(r'<script src="/(assets/[^?"\s]+)', (root / "assets/roxy_list.html").read_text()):
+        assert (root / script).is_file(), script
+        assert any(script == source or ((root / source).is_dir() and script.startswith(source.rstrip("/") + "/"))
+                   for source in sources), f"Script missing from production image: {script}"
+
+
 def test_roxy_home_list_pwa_shell_is_installable_and_offline_capable():
     from tools import roxy_home_service
 
