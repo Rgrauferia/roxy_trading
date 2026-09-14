@@ -1,6 +1,42 @@
 # Roxy Home — estado operativo
 
-## 199 — PUBLICADO; conversación bloqueada por saldo de OpenAI
+## 200 — preparada: receta despejada y herramientas en Más
+
+Solicitud de Roberto: los seis bloques señalados debajo de Asian Mango Chicken
+Wraps no deben aparecer allí. Fuentes y detalles quedan en el icono de información
+junto al título; herramientas completas reubicadas en Más → Herramientas de cocina.
+Los accesos de importación y fuentes del mundo regresan a Recetas. Proveedor no
+configurado oculto. Ingredientes, preparación, notas, atribución, enlaces originales
+y funciones conservados. Sin cambios a cuentas, recetas, compras ni claves.
+255 pruebas Python dirigidas y 147 Node aprobadas. QA con cuenta sintética local:
+misma receta, panel de información abre/cierra, móvil393px sin overflow, importación
+y fuentes del mundo vuelven a Recetas. Publicación y comprobación pública pendientes.
+Informe: `reports/home_release_200_20260913.md`.
+
+## Continuación vigente — 13/09/2026: respuesta real verificada
+
+Worktree correcto: `/Users/robertograu/.codex/worktrees/roxy-home-renueva`.
+Home público199: HTML byte a byte idéntico al local, health200/ok y rama remota
+en190ead3a. Cambios existentes y prototipo preservados; notas antiguas históricas.
+Roberto confirmó recargaAPI. Lectura del servidor ya encontró la reserva resuelta:
+no se liquidó ni reinició nada en este bloque. UI pública del café vietnamita
+mostró una explicación real del phin y referencias1/2, conservando paso1yreceta.
+Primera respuesta rechazada por validación; diagnóstico posterior y segundo
+intento público válidos. No se capturó la primera respuesta cruda ni se demostró
+falso positivo: mejorar evaluación/mensaje de rechazo sigue pendiente.
+Tres solicitudes nuevas:2683entrada/287salida Luna; ledger3→6solicitudes,
+2490→2777salida, cero pendientes. Provisiones anteriores1200+1200 preservadas,
+no consideradas consumo medido. Estimación texto del bloque USD0.000881.
+256Python+187Nodeexistentes y6pruebasdelcheckerHome aprobadas. Ningún archivo
+previo borrado;3758archivosdelprototipo byteidénticos. No redeploy ni cambios a
+datosdelhogar,claves,facturaciónopermisos. UI abierta conrespuesta comprobada.
+Comprobador propio de Home, local y de sólo lectura:
+`python3 tools/roxy_context_handoff.py --check`.
+Informe: `reports/home_handoff_20260913.md`. No anunciar vozfísica/demo completa.
+
+## 199 — historial de publicación y bloqueo inicial de saldo
+
+El bloqueo de saldo de esta sección es histórico; recuperación verificada arriba.
 
 Guía conversacional implementada para recetas guardadas, bebidas, catálogo abierto
 y MyPlate consultado en directo. Fuente y paso resueltos por servidor; originales
@@ -23,8 +59,14 @@ No reintentos adicionales ni pagos. NO se confirmó respuesta real exitosa.
 Primera reserva desconocida provisionada conservadoramente1200tokens de salida
 (máximo enviado, NO consumo comprobado) manteniendo solicitud/recibo. Segundo
 intento de diagnóstico pasó por ledger normal, requests2; reserva siguependiente.
-Hotfix diagnóstico sanitizado preparado: no mensajes/secretos; error de saldo
-comprensible; no liberación automática de cuotas4xx.336pruebas dirigidas pasan.
+Hotfix190ead3a3bef890ba1d62ca44763df1e2c404f2a publicado, Render
+dep-dajks1dg1s2s73cioqfg Live49.8s/health200/helperSHAidéntico. Diagnóstico
+sanitizado persistido para la segunda reserva tras verificaractor/requests2/output1200/
+settled1. No llamada adicional. UI pública muestra aviso de saldo agotado, mantiene
+paso y lectura; consulta bloqueada no aumenta requests2. No mensajes/secretos ni
+liberación automática4xx.336pruebas dirigidas delagente,70API y204storage pasan.
+QA31891SIGINT/directorio temporal eliminado;45cerrada,46CDPnorespondealcierre.
+Viewportrestablecido/pública38conservada. No redeploy sólo por estas notas.
 Sin proveedor contratado, cambios de claves ni apertura de registro.
 No convierte1072consultables en1000revisadasES. Próximo paso: usuario repone saldo,
 revisar reserva conservada y probar respuesta real antes de darlo por operativo.

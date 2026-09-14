@@ -104,10 +104,18 @@ test('preference entry stays accessible without a large promotional card',()=>{
   assert.match(render,/setAttribute\('aria-label',complete\?'Cambiar mis gustos':'Configurar mis gustos'\)/);
   assert.doesNotMatch(render,/Hagamos este recetario tuyo/);
 });
-test('draft and import tools follow recipe cards rather than blocking the first screen',()=>{
+test('recipe tools live in More and navigation returns to the recipe workspace',()=>{
   const html=fs.readFileSync(require('node:path').join(__dirname,'../assets/roxy_list.html'),'utf8');
   assert.ok(html.indexOf('id="recipeEditorialFilters"')>html.indexOf('id="recipeLibrary"'));
-  assert.ok(html.indexOf('id="recipeImportToggle"')>html.indexOf('id="recipeLibrary"'));
+  const recipes=html.slice(html.indexOf('id="recipesPanel"'),html.indexOf('id="pantryPanel"'));
+  for(const id of ['recipeImportToggle','recipeWorldButton','recipeForm','recipeProviderPanel','substitutionForm','foodSafetyForm']){
+    assert.ok(!recipes.includes(`id="${id}"`));
+    assert.ok(html.indexOf(`id="${id}"`)>html.indexOf('id="morePanel"'));
+    assert.equal(html.split(`id="${id}"`).length-1,1);
+  }
+  assert.match(source,/recipeImportToggle'\)\.addEventListener\('click',\(\)=>\{selectPanel\('recipes',\{smooth:false\}\)/);
+  assert.match(source,/recipeWorldButton'\)\.addEventListener\('click',\(\)=>\{selectPanel\('recipes',\{smooth:false\}\)/);
+  assert.match(source,/hidden:!homeFood\.recipe_provider_service\?\.access_allowed/);
   assert.match(html,/<summary>Añadir recetas y otras fuentes<\/summary>/);
 });
 test('saved cooking shortcut cannot inherit the full-width food photograph layout',()=>{

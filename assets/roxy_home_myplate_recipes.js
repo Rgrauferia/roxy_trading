@@ -109,13 +109,24 @@
     const detail = node('section', null, 'myplate-detail'); detail.hidden = true;
     const back = button('Volver a las recetas', () => closeDetail());
     const detailBody = node('div', null, 'myplate-detail-body'); detail.append(back, detailBody);
-    const credit = node('details', null, 'myplate-credits'); credit.append(node('summary', 'Fuente, idioma y uso de estas recetas'));
+    const information = label => {
+      const control = node('details', null, 'myplate-credits myplate-information');
+      const summary = node('summary'); summary.setAttribute('aria-label', label); summary.title = label;
+      const icon = node('span', 'info', 'material-symbols-rounded'); icon.setAttribute('aria-hidden', 'true'); summary.append(icon);
+      const content = node('div', null, 'myplate-information-content'); content.append(node('h4', label));
+      const close = button('Cerrar información', () => { control.open = false; summary.focus({preventScroll:true}); });
+      content.append(close); control.append(summary, content);
+      control.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); control.open = false; summary.focus({preventScroll:true}); } });
+      return {control, content};
+    };
+    const catalogueInfo = information('Información del recetario'), credit = catalogueInfo.control;
     const creditText = node('p', attribution); creditText.lang = 'en';
-    credit.append(creditText, language, quota, node('p', 'MyPlate.food es un archivo independiente, no el sitio oficial del USDA. El catálogo se consulta en directo; no se descarga ni se guarda completo en Roxy.'),
+    catalogueInfo.content.append(creditText, language, quota, node('p', 'MyPlate.food es un archivo independiente, no el sitio oficial del USDA. El catálogo se consulta en directo; no se descarga ni se guarda completo en Roxy.'),
       node('p', 'Conservamos el texto original, sin completar pasos con IA ni adaptar cantidades o alergias. La colección no equivale a recetas ensayadas individualmente por Roxy. Algunas imágenes de la fuente se han ampliado con IA.'),
       node('p', 'La fuente permite hasta 20 consultas por minuto. La disponibilidad puede variar.'));
-    sourceLink(credit, 'Conocer MyPlate.food', 'https://myplate.food/about');
-    root.append(heading, start, status, personalNotice, retry, cancel, browser, detail, credit); container.append(root);
+    sourceLink(catalogueInfo.content, 'Conocer MyPlate.food', 'https://myplate.food/about');
+    heading.append(credit);
+    root.append(heading, start, status, personalNotice, retry, cancel, browser, detail); container.append(root);
 
     const current = () => renders.get(container) === state && state.active && !container.hidden && !container.closest?.('[hidden]') && container.isConnected && !document.hidden && state.isCurrent();
     const controls = () => [explore, submit, search, retry, prev, next, clear, ...Array.from(categories.children)];
@@ -126,7 +137,7 @@
     };
     const stop = () => { state.generation++; state.controller?.abort(); state.controller = null; state.deadline = 0; state.expire = null; setBusy(false); };
     const paused = () => { status.textContent = 'Consulta interrumpida. Puedes reintentar cuando quieras.'; retry.hidden = false; };
-    const purgeDetail = () => { state.guide?.dispose(); state.guide = null; state.selected = null; detailBody.replaceChildren(); detail.hidden = true; };
+    const purgeDetail = () => { state.guide?.dispose(); state.guide = null; state.selected = null; detailBody.replaceChildren(); detail.hidden = true; heading.hidden = false; credit.open = false; };
     const closeDetail = () => {
       stop(); purgeDetail(); retry.hidden = true; status.textContent = ''; browser.hidden = !state.loaded;
       start.hidden = state.loaded; if (state.loaded) search.focus({preventScroll:true});
@@ -236,7 +247,7 @@
     }
     async function openRecipe(summary) {
       if (!current() || state.busy) return;
-      stop(); purgeDetail(); state.selected = summary; browser.hidden = true; detail.hidden = false; retry.hidden = true;
+      stop(); purgeDetail(); state.selected = summary; browser.hidden = true; detail.hidden = false; heading.hidden = true; retry.hidden = true;
       detailBody.append(node('h3', summary.title));
       const generation = state.generation, controller = new AbortController(); state.controller = controller; setBusy(true);
       status.textContent = 'Cargando ingredientes y preparación originales…';
@@ -257,7 +268,8 @@
     function showRecipe(recipe, summary, companionVersion) {
       detailBody.replaceChildren();
       const title = node('h3', recipe.title, 'myplate-detail-title'); title.lang = 'en'; title.tabIndex = -1;
-      detailBody.append(title, node('p', 'Original en inglés · voz en inglés', 'myplate-note'), photo(recipe, true));
+      const recipeHeading = node('div', null, 'myplate-detail-heading'); recipeHeading.append(title);
+      detailBody.append(recipeHeading, node('p', 'Original en inglés · voz en inglés', 'myplate-note'), photo(recipe, true));
       const fit = recipe.personal_fit;
       if (fit && ['conflict','needs_review','unrestricted'].includes(fit.status)) {
         const assessment = node('aside', null, 'myplate-personal-fit'); assessment.setAttribute('role','status');
@@ -297,7 +309,8 @@
       recipeBody.append(ingredients, node('h4', 'Preparación'));
       const directions = node('div', recipe.directions, 'myplate-directions'); directions.lang = 'en'; recipeBody.append(directions);
       if (recipe.notes) { const notes = node('p', recipe.notes, 'myplate-source-notes'); notes.lang = 'en'; recipeBody.append(node('h4', 'Notas de la receta'), notes); }
-      const recipeCredits = node('details', null, 'myplate-credits'); recipeCredits.append(node('summary', 'Fuente y detalles'));
+      const recipeInfo = information('Información de la receta'), recipeCredits = recipeInfo.content;
+      recipeHeading.append(recipeInfo.control);
       if (recipe.description) { const description = node('p', recipe.description); description.lang = 'en'; recipeCredits.append(description); }
       if (recipe.contributor) recipeCredits.append(node('p', `Autor o colaborador: ${recipe.contributor}`, 'myplate-note'));
       const links = node('div', null, 'myplate-source-links');
@@ -306,7 +319,9 @@
       recipeCredits.append(links);
       const originalCredit = node('p', attribution, 'myplate-note'); originalCredit.lang = 'en'; recipeCredits.append(originalCredit,
         node('p', 'La guía conserva las instrucciones originales. No adapta cantidades ni modifica tu plan de comidas o lista de compras.', 'myplate-note'));
-      detailBody.append(node('p', 'Antes de empezar, revisa ingredientes, alergias y preparación completa.', 'myplate-note'), recipeCredits);
+      recipeCredits.append(node('p', 'MyPlate.food es un archivo independiente que conserva la colección USDA MyPlate Kitchen. Original en inglés; enlace al español cuando está disponible.', 'myplate-note'),
+        node('p', '100 fichas completas al día y 20 consultas por minuto, con cupo compartido de Roxy. El catálogo se consulta en directo. Algunas imágenes de la fuente se han ampliado con IA.', 'myplate-note'));
+      detailBody.append(node('p', 'Antes de empezar, revisa ingredientes, alergias y preparación completa.', 'myplate-note'));
       title.focus({preventScroll:false});
     }
     form.addEventListener('submit', event => {

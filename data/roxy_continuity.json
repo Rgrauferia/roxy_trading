@@ -4,17 +4,22 @@
   "deployment_branch": "codex/roxy-home-nfc",
   "public_url": "https://roxy-home.onrender.com/lista#recetas",
   "last_verified_public_version": 199,
-  "deployed_implementation_commit": "4652e5200594401ed719cf7c928a8ade2010e97a",
-  "candidate_version": 199,
-  "candidate_status": "199_published_openai_credit_balance_exhausted_real_answer_unverified",
+  "deployed_implementation_commit": "190ead3a3bef890ba1d62ca44763df1e2c404f2a",
+  "candidate_version": 200,
+  "candidate_status": "200_verified_locally_publication_pending",
   "candidate_199": {
     "published": true,
     "implementation_commit": "4652e5200594401ed719cf7c928a8ade2010e97a",
     "render_deploy": "dep-dajknq6k1f9s73fubfkg",
     "render_seconds": 58.9,
+    "diagnostic_hotfix": "190ead3a3bef890ba1d62ca44763df1e2c404f2a",
+    "diagnostic_deploy": "dep-dajks1dg1s2s73cioqfg",
+    "diagnostic_seconds": 49.8,
+    "diagnostic_proof": "Health200/helperSHAidentical. Proven429credit_balance_exhausted recorded against exactsyntheticactor/pendingreservation withoutnewcall. PublicUIshowsbalanceexhausted,source/stepretained; ledgerrequestsremain2 afterblockedUIcheck",
+    "diagnostic_tests": "336agent,70API/accounting,204storagepassed; overlappingdirectedsuites notadditive",
     "public_proof": "Health200,sixfilesbyteidentical; sessionretained; Spanishcoffee source andchatshown. Firstanswer502; boundedserverdiagnosticResponses429credit_balance_exhausted; api.openai.com andLunamodelaccess verified. No successfulrealanswer, nofurthercalls/payment",
     "accounting_review": "Firstfailedrequestunknownusage conservativelyprovisioned1200knownmaxoutput,notactualbill,requestretained. Seconddiagnosticviaexistingledger requests2, pendingreview. Noreset/refund/limitsincrease",
-    "next_step": "User replenishes OpenAI API balance; review preserved pendingdiagnostic and verify a real answer. Do not claim operationalAI/fullappready",
+    "next_step": "199 recovery verified in the public recipe guide after user-confirmed API top-up: phin explanation displayed, normal ledger has no pending reservation. Next improve/evaluate recipe-answer validation and recovery messaging: one initial answer was rejected and its exact cause remains unverified. Preserve source/quantity/action gates, existing household data and prototypes; full voice, reviewed Spanish catalogue, fitness and real signup remain incomplete.",
     "scope": "Grounded contextual recipe companion: explicit private preference opt-in, source/step validation, ephemeral history, optional device voice, member cap and usage accounting",
     "privacy": "Canonical recipe resolved server-side; member/header/origin required; household/session/profile/recipe revalidated; storeFalse; no chat storage; no secrets exposed",
     "cost": "Responses Luna; no web; no automatic SDK retries; default20member questions/day,1200outputtoken cap plus existing globalbudget; usage actual when available, estimates labelled incomplete",
@@ -23,7 +28,29 @@
     "tests_python": "3376passed,11PostgreSQLskipped,84.57s",
     "qa": "Disposable loginqa on8768;393px nooverflow; savedpanqueques session and chat next→step2; free allergy notice; no-key controlled error. Own31891SIGINT/tempdataremoved;QA45closed;46CDPclosuretimeout. Physical phoneaudio unverified",
     "public_registration_enabled": false,
-    "report": "reports/home_release_199_20260913.md"
+    "report": "reports/home_release_199_20260913.md",
+    "recovery_20260913": {
+      "provider_recovery_verified": true,
+      "public_answer_verified": true,
+      "public_version": 199,
+      "first_answer_validation_rejected": true,
+      "validation_root_cause_verified": false,
+      "pending_reservations_before": 0,
+      "pending_reservations_after": 0,
+      "requests_before": 3,
+      "requests_after": 6,
+      "output_ledger_before": 2490,
+      "output_ledger_after": 2777,
+      "new_requests": 3,
+      "input_tokens": 2683,
+      "output_tokens": 287,
+      "estimated_text_cost_usd": 0.000881,
+      "model": "gpt-5.6-luna",
+      "quota_reset": false,
+      "old_receipts_preserved": true,
+      "household_records_modified": false,
+      "report": "reports/home_handoff_20260913.md"
+    }
   },
   "candidate_198": {
     "published": true,
@@ -199,7 +226,15 @@
     "ingredient_lines": 417,
     "steps": 372,
     "summary_bytes": 39259,
-    "base_counts_multilabel": {"gin":14,"vodka":11,"rum":8,"agave":3,"whisky":9,"wine":19,"other":9},
+    "base_counts_multilabel": {
+      "gin": 14,
+      "vodka": 11,
+      "rum": 8,
+      "agave": 3,
+      "whisky": 9,
+      "wine": 19,
+      "other": 9
+    },
     "compatibility": "opt_in_include_spirit_bases_query_preserves190_and_legacy189",
     "source": "Open Drinks community MIT pinned f446f0e9356b9b43155d207b4f7c5214d9da91ab",
     "kitchen_tested": false,
@@ -222,7 +257,13 @@
     "drinks_added": 56,
     "collection_total": 87,
     "original_31_unchanged": true,
-    "categories": {"coffee_tea":16,"juice":5,"smoothie":8,"mocktail":8,"cocktail":50},
+    "categories": {
+      "coffee_tea": 16,
+      "juice": 5,
+      "smoothie": 8,
+      "mocktail": 8,
+      "cocktail": 50
+    },
     "without_liquors": 37,
     "ingredient_lines": 380,
     "steps": 339,
@@ -245,12 +286,21 @@
     "public_proof": "health200_seven_assets200_byte_identical_meta189_session_retained_31drinks_photo700_VietnameseCoffee4ingredients4steps_reader_step2_noerrors_nooverflow765",
     "qa_cleanup": "17582stopped_port8767clear_tabs8and9closed_viewportreset_publicgalleryopen",
     "drinks_added": 31,
-    "categories": {"coffee_tea": 8, "juice": 2, "smoothie": 4, "mocktail": 5, "cocktail": 12},
+    "categories": {
+      "coffee_tea": 8,
+      "juice": 2,
+      "smoothie": 4,
+      "mocktail": 5,
+      "cocktail": 12
+    },
     "ingredient_lines": 141,
     "steps": 117,
     "source": "Open Drinks community MIT pinned f446f0e9356b9b43155d207b4f7c5214d9da91ab",
     "kitchen_tested": false,
-    "rejected_after_visual_qa": ["mint-chocolate-milkshake", "sweet-lassi"],
+    "rejected_after_visual_qa": [
+      "mint-chocolate-milkshake",
+      "sweet-lassi"
+    ],
     "tests_python": 2372,
     "postgres_skipped": 11,
     "tests_node": 389,
@@ -276,7 +326,10 @@
     "new_bulk_imports": 0,
     "themealdb_commercial_key": false,
     "source_language": "en_with_external_es_links_when_available",
-    "limits_per_ip": {"requests_per_minute": 20, "detail_fetches_per_24h": 100},
+    "limits_per_ip": {
+      "requests_per_minute": 20,
+      "detail_fetches_per_24h": 100
+    },
     "content_storage": "transient_only_no_catalogue_or_media_mirror",
     "tests_python": 2290,
     "postgres_skipped": 11,
@@ -418,7 +471,14 @@
     "independent_review": "boolean_quantity_coercion_fixed_before_Pydantic_conversion_API422_preserves_prior_inventory",
     "real_data_recovered": false,
     "production_user_data_modified": false,
-    "remaining_storage_risks": ["calendar", "shopping_Home_wrapper_needed_shared_core_do_not_edit_Trading", "calendar_sync", "photo_video_manifests", "AI_budget", "conversation"]
+    "remaining_storage_risks": [
+      "calendar",
+      "shopping_Home_wrapper_needed_shared_core_do_not_edit_Trading",
+      "calendar_sync",
+      "photo_video_manifests",
+      "AI_budget",
+      "conversation"
+    ]
   },
   "candidate_182": {
     "tests_python": 1503,
@@ -466,7 +526,14 @@
     "tests_node": 97,
     "tests_mjs_suites": 2,
     "browser_viewport": "393x852",
-    "browser_verified": ["synthetic_login", "plant_create", "journal_without_photo", "plant_edit_photo_and_journal_retained", "exercise_search_detail", "six_nav_items_recipes_exercise_adjacent"],
+    "browser_verified": [
+      "synthetic_login",
+      "plant_create",
+      "journal_without_photo",
+      "plant_edit_photo_and_journal_retained",
+      "exercise_search_detail",
+      "six_nav_items_recipes_exercise_adjacent"
+    ],
     "screenshots": "/tmp/roxy-home-day-20260910/",
     "public_deployed": true,
     "exercise_entries": 21,
@@ -483,12 +550,23 @@
     "source_held_rows": 8,
     "mealdb_account_key_commercial_license": false,
     "impact_access": "login_required_account_prequalified_brands_unverified",
-    "new_garden_species": ["mango", "rosemary"],
+    "new_garden_species": [
+      "mango",
+      "rosemary"
+    ],
     "garden_voice": "opt_in_device_tts_no_microphone_not_final_provider_voice",
     "user_data_modified": false,
     "payments_or_contracts_changed": false,
     "graphics_weather_changed": false,
-    "followups": ["recover_real_Pothos_if_phone_copy_survives", "source500_editorial_quality_and_specific_images", "provider_commercial_rights", "all_module_browser_QA", "fitness_private_storage_professional_protocols", "weather_graphics_and_background_radar_pause", "Impact_account_login"]
+    "followups": [
+      "recover_real_Pothos_if_phone_copy_survives",
+      "source500_editorial_quality_and_specific_images",
+      "provider_commercial_rights",
+      "all_module_browser_QA",
+      "fitness_private_storage_professional_protocols",
+      "weather_graphics_and_background_radar_pause",
+      "Impact_account_login"
+    ]
   },
   "access_commerce_180": {
     "login": "explicit_document_reload_after_success_duplicate_submit_protection_error_retry",
@@ -656,7 +734,7 @@
     "Aderezo César photo showed a salad; quarantine until an exact replacement is visually reviewed",
     "Only five manufacturer ingredient panels screened; restrictions fail closed, not clinical allergy clearance"
   ],
-  "next_step": "193 published: live catalog visible on entry, broad/nested groups and preserved local shelf;1072MyPlate searchable,96OpenDrinks,59local and458drafts kept distinct.1072is not500individuallyreviewed;100details/day/sharedIP and ENoriginals remain limitations. Next: licensed reviewed Spanish meal-plan/shopping integration and further source/content quality. Preserve 7originals and14unresolvedlegacymeals until explicit user update.192fitness source agenda is educational, not personalized persisted training. TheMealDB no commercial key; full voice/fitness/demo incomplete. Prototypes untouched; no redeploy solely for postdeploy notes.",
+  "next_step": "Publish candidate 200 and verify public recipe view, info access and relocated kitchen tools. Preserve existing recipes, prototypes and household data. The separate recipe-answer validation follow-up from 199 remains pending.",
   "launch": {
     "five_day_web_beta": "requested_not_scheduled",
     "app_store": "target_next_month_not_guaranteed",
@@ -682,12 +760,13 @@
     "max_signup_daily": 20,
     "max_signup_per_connection_daily": 3,
     "max_members": 6,
-    "captcha": "Turnstile_server_validation_implemented_not_configured",
+    "captcha": "Turnstile_Home_keys_configured_20260913_positive_token_signup_replay_pending",
     "voice": false,
     "paid_media_generation": false,
     "expiry": "read_only_no_auto_charge_no_deletion",
     "automatic_password_recovery": false,
-    "synthetic_tests_only": true
+    "synthetic_tests_only": true,
+    "recovery": "Member-bound backup codes implemented196; no email or retroactive recovery without issued codes"
   },
   "historical_qa_171": {
     "node_check": "passed",
@@ -862,5 +941,50 @@
       "qa_garden": "synthetic Pothos create/edit/photo retained; warning resolves; reminder Sept13 09:00 visible in calendar; no external sync",
       "production_data_mutated": false
     }
+  },
+  "handoff_20260913": {
+    "worktree": "/Users/robertograu/.codex/worktrees/roxy-home-renueva",
+    "current_task_id": "01a09dd2-e577-7c91-9660-9d9674be240c",
+    "local_head": "190ead3a3bef890ba1d62ca44763df1e2c404f2a",
+    "public_version": 199,
+    "public_html_byte_identical": true,
+    "public_health": "200_ok",
+    "user_confirmed_api_balance_replenished": true,
+    "provider_recovery_verified": true,
+    "historical_next_step_193": "193 published: live catalog visible on entry, broad/nested groups and preserved local shelf;1072MyPlate searchable,96OpenDrinks,59local and458drafts kept distinct.1072is not500individuallyreviewed;100details/day/sharedIP and ENoriginals remain limitations. Next: licensed reviewed Spanish meal-plan/shopping integration and further source/content quality. Preserve 7originals and14unresolvedlegacymeals until explicit user update.192fitness source agenda is educational, not personalized persisted training. TheMealDB no commercial key; full voice/fitness/demo incomplete. Prototypes untouched; no redeploy solely for postdeploy notes.",
+    "report": "reports/home_handoff_20260913.md",
+    "existing_changes_preserved": true,
+    "public_answer_verified": true,
+    "first_answer_validation_rejected": true,
+    "validation_root_cause_verified": false,
+    "pending_reservations_before": 0,
+    "pending_reservations_after": 0,
+    "requests_before": 3,
+    "requests_after": 6,
+    "output_ledger_before": 2490,
+    "output_ledger_after": 2777,
+    "new_requests": 3,
+    "input_tokens": 2683,
+    "output_tokens": 287,
+    "estimated_text_cost_usd": 0.000881,
+    "model": "gpt-5.6-luna",
+    "quota_reset": false,
+    "old_receipts_preserved": true,
+    "household_records_modified": false,
+    "tests": {
+      "python_existing": 256,
+      "node_existing": 187,
+      "python_handoff": 6
+    }
+  },
+  "candidate_200": {
+    "published": false,
+    "scope": "Move six selected source/tools blocks out of recipe view; information icon at heading and full tools under More; hide unavailable provider placeholder. Preserve original recipes and actions.",
+    "tests_python": "255 targeted tests passed; one PWA marker assertion updated and rerun successfully after version bump",
+    "tests_node": 147,
+    "qa": "Synthetic local account, Asian Mango Chicken Wraps, information opens/closes, 393px page has no horizontal overflow, import and world-source links return to Recipes",
+    "production_user_data_modified": false,
+    "report": "reports/home_release_200_20260913.md",
+    "next_step": "Publish candidate 200 and verify public recipe view, info access and relocated kitchen tools. Preserve existing recipes, prototypes and household data. The separate recipe-answer validation follow-up from 199 remains pending."
   }
 }

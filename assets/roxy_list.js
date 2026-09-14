@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '199';
+  const APP_VERSION = '200';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -1292,7 +1292,7 @@
     const root=$('recipeLibrary'); root.replaceChildren();
     const catalog=homeFood.local_catalog||{};
     const imageService=homeFood.recipe_image_service||{};const petMode=recipeAudience==='pet';
-    if(window.RoxyRecipeProvider)window.RoxyRecipeProvider.render($('recipeProviderPanel'),{user,service:homeFood.recipe_provider_service||{},api,hidden:petMode});
+    if(window.RoxyRecipeProvider)window.RoxyRecipeProvider.render($('recipeProviderPanel'),{user,service:homeFood.recipe_provider_service||{},api,hidden:!homeFood.recipe_provider_service?.access_allowed});
     renderRecipeNavigation(petMode);
     renderRecipePreferences(petMode);
     const sourceOwner=user, sourceIdentity=collectionIdentity();
@@ -3346,8 +3346,8 @@
     $('scanRecipeButton').addEventListener('click',()=>openRecipeImporter('image'));
     $('importRecipeUrlButton').addEventListener('click',()=>openRecipeImporter('url'));
     $('recipeReadyShelf').addEventListener('click',()=>{recipeShowDrafts=false;renderRecipes();$('recipeCatalogSection').scrollIntoView({block:'start'})});$('recipeDraftShelf').addEventListener('click',()=>{recipeShowDrafts=true;renderRecipes();$('recipeCatalogSection').scrollIntoView({block:'start'})});$('petImportText').addEventListener('click',()=>openRecipeImporter('text'));
-    $('recipeImportToggle').addEventListener('click',()=>{recipeImportExpanded=!recipeImportExpanded;renderRecipes();if(recipeImportExpanded)$('recipeImportStudio').scrollIntoView({block:'nearest',behavior:'smooth'});});
-    $('recipeWorldButton').addEventListener('click',()=>chooseRecipeCollection('world'));
+    $('recipeImportToggle').addEventListener('click',()=>{selectPanel('recipes',{smooth:false});recipeImportExpanded=!recipeImportExpanded;renderRecipes();if(recipeImportExpanded)$('recipeImportStudio').scrollIntoView({block:'nearest',behavior:'smooth'});});
+    $('recipeWorldButton').addEventListener('click',()=>{selectPanel('recipes',{smooth:false});chooseRecipeCollection('world')});
     $('petImportImage').addEventListener('click',()=>openRecipeImporter('image'));
     $('petImportUrl').addEventListener('click',()=>openRecipeImporter('url'));
     $('recipeImportForm').addEventListener('submit',analyzeRecipeImport);

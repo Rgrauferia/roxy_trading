@@ -282,7 +282,7 @@ for (const target of ['catalog', 'detail']) test(`cancel remains available durin
   assert.equal(button(panel, 'Reintentar consulta').hidden, true); assert.equal(h.timers.size, 0);
 });
 
-test('successful catalog has one count, bottom pagination, and collapsed attribution and quotas', async () => {
+test('catalogue information stays in the heading and closes without provider requests', async () => {
   const h = harness(), panel = h.container(), mock = server(); await start(h, panel, mock);
   assert.equal(byClass(panel, 'myplate-status')[0].textContent, '');
   assert.equal(byClass(panel, 'myplate-pagination').length, 1);
@@ -290,6 +290,10 @@ test('successful catalog has one count, bottom pagination, and collapsed attribu
   const credits = byClass(panel, 'myplate-credits')[0]; assert.equal(credits.tagName, 'DETAILS'); assert.ok(!credits.open);
   assert.ok(credits.contains(byClass(panel, 'myplate-quota')[0])); assert.ok(credits.contains(byClass(panel, 'myplate-language')[0]));
   assert.match(credits.textContent, /USDA MyPlate Kitchen/); assert.match(credits.textContent, /20 consultas por minuto/);
+  assert.equal(credits.parentNode,byClass(panel,'myplate-heading')[0]);
+  const summary=all(credits,'summary')[0];assert.equal(summary.getAttribute('aria-label'),'Información del recetario');
+  const calls=mock.requests.length;credits.open=true;await button(credits,'Cerrar información').click();
+  assert.equal(credits.open,false);assert.equal(mock.requests.length,calls);
 });
 
 for (const exit of ['inactive', 'hidden', 'identity', 'document']) test(`pending list is cancelled and ignored on ${exit}`, async () => {

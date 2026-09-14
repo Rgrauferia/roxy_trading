@@ -101,6 +101,20 @@
 .myplate-filter-hint{display:none}
 .myplate-status{margin:8px 0}
 .myplate-grid{margin-top:12px}
+.myplate-heading>div:first-child,.myplate-detail-heading>h3{min-width:0}
+.myplate-heading,.myplate-detail-heading{position:relative}
+.myplate-detail-heading{display:flex;align-items:flex-start;gap:12px;margin:18px 0 8px}
+.myplate-detail-heading .myplate-detail-title{margin:0;flex:1;overflow-wrap:anywhere}
+.myplate-information{position:static;flex:0 0 44px;margin:0;padding:0;border:0;align-self:flex-start}
+.myplate-information>summary{display:flex;align-items:center;justify-content:center;list-style:none;width:44px;height:44px;border:1px solid #d6ddd0;border-radius:50%;background:#fbfcf7;color:var(--mp-green)}
+.myplate-information>summary::-webkit-details-marker{display:none}
+.myplate-information>summary::marker{content:''}
+.myplate-information>summary:focus-visible{outline:3px solid #a6bca1;outline-offset:3px}
+.myplate-information>summary .material-symbols-rounded{font-size:23px}
+.myplate-information-content{position:absolute;top:calc(100% + 7px);right:0;z-index:20;width:min(420px,calc(100vw - 64px));box-sizing:border-box;max-height:60vh;overflow:auto;padding:18px;border:1px solid #d6ddd0;border-radius:18px;background:#fffef8;box-shadow:0 12px 35px #193d2826}
+.myplate-information-content h4{margin:0 0 12px;font-size:20px}
+.myplate-information-content .myplate-button{min-height:40px;padding:8px 12px}
+.myplate-information-content a{overflow-wrap:anywhere}
 .myplate-card-body h3{font-size:20px}
 @media(max-width:600px){
   .myplate-controls input{padding:11px 10px}

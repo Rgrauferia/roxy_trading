@@ -8,27 +8,27 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="199" />
+  <meta name="roxy-home-version" content="200" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=138" />
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=139" />
   <link rel="stylesheet" href="/assets/roxy_fitness.css?v=6" />
   <link rel="stylesheet" href="/assets/roxy_fitness_programs.css?v=1" />
   <link rel="stylesheet" href="/assets/roxy_garden_guide.css?v=1" />
   <link rel="stylesheet" href="/assets/roxy_recipe_guide.css?v=2" />
   <link rel="stylesheet" href="/assets/roxy_recipe_onboarding.css?v=1" />
   <link rel="stylesheet" href="/assets/roxy_home_recovery.css?v=1" />
-  <link rel="stylesheet" href="/assets/roxy_home_myplate_recipes.css?v=3" />
+  <link rel="stylesheet" href="/assets/roxy_home_myplate_recipes.css?v=4" />
   <link rel="stylesheet" href="/assets/roxy_home_drinks.css?v=5" />
   <script src="/assets/roxy_maplibre_loader.js?v=1" defer></script>
   <script src="/assets/roxy_home_recipe_provider.js?v=2" defer></script>
   <script src="/assets/roxy_recipe_guide.js?v=3" defer></script>
   <script src="/assets/roxy_recipe_onboarding.js?v=1" defer></script>
   <script src="/assets/roxy_home_open_recipes.js?v=6" defer></script>
-  <script src="/assets/roxy_home_myplate_recipes.js?v=6" defer></script>
+  <script src="/assets/roxy_home_myplate_recipes.js?v=7" defer></script>
   <script src="/assets/roxy_home_drinks.js?v=6" defer></script>
   <script src="/assets/roxy_home_weather_renderer.js?v=2" defer></script>
   <script src="/assets/roxy_home_map_readiness.js?v=1" defer></script>
@@ -37,7 +37,7 @@
   <script src="/assets/roxy_fitness.js?v=5" defer></script>
   <script src="/assets/roxy_garden_guide.js?v=1" defer></script>
   <script src="/assets/roxy_home_recovery.js?v=1" defer></script>
-  <script src="/assets/roxy_list.js?v=201" defer></script>
+  <script src="/assets/roxy_list.js?v=202" defer></script>
   <script src="/assets/roxy_home_registration.js?v=3" defer></script>
 </head>
 <body>
@@ -461,51 +461,7 @@
         </div>
       </section>
 
-      <details class="card kitchen-tools human-recipe-only recipe-extra-options">
-        <summary>Añadir recetas y otras fuentes</summary>
-        <div class="recipe-navigation-tools"><button id="recipeImportToggle" class="secondary" type="button" aria-expanded="false" aria-controls="recipeImportStudio">Añadir una receta</button><button id="recipeWorldButton" class="secondary" type="button">Fuentes del mundo</button></div>
-      </details>
 
-      <details class="card kitchen-tools recipe-special-request human-recipe-only">
-        <summary>Pídele a Roxy algo diferente</summary>
-        <p>Roxy busca una preparación existente. Si no la encuentra, necesitará una fuente original; no inventará ingredientes ni pasos para rellenarla.</p>
-        <form id="recipeForm" class="recipe-request">
-          <label><span>¿Qué quieres preparar?</span><textarea id="recipePrompt" rows="3" required placeholder="Quiero hacer un pan casero fácil"></textarea></label>
-          <div class="inline-actions">
-            <label><span>Modo</span><select id="recipeMode"><option value="routine">Rápido</option><option value="deep">Profundo</option></select></label>
-            <button id="recipeSubmit" class="primary" type="submit">Buscar con Roxy</button>
-          </div>
-        </form>
-        <button id="pantryRecipeButton" class="secondary full" type="button">Buscar con lo que tengo</button>
-        <section class="beverage-studio" aria-labelledby="beverageTitle">
-          <div><p class="eyebrow">Frías, calientes o para compartir</p><h3 id="beverageTitle">Preparar una bebida diferente</h3></div>
-          <form id="beverageForm" class="kitchen-form">
-            <label><span>¿Qué bebida quieres?</span><input id="beveragePrompt" required placeholder="Ej. Limonada de fresa o mojito clásico" /></label>
-            <div class="inline-actions">
-              <label><span>Tipo</span><select id="beverageType"><option value="non_alcoholic">Sin alcohol</option><option value="alcoholic">Con alcohol</option></select></label>
-              <button id="beverageSubmit" class="primary" type="submit">Buscar bebida</button>
-            </div>
-            <small>Las bebidas con alcohol quedan identificadas claramente y separadas de las opciones sin alcohol.</small>
-          </form>
-        </section>
-      </details>
-
-      <article id="recipeResult" class="recipe-result human-recipe-only" aria-live="polite" hidden></article>
-      <div id="recipeProviderPanel" class="human-recipe-only"></div>
-
-      <details class="card kitchen-tools human-recipe-only">
-        <summary>Más herramientas de cocina</summary>
-        <form id="substitutionForm" class="kitchen-form">
-          <label><span>Sustituir un ingrediente</span><input id="substitutionPrompt" required placeholder="No tengo mantequilla, ¿qué puedo usar?" /></label>
-          <button class="secondary full" type="submit">Buscar sustitución segura</button>
-        </form>
-        <article id="substitutionResult" class="recipe-result" aria-live="polite" hidden></article>
-        <form id="foodSafetyForm" class="kitchen-form">
-          <label><span>Seguridad alimentaria vigente</span><input id="foodSafetyQuestion" required placeholder="¿Hay retiros activos de huevos en Florida?" /></label>
-          <button class="secondary full" type="submit">Investigar con Terra</button>
-        </form>
-        <article id="foodSafetyResult" class="recipe-result" aria-live="polite" hidden></article>
-      </details>
     </section>
 
     <section id="pantryPanel" class="app-panel" data-panel="pantry" aria-labelledby="pantryTitle" hidden>
@@ -562,6 +518,55 @@
         <button type="button" data-tab-link="family"><strong>Nexo</strong><small>Tu hogar conectado</small></button>
         <button type="button" data-tab-link="calendar"><strong>Calendario</strong><small>Planes y recordatorios</small></button>
       </div>
+      <details id="recipeToolsSection" class="card kitchen-tools recipe-tools-section">
+        <summary>Herramientas de cocina</summary>
+        <p>Importa recetas, explora otras fuentes o haz una consulta de cocina.</p>
+      <details class="card kitchen-tools recipe-extra-options">
+        <summary>Añadir recetas y otras fuentes</summary>
+        <div class="recipe-navigation-tools"><button id="recipeImportToggle" class="secondary" type="button" aria-expanded="false" aria-controls="recipeImportStudio">Añadir una receta</button><button id="recipeWorldButton" class="secondary" type="button">Fuentes del mundo</button></div>
+      </details>
+
+      <details class="card kitchen-tools recipe-special-request">
+        <summary>Pídele a Roxy algo diferente</summary>
+        <p>Roxy busca una preparación existente. Si no la encuentra, necesitará una fuente original; no inventará ingredientes ni pasos para rellenarla.</p>
+        <form id="recipeForm" class="recipe-request">
+          <label><span>¿Qué quieres preparar?</span><textarea id="recipePrompt" rows="3" required placeholder="Quiero hacer un pan casero fácil"></textarea></label>
+          <div class="inline-actions">
+            <label><span>Modo</span><select id="recipeMode"><option value="routine">Rápido</option><option value="deep">Profundo</option></select></label>
+            <button id="recipeSubmit" class="primary" type="submit">Buscar con Roxy</button>
+          </div>
+        </form>
+        <button id="pantryRecipeButton" class="secondary full" type="button">Buscar con lo que tengo</button>
+        <section class="beverage-studio" aria-labelledby="beverageTitle">
+          <div><p class="eyebrow">Frías, calientes o para compartir</p><h3 id="beverageTitle">Preparar una bebida diferente</h3></div>
+          <form id="beverageForm" class="kitchen-form">
+            <label><span>¿Qué bebida quieres?</span><input id="beveragePrompt" required placeholder="Ej. Limonada de fresa o mojito clásico" /></label>
+            <div class="inline-actions">
+              <label><span>Tipo</span><select id="beverageType"><option value="non_alcoholic">Sin alcohol</option><option value="alcoholic">Con alcohol</option></select></label>
+              <button id="beverageSubmit" class="primary" type="submit">Buscar bebida</button>
+            </div>
+            <small>Las bebidas con alcohol quedan identificadas claramente y separadas de las opciones sin alcohol.</small>
+          </form>
+        </section>
+      </details>
+
+      <article id="recipeResult" class="recipe-result" aria-live="polite" hidden></article>
+      <div id="recipeProviderPanel" class="human-recipe-only"></div>
+
+      <details class="card kitchen-tools">
+        <summary>Más herramientas de cocina</summary>
+        <form id="substitutionForm" class="kitchen-form">
+          <label><span>Sustituir un ingrediente</span><input id="substitutionPrompt" required placeholder="No tengo mantequilla, ¿qué puedo usar?" /></label>
+          <button class="secondary full" type="submit">Buscar sustitución segura</button>
+        </form>
+        <article id="substitutionResult" class="recipe-result" aria-live="polite" hidden></article>
+        <form id="foodSafetyForm" class="kitchen-form">
+          <label><span>Seguridad alimentaria vigente</span><input id="foodSafetyQuestion" required placeholder="¿Hay retiros activos de huevos en Florida?" /></label>
+          <button class="secondary full" type="submit">Investigar con Terra</button>
+        </form>
+        <article id="foodSafetyResult" class="recipe-result" aria-live="polite" hidden></article>
+      </details>
+      </details>
       <section class="install-card card" aria-labelledby="installTitle">
         <h3 id="installTitle">Roxy siempre a mano</h3>
         <p>En iPhone: Compartir → Añadir a pantalla de inicio. También puedes abrir esta página desde tu sticker NFC.</p>

@@ -1302,6 +1302,8 @@ body.design-module-mode .design-panel{display:grid;gap:22px;max-width:760px;padd
 .recipe-collection-button:focus-visible,.recipe-local-group:focus-visible{outline:3px solid #b28d43;outline-offset:3px}
 .recipe-navigation-tools{display:flex;justify-content:flex-end;gap:8px;margin-top:12px;flex-wrap:wrap}
 .recipe-navigation-tools button{min-height:44px;padding:8px 12px;font-size:13px}
+.recipe-tools-section{margin-top:20px}
+.recipe-tools-section>.kitchen-tools{box-shadow:none;margin:12px 0}
 .recipe-collection-hint{font-size:14px;line-height:1.5;color:#526058;margin:10px 0 0}
 .recipe-local-groups{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 8px}
 .recipe-local-group{min-height:44px;border:1px solid #d7ded4;border-radius:13px;padding:9px 12px;background:#fff;color:var(--forest);font:inherit;font-size:14px;font-weight:700;cursor:pointer}
