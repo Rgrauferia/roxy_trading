@@ -1,6 +1,6 @@
 # Roxy Home — estado operativo
 
-## 203 — VALIDADA LOCALMENTE; publicación en curso
+## 203 — PUBLICADA: recorrido completo con voz oficial
 
 Solicitud vigente: sustituir la voz masculina e integrar una bienvenida animada de
 Home completo. Trece capítulos reales, películas originales preservadas, explicación
@@ -18,7 +18,20 @@ habitación, perfil Nexo y dos eventos; 13capítulos y393px sin overflow horizon
 974Node aprobadas; 402Python/11PG omitidas en paquete/tour/fitness;64Python de
 plantas/diseño/demo/tour aprobadas después del ajuste de acceso manual.
 Preservación:4789archivos anteriores presentes,3758prototipos byteidénticos.
-Público aún202 hasta verificar despliegue y reproducción oficial real.
+Publicado8b3ab515b5ceeceb19d26abb3b2136e17dbf968c; Render
+dep-dajoe1ajnfac73f7hd7g Live53.9s. Reinicio502transitorio recuperado; health200,
+9assets byteidénticos y worker público200. Registro continúaenabledtrue.
+Pestaña pública20/session conservada/meta203: bienvenida, ubicación, calendario y
+movimiento de fuerza reprodujeron audio oficial real; ready4/currentTime avanzando,
+no voz de dispositivo. Cambiar movimiento eliminó el audio anterior. Nexo cargó
+mapa Google/últimas posiciones; falta permiso para actualización, no se activó GPS.
+Mascotas recuperó sus dos perfiles. No se cambiaron datos del hogar; únicamente
+progreso del recorrido y uso normal de caché/contador de voz. Altavoz físico y
+sincronización Google/avisos móviles no comprobados. Vista pública20 abierta en
+bienvenida y marcada como entrega; originales/fixtures anteriores preservados.
+Roberto pidió estado durante la verificación; se le mostró la pestaña pública
+porque seguía viendo la vista local antigua8768. Notas finales locales; no redeploy
+sólo para estas notas.
 Informe: `reports/home_release_203_20260914.md`.
 
 ## 14/09 — recorrido de bienvenida recuperado para revisión

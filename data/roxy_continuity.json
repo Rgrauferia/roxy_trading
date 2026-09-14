@@ -2,11 +2,11 @@
   "product": "roxy-home",
   "updated_on": "2026-09-14",
   "deployment_branch": "codex/roxy-home-nfc",
-  "public_url": "https://roxy-home.onrender.com/lista#recetas",
-  "last_verified_public_version": 202,
-  "deployed_implementation_commit": "49a3548a793f794fc34f2e06bc0c725c59063b6d",
+  "public_url": "https://roxy-home.onrender.com/lista#hoy",
+  "last_verified_public_version": 203,
+  "deployed_implementation_commit": "8b3ab515b5ceeceb19d26abb3b2136e17dbf968c",
   "candidate_version": 203,
-  "candidate_status": "203 local QA passed; publishing and real official narration verification next",
+  "candidate_status": "203 published and verified; personalized training and physical integrations remain incomplete",
   "candidate_199": {
     "published": true,
     "implementation_commit": "4652e5200594401ed719cf7c928a8ade2010e97a",
@@ -734,7 +734,7 @@
     "Aderezo César photo showed a salad; quarantine until an exact replacement is visually reviewed",
     "Only five manufacturer ingredient panels screened; restrictions fail closed, not clinical allergy clearance"
   ],
-  "next_step": "Publish candidate203, verify Render deployment and public official ElevenLabs playback; document module results without claiming personalised training or external phone integrations complete.",
+  "next_step": "203 published and official audio verified. Personalised fitness remains incomplete: private PostgreSQL and professional review are required. Positive human signup/CAPTCHA, physical mobile audio/location/calendar integration and provider image generation still need explicit real-device verification. Preserve household records and original prototype; no redeploy solely for final notes.",
   "launch": {
     "five_day_web_beta": "registration_enabled_20260914_first_signup_pending",
     "app_store": "target_next_month_not_guaranteed",
@@ -1115,9 +1115,9 @@
     "report": "reports/home_onboarding_walkthrough_20260914.md"
   },
   "candidate_203": {
-    "published": false,
+    "published": true,
     "report": "reports/home_release_203_20260914.md",
-    "next_step": "Publish candidate203, verify Render deployment and public official ElevenLabs playback; document module results without claiming personalised training or external phone integrations complete.",
+    "next_step": "203 published and official audio verified. Personalised fitness remains incomplete: private PostgreSQL and professional review are required. Positive human signup/CAPTCHA, physical mobile audio/location/calendar integration and provider image generation still need explicit real-device verification. Preserve household records and original prototype; no redeploy solely for final notes.",
     "chapters": 13,
     "qa_port": 8769,
     "implementation_in_progress": false,
@@ -1125,6 +1125,14 @@
     "tests_python": "402passed/11PGskipped package+tour+fitness;64passed final plants/design/demo/tour, overlapping suites",
     "qa": "Synthetic8769 all13chapters,393px no horizontal overflow; records and care journal persist; calendar two confirmed events; fixed unknown plant species default",
     "preservation": "4789 previousfiles present;3758 prototypefiles byteidentical",
-    "trial_manual_modules": "Plant cards, photos, care journal/reminders and room projects/photos/measurements allowed with existing privacy/expiry gates. Paid provider routes remain denied; trial plant create never calls identification."
+    "trial_manual_modules": "Plant cards, photos, care journal/reminders and room projects/photos/measurements allowed with existing privacy/expiry gates. Paid provider routes remain denied; trial plant create never calls identification.",
+    "implementation_commit": "8b3ab515b5ceeceb19d26abb3b2136e17dbf968c",
+    "render_deploy": "dep-dajoe1ajnfac73f7hd7g",
+    "render_seconds": 53.9,
+    "public_proof": "health200;9assets exactSHA plus public worker200. Tab20 member session retained/meta203; real official audio played welcome23.4s/location32.8s/calendar34.2s/strength movement49.7s. Switching movement removed previous audio. Public Nexo Google map and historical positions loaded; no new GPS permission. Two existing pet profiles loaded, no writes. Tour progress and normal voice cache/ledger only.",
+    "physical_audio_verified": false,
+    "public_deliverable_tab": "20",
+    "screenshots": "reports/home_203_screenshots/13-public-welcome-official-voice.png",
+    "final_notes_local_only": true
   }
 }
