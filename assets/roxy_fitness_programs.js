@@ -82,7 +82,8 @@
   const button = (label, action, className = 'fxp-button') => { const el = element('button', label, className); el.type = 'button'; el.addEventListener('click', action); return el; };
   const link = (label, href) => { const el = element('a', label); el.href = href; el.target = '_blank'; el.rel = 'noopener noreferrer'; el.referrerPolicy = 'no-referrer'; return el; };
   const current = (owner, token) => state === owner && active && !document.hidden && token === owner.generation;
-  function cancel(owner) { owner.controller?.abort(); owner.controller = null; owner.generation++; owner.busy = false; }
+  function stopReaderVoice(owner) { if(owner.voiceActive){scope.RoxyHomeTour?.stop();owner.voiceActive=false;} }
+  function cancel(owner) { stopReaderVoice(owner); owner.controller?.abort(); owner.controller = null; owner.generation++; owner.busy = false; }
   function purge(owner) { cancel(owner); owner.catalog = null; owner.program = null; owner.agenda = null; owner.selectedId = ''; owner.selectedDate = ''; owner.reader = false; owner.movement = 0; owner.language = 'es'; owner.error = ''; owner.notice = ''; owner.days = []; owner.start = todayInZone(owner.timezone); owner.revalidating = false; }
   function focus(owner, selector) { const el = owner.root.querySelector(selector); el?.focus({preventScroll:true}); el?.scrollIntoView?.({block:'start', behavior:'auto'}); }
   async function request(owner, path) {
@@ -160,9 +161,10 @@
     if (!owner.agenda) { owner.agendaRoot = element('div', null, 'fxp-agenda-root'); wrap.append(owner.agendaRoot); drawAgenda(owner); }
     const credits = element('details', null, 'fxp-credits'); credits.append(element('summary', 'Fuente, adaptación y licencia'), element('p', program[`attribution_${locale}`]), link('Open Government Licence v3', program.license_url));
     const original = element('details', null, 'fxp-original-source'); original.append(element('summary', 'Procedencia del original en inglés'), element('p', locale === 'es' ? 'Esta información identifica el material original, no la autoría ni el aval de la adaptación.' : program.attribution_en), element('p', `Versión del original ${program.source_version} · consultado ${program.checked_on}`), link('Consultar original en inglés', program.source_url), link('Condiciones de la fuente', program.terms_url)); credits.append(original); if (locale === 'es') program.notes_es.forEach(line => credits.append(element('p', line))); wrap.append(credits);
-    wrap.append(element('p', 'La agenda sólo permanece en esta pestaña: desaparece al salir del módulo, recargar o cambiar de persona. No guarda sesiones, datos de salud ni modifica el calendario del hogar.', 'fxp-caption'));
+    wrap.append(element('p', 'La agenda sólo permanece en esta pestaña: desaparece al salir del módulo, recargar o cambiar de persona. Las actividades sólo se guardan en el calendario del hogar si pulsas Reservar actividad en Home y confirmas el evento. No guardamos un entrenamiento ni datos de salud.', 'fxp-caption'));
   }
   function drawAgenda(owner) {
+    stopReaderVoice(owner);
     const root = owner.agendaRoot; if (!root || !current(owner, owner.generation)) return; root.replaceChildren();
     if (owner.error) { const error = element('p', owner.error, 'fxp-error'); error.setAttribute('role', 'alert'); error.tabIndex = -1; root.append(error); }
     if (owner.notice) { const notice = element('p', owner.notice, 'fxp-status'); notice.setAttribute('role', 'status'); root.append(notice); }
@@ -176,6 +178,11 @@
     const day = owner.agenda.find(row => row.date === owner.selectedDate) || owner.agenda[0], panel = element('section', null, 'fxp-day-detail'), title = element('h4', `${day.label} · ${day.date}`, 'fxp-day-title'); title.tabIndex = -1; panel.append(title);
     if (day.chosen) panel.append(element('strong', owner.program.title_es), element('p', 'Elegido por ti · guía educativa, no sesión activada.'), button('Ver guía del día', () => { owner.reader = true; owner.movement = 0; drawAgenda(owner); focus(owner, '.fxp-reader-title'); }, 'fxp-button fxp-primary'));
     else panel.append(element('p', 'No reservaste una actividad para este día. Un día libre no significa que Roxy haya prescrito descanso.'));
+    if (day.chosen && typeof owner.scheduleActivity === 'function') {
+      panel.append(button('Reservar actividad en Home', () => {
+        if (current(owner, owner.generation)) owner.scheduleActivity(day.date);
+      }, 'fxp-button fxp-primary'), element('p', 'Abre un borrador «Actividad personal» sin datos de salud. Revisa y confirma para guardarlo en el calendario del hogar, visible para sus miembros.', 'fxp-caption'));
+    }
     root.append(panel);
     const downloads = element('div', null, 'fxp-downloads'); downloads.append(button('Descargar agenda .ics', () => { if (current(owner, owner.generation) && owner.agenda) download(owner, calendarText(owner.agenda), 'text/calendar;charset=utf-8', 'agenda-personal-roxy.ics'); }), button('Descargar guía TXT', () => { if (current(owner, owner.generation) && owner.program) download(owner, guideText(owner.program, owner.language), 'text/plain;charset=utf-8', `${owner.program.id}-${owner.language}.txt`); })); root.append(downloads, element('p', 'El archivo sólo incluye eventos de día completo «Actividad personal», marcados privados y sin alarmas. Tú decides si lo importas; el calendario de destino controla quién puede verlos. No incluye el programa ni datos de salud.', 'fxp-caption'));
     if (owner.reader) drawReader(owner, root);
@@ -186,6 +193,21 @@
     reader.append(element('p', `Movimiento ${owner.movement + 1} de ${program.exercises.length} · ${locale === 'es' ? 'Adaptación en español' : 'Original en inglés'}`, 'fxp-eyebrow'), title);
     reader.append(button(locale === 'es' ? 'Ver original en inglés' : 'Ver adaptación en español', () => { if (!current(owner, owner.generation)) return; owner.language = locale === 'es' ? 'en' : 'es'; draw(owner); focus(owner, '.fxp-reader-title'); }, 'fxp-button fxp-quiet'));
     reader.append(element('p', 'Guía general, no evaluación individual. Si sientes dolor, detén el movimiento.', 'fxp-caption'));
+    if(scope.RoxyHomeTour){
+      const voiceStatus=element('p','Voz oficial de Roxy · español','fxp-caption');voiceStatus.setAttribute('role','status');
+      const voiceHost=element('div',null,'fxp-voice-host');
+      const voice=button('Escuchar movimiento en español',()=>{
+        if(!current(owner,owner.generation))return;
+        if(owner.voiceActive&&scope.RoxyHomeTour.isPlaying()){stopReaderVoice(owner);return;}
+        owner.voiceActive=true;
+        void scope.RoxyHomeTour.speak(`fitness:${program.id.replace('gentle-','')}:${owner.movement}`,(state,message)=>{
+          if(!current(owner,owner.generation)||voice.isConnected===false)return;
+          owner.voiceActive=['loading','playing','ready'].includes(state);voiceStatus.textContent=message;
+          voice.textContent=owner.voiceActive?'Pausar voz':'Escuchar movimiento en español';
+        },voiceHost);
+      });
+      reader.append(voice,voiceStatus,voiceHost);
+    }
     const paragraphs = element('div', null, 'fxp-instructions'); paragraphs.lang = locale; exercise[`instructions_${locale}`].forEach(line => paragraphs.append(element('p', line))); reader.append(paragraphs);
     const attribution = element('footer', null, 'fxp-reader-attribution'); attribution.append(element('p', program[`attribution_${locale}`], 'fxp-caption'), element('p', `Original: ${program.source_version} · consultado ${program.checked_on}`, 'fxp-caption'), link('Open Government Licence v3', program.license_url)); if (locale === 'en') attribution.append(link('Original NHS', program.source_url)); reader.append(attribution);
     const controls = element('div', null, 'fxp-reader-controls'), previous = button('Movimiento anterior', () => { if (owner.movement > 0) { owner.movement--; drawAgenda(owner); focus(owner, '.fxp-reader-title'); } }), next = button('Movimiento siguiente', () => { if (owner.movement < program.exercises.length - 1) { owner.movement++; drawAgenda(owner); focus(owner, '.fxp-reader-title'); } }); previous.disabled = owner.movement === 0; next.disabled = owner.movement === program.exercises.length - 1; controls.append(previous, next); reader.append(controls, button('Cerrar guía', () => { owner.reader = false; drawAgenda(owner); focus(owner, '.fxp-day-title'); }, 'fxp-button fxp-quiet')); root.append(reader);
@@ -199,6 +221,7 @@
       const zone = validZone(options.timezone) ? options.timezone : 'UTC';
       state = {root:node, identity, timezone:zone, view:options.view === 'today' ? 'today' : 'week', generation:0, controller:null, busy:false}; purge(state);
     } else { state.root = node; state.view = options.view === 'today' ? 'today' : 'week'; }
+    state.scheduleActivity = options.scheduleActivity;
     if (state.agenda && state.view === 'today' && previousView !== 'today') { const today = todayInZone(state.timezone); if (state.agenda.some(day => day.date === today)) { state.selectedDate = today; state.reader = false; } }
     draw(state); if (active && !document.hidden && !state.catalog && !state.busy && !state.error) void loadCatalog(state);
   }

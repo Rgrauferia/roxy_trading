@@ -20,7 +20,7 @@ def repository() -> PostgresFitnessRepository:
     return PostgresFitnessRepository.from_env()
 
 
-def create_fitness_router(authenticate: Callable, rate_limit: Callable) -> APIRouter:
+def create_fitness_router(authenticate: Callable, rate_limit: Callable, same_origin: Callable | None = None) -> APIRouter:
     router = APIRouter(prefix="/api/fitness/v1")
 
     def personal(request: Request, auth=Depends(authenticate)) -> str:
@@ -37,7 +37,8 @@ def create_fitness_router(authenticate: Callable, rate_limit: Callable) -> APIRo
         # SameSite alone is not a CSRF boundary. No cookie mutation without an
         # exact same-origin browser request and a non-simple explicit header.
         origin = request.headers.get("origin", "")
-        if origin != str(request.base_url).rstrip("/") or request.headers.get("x-roxy-fitness-request") != "1":
+        origin_ok = same_origin(request) if same_origin else origin == str(request.base_url).rstrip("/")
+        if not origin_ok or request.headers.get("x-roxy-fitness-request") != "1":
             raise HTTPException(403, detail={"code": "csrf_rejected", "message": "Abre Ejercicio desde Roxy Home e inténtalo de nuevo."})
         if request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "application/json":
             raise HTTPException(415, "Usa application/json.")

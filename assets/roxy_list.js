@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '202';
+  const APP_VERSION = '203';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -525,8 +525,7 @@
       finally{clearTimeout(timer)}
     }
     if(!isCurrent())return false;
-    const required=account.recipe_onboarding_required===true&&!(recipeProfileEnvelope?.profile?.completed);
-    if(required){showRecipePreferences(true);return false}
+    // Kitchen preferences are optional and live inside Cocina. Home has its own welcome.
     return true;
   }
   function showRecipePreferences(required=false){
@@ -651,7 +650,7 @@
     try {
       const nextAccount=await api('/v1/home-account/me');
       if(!isCurrent())return;
-      if(account.id!==nextAccount.id||account.mode!==nextAccount.mode||account.session_version!==nextAccount.session_version){window.RoxyFitness?.clear();clearRecipePreferences();window.RoxyHomeRecovery?.reset();}
+      if(account.id!==nextAccount.id||account.mode!==nextAccount.mode||account.session_version!==nextAccount.session_version){window.RoxyHomeTour?.bind(null);window.RoxyFitness?.clear();clearRecipePreferences();window.RoxyHomeRecovery?.reset();}
       account=nextAccount;
       if(account.storage_user_id){user=account.storage_user_id;localStorage.setItem('roxyShoppingUser',user)}
       syncFamilyMapReadiness();
@@ -660,7 +659,7 @@
       if(activePanel==='fitness')mountFitness();
       const trial=account.trial;
       $('demoTrialBanner').hidden=!trial;
-      if(trial)$('demoTrialBanner').textContent=trial.status==='ACTIVE'?`Demo gratis · hasta ${new Date(trial.expires_at).toLocaleString('es')}. Hasta ${trial.ai_daily_limit} solicitudes de Roxy al día por hogar; quedan ${trial.ai_remaining_today}. Lectura con voz del dispositivo incluida; voz premium e imágenes/vídeos generados no incluidos.`:'Tu prueba de 5 días terminó. Puedes consultar tus datos. No hay cobro automático.';
+      if(trial)$('demoTrialBanner').textContent=trial.status==='ACTIVE'?`Demo gratis · hasta ${new Date(trial.expires_at).toLocaleString('es')}. Hasta ${trial.ai_daily_limit} solicitudes de Roxy al día por hogar; quedan ${trial.ai_remaining_today}. Recorrido con la voz oficial incluido; conversación de voz e imágenes/vídeos generados no incluidos.`:'Tu prueba de 5 días terminó. Puedes consultar tus datos. No hay cobro automático.';
       appearance=safeAppearance(account.preferences||appearance);applyAppearance();
       if(!await prepareRecipePreferences(isCurrent))return;
       if(!isCurrent())return;
@@ -722,6 +721,7 @@
       resumeFamilyBaseMap();
       renderAccount();
       renderHomeMoment();
+      bindHomeTour();
       if(familyData){void redeemNexoInvitationFromUrl();void resumeFamilyLocationIfEnabled()}
       void autoSyncGoogleCalendar();
       if(!$('shoppingPanel').hidden)void loadPriceRecommendations({quiet:true});
@@ -731,6 +731,7 @@
       if(error.status===401||error.status===403){
         // Do not reveal offline snapshots after the server rejects a session.
         account={mode:'signed_out',requires_profile_setup:false};
+        window.RoxyHomeTour?.bind(null);
         window.RoxyHomeRecovery?.reset();
         clearRecipePreferences();
         syncFamilyMapReadiness();
@@ -840,8 +841,31 @@
     return img;
   }
 
+  let tourPromptedIdentity='';
+  function bindHomeTour(){
+    if(account.mode!=='member'){window.RoxyHomeTour?.bind(null);return}
+    const memberId=account.id,version=account.session_version||0;
+    window.RoxyHomeTour?.bind({identity:memberId,version,
+      isCurrent:()=>account.mode==='member'&&account.id===memberId&&(account.session_version||0)===version,
+      beforeMedia:()=>{stopCookingSpeech();resetRoxyVoiceContext()},
+      onCompleted:()=>{if(account.id===memberId)account.home_tour_completed=true},
+      navigate:destination=>{if(destination==='appearance'){openPersonalization();return}if(destination==='calendar-new'){selectPanel('calendar');openCalendarEvent();return}selectPanel(destination)},
+    });
+    window.RoxyHomeTour?.home($('homeTourOverview'));addModuleHelp(activePanel);
+    if(!account.home_tour_completed&&tourPromptedIdentity!==`${memberId}:${version}`){
+      tourPromptedIdentity=`${memberId}:${version}`;
+      if(!document.querySelector('dialog[open]'))void window.RoxyHomeTour?.open('welcome',{automatic:true});
+    }
+  }
+  function addModuleHelp(panel){
+    const chapters={today:'today',recipes:'recipes',shopping:'shopping',pantry:'pantry',fitness:'fitness',design:'design',plants:'plants',pets:'pets',family:'family',calendar:'calendar',more:'welcome'};
+    const host=$((panel==='pets'?'recipes':panel)+'Panel');if(!host||!chapters[panel])return;
+    let help=host.querySelector('.rht-module-help');
+    if(!help){help=makeButton('','rht-module-help',()=>void window.RoxyHomeTour?.open(help.dataset.chapter));host.prepend(help)}
+    help.dataset.chapter=chapters[panel];help.textContent=panel==='more'?'Conoce todos los espacios con Roxy':'Roxy, explícame esta sección';
+  }
   let activePanel='';
-  function mountFitness(){window.RoxyFitness?.mount($('fitnessRoot'),{identity:account.id||account.mode||'preview',navigate:selectPanel})}
+  function mountFitness(){window.RoxyFitness?.mount($('fitnessRoot'),{identity:account.id||account.mode||'preview',navigate:selectPanel,scheduleActivity:date=>{selectPanel('calendar');openCalendarEvent(null,new Date(`${date}T12:00:00`));$('calendarEventTitle').value='Actividad personal';$('calendarEventDuration').value='30';$('calendarEventNotes').value='';announce('Revisa fecha, hora y duración. Se guardará al confirmar; el calendario pertenece al hogar.')}})}
   function recipeSourcesReady(){
     return !$('app').hidden&&!$('recipePreferencesDialog')?.open&&load.renderedScope?.owner===user&&load.renderedScope?.identity===collectionIdentity();
   }
@@ -853,6 +877,8 @@
   }
   function selectPanel(panel,{smooth=true}={}) {
     activePanel=panel;
+    window.RoxyHomeTour?.stop();
+    addModuleHelp(panel);
     // Do not browse before authentication has resolved the visible household.
     activateRecipeSources();
     window.RoxyFitness?.setActive(panel==='fitness');
@@ -1965,7 +1991,7 @@
   }
   async function createPlantReminder(task){try{const result=await api(`/v1/home-plants/${encodeURIComponent(user)}/${encodeURIComponent(task.plant_id)}/reminders`,{method:'POST',body:JSON.stringify({task_id:task.id,time:'09:00',reminder_minutes:60})});await load({quiet:true});announce(result.sync?.synced?'Recordatorio sincronizado con el calendario de tu teléfono':'Recordatorio guardado en Roxy Calendar; conecta Google para verlo en el teléfono')}catch(error){announce(error.message)}}
   function openPlantDetail(plant){currentPlant=plant;$('plantDetailTitle').textContent=plant.display_name;const root=$('plantDetailContent');root.replaceChildren();const hero=document.createElement('div');hero.className='plant-detail-hero';const image=document.createElement('img');image.src=plant.photo_url;image.alt=`Foto de ${plant.display_name}`;const copy=document.createElement('span');copy.innerHTML=`<strong>${escapeHtml(plant.common_name||'Especie por confirmar')}</strong><em>${escapeHtml(plant.scientific_name||'')}</em><small>${escapeHtml(plant.room||'Sin ubicación')} · ${plant.placement==='outdoor'?'Exterior':'Interior'}</small>`;hero.append(image,copy);root.append(hero);
-    if(plant.identification?.status==='PROPOSED'||plant.species_key==='unknown'){const warning=document.createElement('section');warning.className='plant-confirm-species';warning.innerHTML=`<strong>Confirma la identificación</strong><p>${escapeHtml(plant.identification?.warning||'La foto es una propuesta, no una identificación definitiva.')}</p>`;const select=document.createElement('select');(homePlants.species||[]).filter(row=>row.key!=='unknown').forEach(row=>{const option=document.createElement('option');option.value=row.key;option.textContent=`${row.common_name} · ${row.scientific_name}`;option.selected=row.key===plant.species_key;select.append(option)});const confirm=makeButton('Confirmar especie','primary',async()=>{try{await api(`/v1/home-plants/${encodeURIComponent(user)}/${encodeURIComponent(plant.id)}`,{method:'PATCH',body:JSON.stringify({species_key:select.value})});$('plantDetailDialog').close();await refreshPlants();announce('Especie confirmada y cuidados actualizados')}catch(error){announce(error.message)}});warning.append(select,confirm);root.append(warning)}
+    if(plant.identification?.status==='PROPOSED'||plant.species_key==='unknown'){const warning=document.createElement('section');warning.className='plant-confirm-species';warning.innerHTML=`<strong>Confirma la identificación</strong><p>${escapeHtml(plant.identification?.warning||(plant.identification?.status==='PROPOSED'?'La identificación propuesta necesita tu confirmación.':'Todavía no hay una identificación. Selecciona una especie sólo si la conoces.'))}</p>`;const select=document.createElement('select');select.setAttribute('aria-label','Especie que puedes confirmar');const unknown=document.createElement('option');unknown.value='';unknown.textContent='Selecciona una especie conocida';unknown.disabled=true;unknown.selected=plant.species_key==='unknown';select.append(unknown);(homePlants.species||[]).filter(row=>row.key!=='unknown').forEach(row=>{const option=document.createElement('option');option.value=row.key;option.textContent=`${row.common_name} · ${row.scientific_name}`;option.selected=row.key===plant.species_key;select.append(option)});const confirm=makeButton('Confirmar especie','primary',async()=>{try{await api(`/v1/home-plants/${encodeURIComponent(user)}/${encodeURIComponent(plant.id)}`,{method:'PATCH',body:JSON.stringify({species_key:select.value})});$('plantDetailDialog').close();await refreshPlants();announce('Especie confirmada y cuidados actualizados')}catch(error){announce(error.message)}});confirm.disabled=!select.value;select.addEventListener('change',()=>{confirm.disabled=!select.value});warning.append(select,confirm);root.append(warning)}
     appendPlantSourceContext(root,plant);
     const concern=plantConditionConcern(plant);if(concern){const warning=document.createElement('section');warning.className='plant-condition-warning';warning.innerHTML=`<span class="material-symbols-rounded" aria-hidden="true">wb_sunny</span><div><strong>Ubicación a revisar</strong><p>${escapeHtml(concern)}</p></div>`;root.append(warning)}
     const lightLabels={unknown:'No confirmada',low:'Poca luz',indirect:'Luz indirecta',bright_indirect:'Luz indirecta brillante',direct_morning:'Sol directo de mañana',direct_afternoon:'Sol directo de tarde'};const facts=document.createElement('div');facts.className='plant-facts';[['Tipo de planta','eco',plant.plant_type],['Luz recomendada','light_mode',plant.light],['Luz en su lugar','wb_sunny',lightLabels[plant.light_exposure]||'No confirmada'],['Cuándo revisar','water_drop',plant.soil_rule],['Temperatura','thermostat',plant.temperature],['Humedad','humidity_percentage',plant.humidity],['Fertilizante','nutrition',plant.fertilizer],['Dato curioso','lightbulb',plant.history],['Mascotas',plant.pet_safe?'pets':'warning',plant.toxicity]].forEach(([title,icon,value])=>{const row=document.createElement('section');row.innerHTML=`<span class="material-symbols-rounded" aria-hidden="true">${icon}</span><div><strong>${title}</strong><p>${escapeHtml(value||'Información no confirmada')}</p></div>`;facts.append(row)});root.append(facts);
@@ -2603,7 +2629,8 @@
     const root=$('designProjects');if(!root)return;root.replaceChildren();
     const projects=homeDesign.projects||[];
     $('designOnboarding').hidden=Boolean(projects.length);$('designGenerationNotice').hidden=!projects.length;
-    $('designGenerationNotice').textContent=homeDesign.generation_configured?'Roxy puede analizar la foto privada y crear la propuesta elegida. Los importes son objetivos hasta que una tienda confirme precio y disponibilidad.':'Tu proyecto y presupuesto se guardarán; el análisis visual necesita la conexión privada de OpenAI de Home.';
+    $('designProjectSubmit').textContent=homeDesign.generation_configured?'Guardar espacio y analizar':'Guardar espacio';
+    $('designGenerationNotice').textContent=homeDesign.generation_configured?'Roxy puede analizar la foto privada y crear la propuesta elegida. Los importes son objetivos hasta que una tienda confirme precio y disponibilidad.':homeDesign.analysis_access==='not_included_in_demo'?'Puedes guardar tu habitación, foto, medidas y presupuesto. El análisis de la foto y las imágenes generadas no están incluidos en la demo.':'Tu proyecto y presupuesto se guardarán; el análisis visual necesita la conexión privada de OpenAI de Home.';
     const stage=projects.some(project=>project.proposal_url)?4:projects.some(project=>project.analysis_status==='READY_AI')?3:projects.length?2:1;$('designProgress').querySelectorAll('li').forEach((item,index)=>{item.classList.toggle('active',index+1===stage);item.classList.toggle('complete',index+1<stage)});renderDesignConnections();
     if(!projects.length)return;
     projects.forEach(savedProject=>{
@@ -2635,7 +2662,7 @@
   }
   async function submitDesignProject(event){
     event.preventDefault();const form=event.currentTarget;const button=$('designProjectSubmit');button.disabled=true;button.textContent='Guardando proyecto…';
-    try{const photo=await readDesignPhoto($('designPhoto').files[0]);const data=await api(`/v1/home-design/${encodeURIComponent(user)}/projects`,{method:'POST',body:JSON.stringify({name:$('designName').value,room_type:$('designRoom').value,style:$('designStyle').value,budget:Number($('designBudget').value||0),measurements:$('designMeasurements').value,keep_items:commaValues($('designKeep').value),priorities:commaValues($('designPriorities').value),notes:$('designNotes').value,photo_data_url:photo})});$('designDialog').close();form.reset();$('designBudget').value='500';await refreshDesignProjects();if(homeDesign.generation_configured){announce('Espacio guardado. Roxy empieza el análisis.');await analyzeDesignProject(data.project.id)}else announce('Espacio guardado. El análisis visual aún no está conectado.')}catch(error){announce(error.message)}finally{button.disabled=false;button.textContent='Guardar espacio y analizar'}
+    try{const photo=await readDesignPhoto($('designPhoto').files[0]);const data=await api(`/v1/home-design/${encodeURIComponent(user)}/projects`,{method:'POST',body:JSON.stringify({name:$('designName').value,room_type:$('designRoom').value,style:$('designStyle').value,budget:Number($('designBudget').value||0),measurements:$('designMeasurements').value,keep_items:commaValues($('designKeep').value),priorities:commaValues($('designPriorities').value),notes:$('designNotes').value,photo_data_url:photo})});$('designDialog').close();form.reset();$('designBudget').value='500';await refreshDesignProjects();if(homeDesign.generation_configured){announce('Espacio guardado. Roxy empieza el análisis.');await analyzeDesignProject(data.project.id)}else announce(homeDesign.analysis_access==='not_included_in_demo'?'Espacio guardado. Puedes revisar tu foto, medidas y presupuesto; el análisis visual no está incluido en la demo.':'Espacio guardado. El análisis visual aún no está conectado.')}catch(error){announce(error.message)}finally{button.disabled=false;button.textContent=homeDesign.generation_configured?'Guardar espacio y analizar':'Guardar espacio'}
   }
   async function generateDesignProposal(projectId,tier='balanced'){
     try{await api(`/v1/home-design/${encodeURIComponent(user)}/projects/${encodeURIComponent(projectId)}/proposal`,{method:'POST',body:JSON.stringify({tier})});announce('Roxy está creando la opción elegida sobre tu habitación real');await refreshDesignProjects()}catch(error){announce(error.message)}
@@ -2867,7 +2894,7 @@
       const copy=document.createElement('span');const strong=document.createElement('strong');strong.textContent=timer.label||'Temporizador';const value=document.createElement('small');value.textContent=remaining===0?'Terminado':`${String(Math.floor(remaining/60)).padStart(2,'0')}:${String(remaining%60).padStart(2,'0')}`;copy.append(strong,value);row.append(copy);
       if(remaining>0)row.append(makeButton('Cancelar','delete',()=>cancelCookingTimer(timer.id),`Cancelar ${timer.label||'temporizador'}`));
       root.append(row);
-      if(remaining===0&&!announcedTimers.has(timer.id)){announcedTimers.add(timer.id);announce(`${timer.label||'Temporizador'} terminado`);if('vibrate'in navigator)navigator.vibrate([200,100,200]);if('speechSynthesis'in window){const alert=new SpeechSynthesisUtterance(`${timer.label||'Temporizador'} terminado`);alert.lang='es-US';speechSynthesis.speak(alert)}}
+      if(remaining===0&&!announcedTimers.has(timer.id)){announcedTimers.add(timer.id);announce(`${timer.label||'Temporizador'} terminado`);if('vibrate'in navigator)navigator.vibrate([200,100,200]);void window.RoxyHomeTour?.speak('timer-finished',(state,message)=>{if(state==='error')cookingSpeechStatus(message)})}
     });
   }
   async function createCookingTimer(seconds,label){
@@ -2962,8 +2989,8 @@
     const completed=()=>{if(!current())return;stopCookingSpeech();cookingSpeechStatus('Lectura terminada. Inicia el temporizador cuando empieces la acción; no se activa con la voz.')};
     const fallback=()=>{
       if(!current()||job.fallback)return;job.fallback=true;job.controller.abort();clearTimeout(job.fetchTimer);releaseCookingSpeechAudio(job);
-      const started=speakRoxyDeviceText(speech,{scope:'cooking',isCurrent:current,onStatus:(state,message)=>{if(!current())return;cookingSpeechStatus(message);if(['error','unavailable','busy'].includes(state))stopCookingSpeech()},onEnd:completed});
-      if(!started&&current())stopCookingSpeech();
+      stopCookingSpeech();
+      cookingSpeechStatus('La voz oficial no pudo reproducirse. Pulsa Escuchar paso para reintentar; el texto sigue disponible.');
     };
     if(homeFood.voice_service?.enabled===false){fallback();return}
     cookingSpeechStatus('Conectando la voz oficial…');job.fetchTimer=setTimeout(fallback,12000);

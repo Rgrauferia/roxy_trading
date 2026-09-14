@@ -8,12 +8,13 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="202" />
+  <meta name="roxy-home-version" content="203" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
+  <link rel="stylesheet" href="/assets/roxy_home_tour.css?v=1" />
   <link rel="stylesheet" href="/assets/roxy_list.css?v=140" />
   <link rel="stylesheet" href="/assets/roxy_fitness.css?v=6" />
   <link rel="stylesheet" href="/assets/roxy_fitness_programs.css?v=1" />
@@ -26,19 +27,20 @@
   <script src="/assets/roxy_maplibre_loader.js?v=1" defer></script>
   <script src="/assets/roxy_home_recipe_provider.js?v=2" defer></script>
   <script src="/assets/roxy_recipe_guide.js?v=6" defer></script>
-  <script src="/assets/roxy_recipe_onboarding.js?v=1" defer></script>
+  <script src="/assets/roxy_recipe_onboarding.js?v=2" defer></script>
   <script src="/assets/roxy_home_open_recipes.js?v=7" defer></script>
   <script src="/assets/roxy_home_myplate_recipes.js?v=9" defer></script>
   <script src="/assets/roxy_home_drinks.js?v=7" defer></script>
   <script src="/assets/roxy_home_weather_renderer.js?v=2" defer></script>
   <script src="/assets/roxy_home_map_readiness.js?v=1" defer></script>
   <script src="/assets/roxy_fitness_catalog.js?v=2" defer></script>
-  <script src="/assets/roxy_fitness_programs.js?v=1" defer></script>
-  <script src="/assets/roxy_fitness.js?v=5" defer></script>
-  <script src="/assets/roxy_garden_guide.js?v=1" defer></script>
+  <script src="/assets/roxy_fitness_programs.js?v=2" defer></script>
+  <script src="/assets/roxy_fitness.js?v=6" defer></script>
+  <script src="/assets/roxy_garden_guide.js?v=2" defer></script>
   <script src="/assets/roxy_home_recovery.js?v=1" defer></script>
   <script src="/assets/roxy_home_conversation.js?v=2" defer></script>
-  <script src="/assets/roxy_list.js?v=204" defer></script>
+  <script src="/assets/roxy_home_tour.js?v=1" defer></script>
+  <script src="/assets/roxy_list.js?v=205" defer></script>
   <script src="/assets/roxy_home_registration.js?v=3" defer></script>
 </head>
 <body>
@@ -58,7 +60,8 @@
   <dialog id="recipePreferencesDialog" class="recipe-preferences-dialog" aria-label="Mis gustos de cocina"><div id="recipePreferencesRoot"></div></dialog>
   <main id="app" aria-busy="true">
     <aside id="demoTrialBanner" class="demo-trial-banner" role="status" hidden></aside>
-    <section id="todayPanel" class="app-panel active" data-panel="today" aria-labelledby="mealPlanTitle">
+    <section id="todayPanel" class="app-panel active" data-panel="today" aria-label="Hoy en Home">
+      <section id="homeTourOverview" class="rht-home" aria-label="Tu hogar con Roxy"></section>
       <section id="upcomingEventCard" class="upcoming-event-card" hidden>
         <span class="material-symbols-rounded" aria-hidden="true">event_upcoming</span>
         <button id="upcomingEventButton" type="button" data-tab-link="calendar"><small>Próximo evento</small><strong id="upcomingEventTitle">Tu agenda está libre</strong><em id="upcomingEventTime"></em></button>
@@ -816,7 +819,7 @@
       <section id="signupPanel" hidden>
         <h3>Un hogar solo para ti</h3>
         <p>Cinco días desde el registro, sin tarjeta ni cobro automático. Después podrás consultar lo guardado, sin crear nuevos registros.</p>
-        <p>La demo incluye hasta 5 solicitudes de Roxy por hogar al día, sujetas a disponibilidad, y lectura de recetas con voz del dispositivo. No incluye voz premium, vídeos ni imágenes generadas a pedido. Algunas funciones siguen en desarrollo.</p>
+        <p>La demo incluye hasta 5 solicitudes de Roxy por hogar al día, sujetas a disponibilidad, y el recorrido con la voz oficial de Roxy. No incluye conversación de voz, vídeos ni imágenes generadas a pedido. Algunas funciones siguen en desarrollo.</p>
         <form id="signupForm" class="kitchen-form">
           <label><span>Tu nombre</span><input id="signupName" autocomplete="name" maxlength="64" required /></label>
           <label><span>Elige tu usuario</span><input id="signupUsername" autocomplete="username" minlength="3" maxlength="64" pattern="[a-zA-Z0-9_.@-]+" required /></label>

@@ -260,6 +260,7 @@ def public_member(member: dict[str, Any], household: dict[str, Any]) -> dict[str
         "session_version": _session_version(member),
         "preferences": normalize_member_preferences(member.get("preferences")),
         "recipe_onboarding_required": recipe_onboarding_required(member),
+        "home_tour_completed": bool(member.get("home_tour", {}).get("completed", False)),
         "trial": trial_status(household),
     }
 
@@ -620,6 +621,40 @@ class HomeAccountStore:
                 member.setdefault("recipe_profile_completed_at", now)
             return self._recipe_profile_snapshot(payload, member_id)
 
+        return self._mutate(apply)
+
+    def get_home_tour(self, member_id: str) -> dict[str, Any]:
+        return self._home_tour_snapshot(self._read_unlocked(), member_id)
+
+    @staticmethod
+    def _home_tour_snapshot(payload: dict[str, Any], member_id: str) -> dict[str, Any]:
+        from roxy_os.home_tour import normalize_progress
+        member = payload["members"].get(member_id)
+        if not member or not member.get("active", True):
+            raise PermissionError("Sesión no disponible")
+        revision = member.get("home_tour_revision", 0)
+        raw = member.get("home_tour")
+        try:
+            if type(revision) is not int or revision < 0 or bool(raw) != bool(revision):
+                raise ValueError("Invalid tour state")
+            progress = normalize_progress(raw) if raw is not None else None
+        except ValueError as exc:
+            raise HomeAccountStorageError("No pudimos leer tu recorrido. Conservamos tus datos.") from exc
+        return {"member_id": member_id, "revision": revision, "progress": progress}
+
+    def update_home_tour(self, member_id: str, *, progress: dict[str, Any], expected_revision: int) -> dict[str, Any]:
+        from roxy_os.home_tour import normalize_progress
+        normalized = normalize_progress(progress)
+        if type(expected_revision) is not int or expected_revision < 0:
+            raise ValueError("La revisión no es válida.")
+        def apply(payload):
+            before = self._home_tour_snapshot(payload, member_id)
+            if before["revision"] != expected_revision:
+                raise RecipeProfileConflictError("El recorrido cambió en otra pestaña. Ciérralo y vuelve a abrirlo.")
+            member = payload["members"][member_id]
+            member["home_tour"] = deepcopy(normalized)
+            member["home_tour_revision"] = before["revision"] + 1
+            return self._home_tour_snapshot(payload, member_id)
         return self._mutate(apply)
 
     def update_personalization(

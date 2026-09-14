@@ -27,6 +27,7 @@ function harness({provider = true, fetchReply, audioReject = false, speechAvaila
     };
   }
   for (const id of ['cookingDialog','speakStepButton','roxyVoicePanel','roxyVoiceLauncher','roxyVoiceStatus','roxyVoiceTranscript','roxyVoiceStart','roxyVoiceEnd','roxyTextMessage','roxyTextSend']) nodes.set(id, element(id));
+  nodes.get('speakStepButton').textContent='Escuchar paso';
   nodes.get('cookingDialog').open = true; nodes.get('speakStepButton').parentElement = nodes.get('cookingDialog');
   const document = {...element(), hidden:false, createElement:() => element()};
   const synth = {speaking:false, pending:false, getVoices:() => [{lang:'es-US', localService:true, name:'Synthetic local voice'}],
@@ -63,22 +64,16 @@ function harness({provider = true, fetchReply, audioReject = false, speechAvaila
     companionDisposals:() => companionDisposals};
 }
 
-test('failed official step request reads the full same step on the device without an ElevenLabs conversation', async () => {
-  const h = harness(); h.ctx.currentCooking.current_step = 'Texto largo completo. '.repeat(100) + 'FINAL EXACTO.';
-  await h.ctx.speakCurrentStep();
-  assert.equal(h.requests.length, 1); assert.equal(h.spoken.length, 1);
-  assert.equal(h.spoken[0].text, `Paso 1. ${h.ctx.currentCooking.current_step}`);
-  assert.equal(h.spoken[0].voice.localService, true);
-  assert.doesNotMatch(h.nodes.get('cookingSpeechStatus').textContent, /hablando/);
-  h.spoken[0].onstart(); assert.match(h.nodes.get('cookingSpeechStatus').textContent, /dispositivo.*hablando/);
-  h.spoken[0].onend(); assert.equal(h.automaticTimers(), 0, 'Narration never starts cooking timers');
-  assert.equal(h.nodes.get('speakStepButton').textContent, 'Escuchar paso');
-  assert.equal(h.microphoneCalls(), 0);
+test('failed official step request remains readable and never substitutes a device voice', async () => {
+  const h=harness();h.ctx.currentCooking.current_step='Texto largo completo. '.repeat(100)+'FINAL EXACTO.';
+  await h.ctx.speakCurrentStep();assert.equal(h.requests.length,1);assert.equal(h.spoken.length,0);
+  assert.match(h.nodes.get('cookingSpeechStatus').textContent,/voz oficial.*reintentar/);
+  assert.ok(h.ctx.currentCooking.current_step.endsWith('FINAL EXACTO.'));
+  assert.equal(h.automaticTimers(),0);assert.equal(h.microphoneCalls(),0);
 });
-
-test('unconfigured official TTS uses device speech without making a provider request', async () => {
-  const h = harness({provider:false}); await h.ctx.speakCurrentStep();
-  assert.equal(h.requests.length, 0); assert.equal(h.spoken.length, 1);
+test('unconfigured official TTS reports unavailable without provider or device speech', async () => {
+  const h=harness({provider:false});await h.ctx.speakCurrentStep();assert.equal(h.requests.length,0);assert.equal(h.spoken.length,0);
+  assert.match(h.nodes.get('cookingSpeechStatus').textContent,/texto sigue disponible/);
 });
 
 test('a cooking MP3 can play without claiming to speak before its playing event', async () => {
@@ -89,18 +84,18 @@ test('a cooking MP3 can play without claiming to speak before its playing event'
   h.audio[0].emit('ended'); assert.equal(h.automaticTimers(), 0, 'Narration is not a timer confirmation'); assert.deepEqual(h.revoked, ['blob:synthetic']);
 });
 
-test('autoplay rejection and MP3 errors fall back once and revoke the unused audio URL', async () => {
+test('autoplay rejection and MP3 errors stop once and revoke the unused audio URL', async () => {
   const h = harness({audioReject:true, fetchReply:async () => ({ok:true, blob:async () => ({})})});
-  await h.ctx.speakCurrentStep(); assert.equal(h.spoken.length, 1); assert.deepEqual(h.revoked, ['blob:synthetic']);
-  h.audio[0].emit('error'); assert.equal(h.spoken.length, 1);
+  await h.ctx.speakCurrentStep(); assert.equal(h.spoken.length, 0); assert.deepEqual(h.revoked, ['blob:synthetic']);
+  h.audio[0].emit('error'); assert.equal(h.spoken.length, 0);
 });
 
-test('provider timeout falls back and ignores a late successful MP3 response', async () => {
+test('provider timeout stops and ignores a late successful MP3 response', async () => {
   const pending = deferred(), h = harness({fetchReply:() => pending.promise});
   const reading = h.ctx.speakCurrentStep(); h.tick(12000);
-  assert.equal(h.requests[0].options.signal.aborted, true); assert.equal(h.spoken.length, 1);
+  assert.equal(h.requests[0].options.signal.aborted, true); assert.equal(h.spoken.length, 0);
   pending.resolve({ok:true, blob:async () => ({})}); await reading;
-  assert.equal(h.audio.length, 0); assert.equal(h.spoken.length, 1);
+  assert.equal(h.audio.length, 0); assert.equal(h.spoken.length, 0);
 });
 
 for (const change of ['step','session','identity','user','closed','hidden']) {
@@ -120,21 +115,21 @@ for (const change of ['step','session','identity','user','closed','hidden']) {
 }
 
 test('closing cooking stops a device utterance and detaches its timer callback', async () => {
-  const h = harness({provider:false}); await h.ctx.speakCurrentStep(); const speech = h.spoken[0];
+  const h = harness(); h.ctx.speakRoxyDeviceText('Lectura solicitada explícitamente',{scope:'cooking',isCurrent:()=>true}); const speech = h.spoken[0];
   await h.nodes.get('cookingDialog').emit('close');
   assert.equal(speech.onend, null); assert.equal(h.cancellations(), 1); assert.equal(h.automaticTimers(), 0);
   assert.equal(h.companionDisposals(), 1);
 });
 
 test('a device speech start timeout restores a retry button and never starts a cooking timer', async () => {
-  const h = harness({provider:false}); await h.ctx.speakCurrentStep(); h.tick(6000);
+  const h = harness(); h.ctx.speakRoxyDeviceText('Lectura explícita',{scope:'cooking',isCurrent:()=>true,onStatus:(_state,message)=>h.ctx.cookingSpeechStatus(message)}); h.tick(6000);
   assert.match(h.nodes.get('cookingSpeechStatus').textContent, /no inició/);
   assert.equal(h.nodes.get('speakStepButton').textContent, 'Escuchar paso');
   assert.equal(h.automaticTimers(), 0); assert.equal(h.spoken[0].onend, null);
 });
 
 test('an end event without a speech start cannot claim completion or start a cooking timer', async () => {
-  const h = harness({provider:false}); await h.ctx.speakCurrentStep(); h.spoken[0].onend();
+  const h = harness(); h.ctx.speakRoxyDeviceText('Lectura explícita',{scope:'cooking',isCurrent:()=>true,onStatus:(_state,message)=>h.ctx.cookingSpeechStatus(message)}); h.spoken[0].onend();
   assert.match(h.nodes.get('cookingSpeechStatus').textContent, /no inició/);
   assert.equal(h.automaticTimers(), 0);
 });

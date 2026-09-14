@@ -1596,7 +1596,7 @@ def _authorize_user(user_id: str, auth: AuthContext) -> str:
     return user
 
 
-app.include_router(create_fitness_router(_authenticate, lambda request: _rate_limit(request)))
+app.include_router(create_fitness_router(_authenticate, lambda request: _rate_limit(request), same_origin=lambda request: _account_same_origin(request)))
 
 
 def _member_for_auth(auth: AuthContext) -> dict[str, Any] | None:
@@ -3057,7 +3057,7 @@ def read_home_plants(
     user = _authorize_user(user_id, auth)
     result = _plant_store().snapshot(user, user)
     _protect_legacy_collection_cache(request, not result.get("plants"))
-    result["identification_configured"] = HomePlantIdentifier.from_env().configured
+    result["identification_configured"] = bool(not auth.trial and HomePlantIdentifier.from_env().configured)
     result["species"] = [
         {"key": key, **{field: value.get(field, "") for field in
                        ("common_name", "scientific_name", "light", "soil_rule", "toxicity", "fertilizer")}}
@@ -3100,7 +3100,7 @@ def create_home_plant(
     values = payload.model_dump()
     identification: dict[str, Any] | None = None
     identify_photo = values.pop("identify_photo", True)
-    if values.get("species_key") == "unknown" and identify_photo:
+    if values.get("species_key") == "unknown" and identify_photo and not auth.trial:
         try:
             identification = HomePlantIdentifier.from_env().identify(values["photo_data_url"])
         except Exception:
@@ -3632,7 +3632,8 @@ def read_home_design(
     return {
         "status": "READY",
         "storage_status": storage_status,
-        "generation_configured": generator.configured,
+        "generation_configured": bool(not auth.trial and generator.configured),
+        "analysis_access": "not_included_in_demo" if auth.trial else "available" if generator.configured else "not_connected",
         "connections": public_design_connections(),
         "trends": public_pinterest_design_trends(),
         "projects": [public_project(row, user) for row in projects],
@@ -5386,3 +5387,8 @@ def research_food_safety(
     user = _authorize_user(user_id, auth)
     result = _ai_call(lambda: _home_ai().food_safety(payload.question, _home_food_store().snapshot(user)))
     return {"status": "READY", "result": result}
+
+
+# Fixed tutorial scripts share Home's official voice and global budget.
+from roxy_os.home_tour_router import create_home_tour_router
+app.include_router(create_home_tour_router(_authenticate, _account_store, _account_same_origin, _rate_limit, _official_voice_response))

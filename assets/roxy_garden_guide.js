@@ -1,4 +1,4 @@
-/* Roxy Home: a local, explicit plant setup conversation. No AI/provider calls. */
+/* Roxy Home: a local, explicit plant setup conversation. Official fixed-script narration on request. */
 (function (global) {
   'use strict';
   const choices = Object.freeze({
@@ -126,26 +126,25 @@
     const voiceCopy = el('div'); voiceCopy.append(el('strong', '', 'Roxy, paso a paso contigo'));
     const speech = el('p', 'rg-speech'); speech.setAttribute('aria-live', 'polite'); speech.setAttribute('aria-atomic', 'true'); voiceCopy.append(speech);
     const speechActions = el('div', 'rg-speech-actions');
-    const canSpeak = Boolean(global.speechSynthesis && global.SpeechSynthesisUtterance);
+    const canSpeak = Boolean(global.RoxyHomeTour);
     function stopSpeech() {
-      if (!utterance) return;
-      const owned = utterance; utterance = null; owned.onend = owned.onerror = owned.onstart = null;
-      global.speechSynthesis.cancel();
+      if (utterance) global.RoxyHomeTour?.stop();
+      utterance = null;
       if (speechButton) speechButton.textContent = 'Escuchar a Roxy';
-      if (speechStatus) speechStatus.textContent = 'Voz del dispositivo · sin micrófono';
     }
     function speak() {
       if (!canSpeak || closed) return;
-      if (utterance) { stopSpeech(); return; }
-      const spoken = new global.SpeechSynthesisUtterance(speechText); utterance = spoken; spoken.lang = 'es-US'; spoken.rate = 0.95;
-      spoken.onstart = () => { if (utterance === spoken && !closed) { speechButton.textContent = 'Detener voz'; speechStatus.textContent = 'Leyendo con la voz de tu dispositivo'; } };
-      const finish = () => { if (utterance === spoken) { utterance = null; speechButton.textContent = 'Escuchar a Roxy'; speechStatus.textContent = 'Voz del dispositivo · sin micrófono'; } };
-      spoken.onend = finish;
-      spoken.onerror = () => { finish(); if (!closed) speechStatus.textContent = 'No pude reproducir la voz. Puedes continuar leyendo.'; };
-      try { global.speechSynthesis.speak(spoken); } catch (_) { spoken.onerror(); }
+      if (utterance && global.RoxyHomeTour.isPlaying()) { stopSpeech(); return; }
+      utterance = true;
+      void global.RoxyHomeTour.speak(`garden-${model.step}`, (state, message) => {
+        if (closed) return;
+        utterance = ['loading','playing','ready'].includes(state);
+        speechButton.textContent = utterance ? 'Detener voz' : 'Escuchar a Roxy';
+        speechStatus.textContent = message;
+      }, speechActions);
     }
     speechButton = button('Escuchar a Roxy', 'rg-voice', speak); speechButton.disabled = !canSpeak;
-    speechStatus = el('small', '', canSpeak ? 'Voz del dispositivo · sin micrófono' : 'La voz no está disponible en este navegador. Todo está por escrito.');
+    speechStatus = el('small', '', canSpeak ? 'Guía con la voz oficial de Roxy · en español' : 'La voz no está disponible ahora. Todo está por escrito.');
     speechActions.append(speechButton, speechStatus); voiceCopy.append(speechActions); roxy.append(avatar, voiceCopy); shell.append(roxy);
     region = el('div', 'rg-content'); shell.append(region);
     errorBox = el('p', 'rg-error'); errorBox.setAttribute('role', 'alert'); errorBox.hidden = true; shell.append(errorBox);
@@ -281,16 +280,19 @@
     const roxy = el('div', 'rg-roxy');
     const avatar = el('img'); avatar.src = '/assets/roxy_home_avatar.jpg'; avatar.alt = ''; avatar.setAttribute('data-roxy-avatar', ''); avatar.width = 56; avatar.height = 56; avatar.addEventListener('error', () => { avatar.hidden = true; });
     const copy = el('div'), speech = reviewText(plant, options.memberName); copy.append(el('strong', '', 'Roxy, paso a paso contigo'), el('p', 'rg-speech', speech));
-    const canSpeak = Boolean(global.speechSynthesis && global.SpeechSynthesisUtterance);
-    const speechStatus = el('small', '', canSpeak ? 'Voz del dispositivo · sin micrófono' : 'Voz no disponible. Puedes continuar por escrito.');
-    function stopSpeech() { if (!utterance) return; utterance.onstart = utterance.onend = utterance.onerror = null; utterance = null; global.speechSynthesis.cancel(); voiceButton.textContent = 'Escuchar a Roxy'; speechStatus.textContent = 'Voz del dispositivo · sin micrófono'; }
+    const canSpeak = Boolean(global.RoxyHomeTour);
+    const speechStatus = el('small', '', canSpeak ? 'Guía con la voz oficial de Roxy · en español' : 'La voz no está disponible ahora. Todo está por escrito.');
+    function stopSpeech() { if (utterance) global.RoxyHomeTour?.stop(); utterance = null; voiceButton.textContent = 'Escuchar a Roxy'; }
     const voiceButton = button('Escuchar a Roxy', 'rg-voice', () => {
-      if (!canSpeak || closed) return; if (utterance) { stopSpeech(); return; }
-      const spoken = new global.SpeechSynthesisUtterance(speech); utterance = spoken; spoken.lang = 'es-US'; spoken.rate = .95;
-      spoken.onstart = () => { if (!closed && utterance === spoken) voiceButton.textContent = 'Detener voz'; };
-      const finish = () => { if (utterance === spoken) { utterance = null; voiceButton.textContent = 'Escuchar a Roxy'; } };
-      spoken.onend = finish; spoken.onerror = () => { finish(); if (!closed) speechStatus.textContent = 'No pude reproducir la voz. Puedes continuar leyendo.'; };
-      try { global.speechSynthesis.speak(spoken); } catch (_) { spoken.onerror(); }
+      if (!canSpeak || closed) return;
+      if (utterance && global.RoxyHomeTour.isPlaying()) { stopSpeech(); return; }
+      utterance = true;
+      void global.RoxyHomeTour.speak('garden-review', (state, message) => {
+        if (closed) return;
+        utterance = ['loading','playing','ready'].includes(state);
+        voiceButton.textContent = utterance ? 'Detener voz' : 'Escuchar a Roxy';
+        speechStatus.textContent = message;
+      }, voiceRow);
     }); voiceButton.disabled = !canSpeak;
     const voiceRow = el('div', 'rg-speech-actions'); voiceRow.append(voiceButton, speechStatus); copy.append(voiceRow); roxy.append(avatar, copy); shell.append(roxy);
     const steps = el('ol', 'rg-review-checklist');

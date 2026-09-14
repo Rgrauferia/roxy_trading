@@ -25,7 +25,7 @@
       consent:'Quiero guardar estas preferencias, incluidas las alergias que decida indicar, en mi perfil privado de Roxy Home para personalizar Recetas.', privacy:'Puedes modificarlas desde Recetas → Mis gustos. No se añaden productos a Compra al guardar.', privacyLink:'Privacidad', next:'Continuar', back:'Atrás', save:'Guardar y descubrir recetas', saveEdit:'Guardar cambios', cancel:'Cancelar', saving:'Guardando…', saved:'Preferencias guardadas.',
       langError:'Elige español o inglés para continuar.', modeError:'Elige cómo quieres explorar las cocinas.', originError:'Indica tu país o región, o elige otra forma de explorar.', cuisineError:'Elige al menos una cocina.', dietError:'Elige una dieta o «Prefiero no indicarlo».', allergyError:'Elige cómo prefieres responder sobre alergias.', listError:'Selecciona al menos una alergia.', otherError:'Escribe la otra alergia que quieres guardar.', dislikesError:'Indica hasta 20 ingredientes, de 60 caracteres como máximo cada uno.', timeError:'Indica entre 5 y 240 minutos, o deja el campo vacío.', skillError:'Elige tu experiencia o «Prefiero no indicarlo».', consentError:'Confirma que quieres guardar estas preferencias.',
       saveError:'No pude confirmar el guardado. Tus respuestas siguen aquí. Puedes comprobar la versión guardada antes de reintentar.', conflict:'El perfil cambió en otra sesión. Carga la versión guardada para revisarla antes de guardar de nuevo.', reload:'Descartar cambios y cargar el perfil guardado', loading:'Comprobando perfil…', loadError:'No pude cargar el perfil guardado. Conservamos tus respuestas.', stale:'Tu sesión cambió. Vuelve a abrir tus preferencias desde tu cuenta.',
-      listen:'Escuchar a Roxy', stop:'Detener voz', voiceHint:'Voz del dispositivo · sólo al pulsar', voiceUnavailable:'Puedes seguir leyendo; no hay una voz local disponible en este idioma.', voiceError:'No se pudo reproducir la voz. Puedes continuar leyendo.',
+      listen:'Escuchar a Roxy', stop:'Detener voz', voiceHint:'Guía con la voz oficial de Roxy · en español', voiceUnavailable:'Puedes seguir leyendo; la voz oficial no está disponible ahora.', voiceError:'No se pudo reproducir la voz. Puedes continuar leyendo.',
     },
     en: {
       eyebrow:'ROXY · YOUR KITCHEN', title:'A kitchen that feels like you', editTitle:'Let’s refine your tastes', badge:'4 steps, at your pace', steps:['Your flavours','Your tastes','Your rhythm','Your profile'],
@@ -38,7 +38,7 @@
       consent:'I want to save these preferences, including any allergies I choose to share, in my private Roxy Home profile to personalise Recipes.', privacy:'You can edit them in Recipes → My tastes. Saving does not add products to Shopping.', privacyLink:'Privacy', next:'Continue', back:'Back', save:'Save and discover recipes', saveEdit:'Save changes', cancel:'Cancel', saving:'Saving…', saved:'Preferences saved.',
       langError:'Choose Spanish or English to continue.', modeError:'Choose how you want to explore cuisines.', originError:'Enter your country or region, or choose another way to explore.', cuisineError:'Choose at least one cuisine.', dietError:'Choose a diet or “Prefer not to say”.', allergyError:'Choose how you would like to answer about allergies.', listError:'Select at least one allergy.', otherError:'Enter the other allergy you want to save.', dislikesError:'Enter up to 20 ingredients, each with no more than 60 characters.', timeError:'Enter between 5 and 240 minutes, or leave blank.', skillError:'Choose your experience or “Prefer not to say”.', consentError:'Confirm that you want to save these preferences.',
       saveError:'I couldn’t confirm the save. Your answers are still here. You can check the saved version before trying again.', conflict:'This profile changed in another session. Load the saved version to review it before saving again.', reload:'Discard changes and load the saved profile', loading:'Checking profile…', loadError:'I couldn’t load the saved profile. Your answers are still here.', stale:'Your session changed. Reopen your preferences from your account.',
-      listen:'Listen to Roxy', stop:'Stop voice', voiceHint:'Device voice · only when you press play', voiceUnavailable:'You can keep reading; no local voice is available in this language.', voiceError:'Voice could not play. You can continue reading.',
+      listen:'Listen to Roxy', stop:'Stop voice', voiceHint:'Official Roxy guide · spoken in Spanish', voiceUnavailable:'You can keep reading; the official voice is unavailable right now.', voiceError:'Voice could not play. You can continue reading.',
     },
   };
   const text = value => typeof value === 'string' ? value.trim() : '';
@@ -90,7 +90,7 @@
   function render(container, options = {}) {
     mounts.get(container)?.dispose();
     const envelope = options.profile || {}, doc = container.ownerDocument || global.document;
-    let model = createModel(envelope), disposed = false, request = null, speech = null, speechTimer = null;
+    let model = createModel(envelope), disposed = false, request = null, speech = null;
     const id = `recipe-onboarding-${++sequence}`, initialIdentity = options.identity;
     const owned = [], el = (tag, cls, value) => { const node = doc.createElement(tag); if (cls) node.className = cls; if (value != null) node.textContent = value; return node; };
     const on = (node, event, fn) => { node.addEventListener(event, fn); owned.push(() => node.removeEventListener(event, fn)); };
@@ -100,26 +100,22 @@
     const button = (value, cls, fn) => { const node = el('button', cls, value); node.type = 'button'; node.addEventListener('click', () => { if (isCurrent() && !node.disabled) fn(); }); return node; };
     const shell = el('section', 'recipe-onboarding'); shell.setAttribute('aria-labelledby', `${id}-title`);
     container.replaceChildren(shell);
-    let content, errorBox, footer, next, reload, voiceButton, voiceStatus, narrationNode, overview, stepHeading;
+    let content, errorBox, footer, next, reload, voiceButton, voiceStatus, voiceArea, narrationNode, overview, stepHeading;
     function stopSpeech() {
-      clearTimeout(speechTimer); speechTimer = null;
-      if (speech) { speech.onstart = speech.onend = speech.onerror = null; speech = null; global.speechSynthesis?.cancel(); }
+      if (speech) global.RoxyHomeTour?.stop();
+      speech = null;
       if (voiceButton) voiceButton.textContent = tr().listen;
     }
     function speak() {
-      if (speech) { stopSpeech(); return; }
-      const synth = global.speechSynthesis, lang = model.values.language;
-      const voice = synth?.getVoices?.().find(item => item.localService === true && item.lang?.toLowerCase().split('-')[0] === lang);
-      if (!voice || !global.SpeechSynthesisUtterance) { voiceStatus.textContent = tr().voiceUnavailable; return; }
-      const utterance = new global.SpeechSynthesisUtterance(narrationNode.textContent); speech = utterance;
-      utterance.lang = lang; utterance.voice = voice; utterance.rate = 0.97;
-      voiceButton.textContent = tr().stop;
-      utterance.onstart = () => { if (speech !== utterance || !isCurrent() || doc.hidden) { stopSpeech(); return; } clearTimeout(speechTimer); speechTimer = null; };
-      const finish = () => { if (speech === utterance) { clearTimeout(speechTimer); speechTimer = null; speech = null; voiceButton.textContent = tr().listen; } };
-      utterance.onend = finish;
-      utterance.onerror = () => { finish(); if (isCurrent()) voiceStatus.textContent = tr().voiceError; };
-      speechTimer = setTimeout(() => { if (speech === utterance) { stopSpeech(); voiceStatus.textContent = tr().voiceError; } }, 5000);
-      try { synth.speak(utterance); } catch (_) { utterance.onerror(); }
+      if (speech && global.RoxyHomeTour?.isPlaying()) { stopSpeech(); return; }
+      if (!global.RoxyHomeTour) { voiceStatus.textContent = tr().voiceUnavailable; return; }
+      speech = true;
+      void global.RoxyHomeTour.speak(`recipe-${model.step}`, (state, message) => {
+        if (!isCurrent()) return;
+        speech = ['loading','playing','ready'].includes(state);
+        voiceStatus.textContent = message;
+        voiceButton.textContent = speech ? tr().stop : tr().listen;
+      }, voiceArea);
     }
     function showError(key) { errorBox.hidden = false; errorBox.textContent = tr()[key]; errorBox.focus?.(); }
     function clearError() { errorBox.hidden = true; errorBox.textContent = ''; }
@@ -169,7 +165,7 @@
       shell.setAttribute('aria-busy', request ? 'true' : 'false');
       content.querySelectorAll?.('input, button').forEach(node => { node.disabled = Boolean(request); });
       footer.querySelectorAll?.('button').forEach(node => { node.disabled = Boolean(request); });
-      if (voiceButton) voiceButton.disabled = Boolean(request) || !global.speechSynthesis || !global.SpeechSynthesisUtterance || !model.values.language;
+      if (voiceButton) voiceButton.disabled = Boolean(request) || !global.RoxyHomeTour;
       next.textContent = request ? request.method === 'GET' ? tr().loading : tr().saving : model.step === 3 ? model.editing ? tr().saveEdit : tr().save : tr().next;
     }
     function validEnvelope(value, saving) {
@@ -210,7 +206,7 @@
       const companion = el('div','rco-companion'), avatar = el('img','rco-avatar'); avatar.src = '/assets/roxy_home_avatar.jpg'; avatar.alt = ''; avatar.width = 104; avatar.height = 104; avatar.decoding = 'async'; avatar.addEventListener('error',() => { avatar.hidden = true; });
       const speechArea = el('div','rco-speech-area'); speechArea.append(el('strong','', 'Roxy'));
       narrationNode = el('p','rco-narration',`${model.step === 0 ? `${t.hello}${text(options.displayName) ? `, ${text(options.displayName).slice(0,60)}` : ''}. ` : ''}${t.narrations[model.step]}`); narrationNode.setAttribute('aria-live','polite'); speechArea.append(narrationNode);
-      const voiceArea = el('div','rco-voice-area'); voiceButton = button(t.listen,'rco-voice',speak); voiceStatus = el('small','',t.voiceHint); voiceStatus.setAttribute('role','status'); voiceArea.append(voiceButton,voiceStatus); speechArea.append(voiceArea); companion.append(avatar,speechArea); shell.append(companion);
+      voiceArea = el('div','rco-voice-area'); voiceButton = button(t.listen,'rco-voice',speak); voiceStatus = el('small','',t.voiceHint); voiceStatus.setAttribute('role','status'); voiceArea.append(voiceButton,voiceStatus); speechArea.append(voiceArea); companion.append(avatar,speechArea); shell.append(companion);
       overview = el('aside','rco-overview'); overview.setAttribute('aria-live','polite'); overview.setAttribute('aria-atomic','true'); shell.append(overview); refreshOverview();
       content = el('div','rco-content'); stepHeading = el('h3','',model.step === 3 ? t.review : t.steps[model.step]); stepHeading.tabIndex = -1; content.append(stepHeading); shell.append(content);
       if (model.step === 0) {

@@ -3,10 +3,10 @@
   "updated_on": "2026-09-14",
   "deployment_branch": "codex/roxy-home-nfc",
   "public_url": "https://roxy-home.onrender.com/lista#recetas",
-  "last_verified_public_version": 201,
-  "deployed_implementation_commit": "c8ee2b5429cb04abf15a4ed5370170bfcd460eed",
-  "candidate_version": 202,
-  "candidate_status": "201_published_official_recipe_voice_and_answer_verified",
+  "last_verified_public_version": 202,
+  "deployed_implementation_commit": "49a3548a793f794fc34f2e06bc0c725c59063b6d",
+  "candidate_version": 203,
+  "candidate_status": "203 local QA passed; publishing and real official narration verification next",
   "candidate_199": {
     "published": true,
     "implementation_commit": "4652e5200594401ed719cf7c928a8ade2010e97a",
@@ -734,13 +734,13 @@
     "Aderezo César photo showed a salad; quarantine until an exact replacement is visually reviewed",
     "Only five manufacturer ingredient panels screened; restrictions fail closed, not clinical allergy clearance"
   ],
-  "next_step": "Publish and verify Home202: Spanish MyPlate reading and general Home agent response with official voice. Local QA complete; preserve data/prototypes.",
+  "next_step": "Publish candidate203, verify Render deployment and public official ElevenLabs playback; document module results without claiming personalised training or external phone integrations complete.",
   "launch": {
-    "five_day_web_beta": "requested_not_scheduled",
+    "five_day_web_beta": "registration_enabled_20260914_first_signup_pending",
     "app_store": "target_next_month_not_guaranteed",
     "exercise_section": "182_published_adjacent_recipes_21_educational_entries44_illustrations_training_and_public_storage_pending",
     "database_and_media_migration": "recommended_not_performed",
-    "registration": "public_open_approved_implemented_167_disabled_pending_real_verification",
+    "registration": "public_open_enabled_20260914_real_widget_visible_human_signup_pending",
     "trial_days": 5
   },
   "candidate_verification": {
@@ -753,20 +753,23 @@
     "production_data_mutated": false
   },
   "public_registration": {
-    "enabled": false,
+    "enabled": true,
     "trial_days": 5,
     "ai_requests_per_household_daily": 5,
     "max_households": 100,
     "max_signup_daily": 20,
     "max_signup_per_connection_daily": 3,
     "max_members": 6,
-    "captcha": "Turnstile_Home_keys_configured_20260913_positive_token_signup_replay_pending",
+    "captcha": "real_managed_widget_visible_human_checkbox_and_positive_signup_pending",
     "voice": false,
     "paid_media_generation": false,
     "expiry": "read_only_no_auto_charge_no_deletion",
     "automatic_password_recovery": false,
-    "synthetic_tests_only": true,
-    "recovery": "Member-bound backup codes implemented196; no email or retroactive recovery without issued codes"
+    "synthetic_tests_only": false,
+    "recovery": "Member-bound backup codes implemented196; no email or retroactive recovery without issued codes",
+    "positive_real_signup_verified": false,
+    "real_checks": "Publicconfig200enabledtrue; invalidtoken422,foreignorigin403,anonymousprivate401; Safari private form and real widget visible",
+    "report": "reports/home_public_access_20260914.md"
   },
   "historical_qa_171": {
     "node_check": "passed",
@@ -1051,9 +1054,9 @@
     "cleanup": "Own QA52210 SIGINT; syntheticdirectoryauto removed; QA8 closed/viewportreset; QA7 CDP close timeout. Public3 stopped responding afterreload; new9 same session marked deliverable. Original user tabs not deleted."
   },
   "candidate_202": {
-    "published": false,
+    "published": true,
     "report": "reports/home_release_202_20260914.md",
-    "next_step": "Publish and verify Home202: Spanish MyPlate reading and general Home agent response with official voice. Local QA complete; preserve data/prototypes.",
+    "next_step": "User reviewing recovered local interactive-film prototype8796 and actual four-step culinary welcome8768. Cinema remains unintegrated with public signup/account preferences; only five module chapters exist. Preserve approved prototype/runtime and household data. First valid public signup remains pending separate human challenge; no production change in this review.",
     "tests_initial": {
       "python": 98,
       "node": 321
@@ -1071,6 +1074,57 @@
     "implementation_commit": "8fceed2f67ccc2f93d92c90017959108071d2403",
     "initial_deploy": "dep-dajngeajnfac73f6tskg",
     "initial_deploy_seconds": 59.4,
-    "package_fix": "Public check found missing conversation COPY; fixing and retesting all HTML scripts against Docker sources."
+    "package_fix": "Public check found missing conversation COPY; fixing and retesting all HTML scripts against Docker sources.",
+    "final_commit": "49a3548a793f794fc34f2e06bc0c725c59063b6d",
+    "final_deploy": "dep-dajnhefqj5pc73bd4ccg",
+    "final_deploy_seconds": 53.9,
+    "package_tests": 18,
+    "public_assets_identical": 9,
+    "public_health": "200/ok",
+    "general_home_agent_verified": true,
+    "official_general_voice_event_playing": true,
+    "spanish_recipe_verified": "2-Step Chicken: full title/4ingredients/7steps translated and compared with original; same quantities/times/F. Official steps1/2 playback finished; finalstep2 Spanishpaused.",
+    "catalogue_title_language": "original; opened recipe and guide translated to Spanish",
+    "physical_microphone_verified": false,
+    "household_collections_modified": false,
+    "normal_conversation_usage_cache_updated": true,
+    "cleanup": "QA58357 SIGINT; tempabsent; QA11/12 andRender13 closed; viewportreset; original10 preserved, public14 delivered."
+  },
+  "public_share_url": "https://roxy-home.onrender.com",
+  "public_access_20260914": {
+    "enabled": true,
+    "implementation_commit": "49a3548a793f794fc34f2e06bc0c725c59063b6d",
+    "deploy": "dep-dajnns8ae00c73ams010",
+    "deploy_seconds": 32.8,
+    "real_signup_verified": false,
+    "human_handoff": "Safari private window D0E20F05-8132-40E5-AB25-C371F0CB7575; form open, user asked to complete challenge/signup and keep recovery codes",
+    "tests_python": "253 passed in98.34s",
+    "tests_node": 47,
+    "new_accounts_created_by_agent": 0,
+    "report": "reports/home_public_access_20260914.md"
+  },
+  "onboarding_walkthrough_20260914": {
+    "request": "Show previously prepared interactive signup/onboarding, appearance, module explanations and fields",
+    "cinema_preview": "http://127.0.0.1:8796/",
+    "actual_culinary_preview": "http://127.0.0.1:8768/lista#hoy",
+    "prototype_rewritten": false,
+    "production_changed": false,
+    "public_cinema_integrated": false,
+    "tests": "20story passed;28protected runtime files intact",
+    "local_servers_kept_for_user": true,
+    "report": "reports/home_onboarding_walkthrough_20260914.md"
+  },
+  "candidate_203": {
+    "published": false,
+    "report": "reports/home_release_203_20260914.md",
+    "next_step": "Publish candidate203, verify Render deployment and public official ElevenLabs playback; document module results without claiming personalised training or external phone integrations complete.",
+    "chapters": 13,
+    "qa_port": 8769,
+    "implementation_in_progress": false,
+    "tests_node": 974,
+    "tests_python": "402passed/11PGskipped package+tour+fitness;64passed final plants/design/demo/tour, overlapping suites",
+    "qa": "Synthetic8769 all13chapters,393px no horizontal overflow; records and care journal persist; calendar two confirmed events; fixed unknown plant species default",
+    "preservation": "4789 previousfiles present;3758 prototypefiles byteidentical",
+    "trial_manual_modules": "Plant cards, photos, care journal/reminders and room projects/photos/measurements allowed with existing privacy/expiry gates. Paid provider routes remain denied; trial plant create never calls identification."
   }
 }

@@ -38,8 +38,9 @@ function setup({ voice = true } = {}) {
   const spoken = [], cancelled = [];
   const window = { document };
   if (voice) {
-    window.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
-    window.speechSynthesis = { speak(item) { spoken.push(item); item.onstart(); }, cancel() { cancelled.push(true); } };
+    let playing=false;
+    window.RoxyHomeTour = { isPlaying:()=>playing, speak(chapter,status){playing=true;spoken.push(chapter);status('playing','Habla Roxy · voz oficial');}, stop(){playing=false;cancelled.push(true);} };
+
   }
   vm.runInNewContext(source, { window });
   return { api: window.RoxyGardenGuide, document, spoken, cancelled, nodes: () => all(document.body), find: text => all(document.body).find(node => node.tagName === 'button' && node.textContent === text) };
@@ -120,14 +121,14 @@ test('dialog is fully written, no audio or save until explicit gestures', async 
   const h = setup(); let saves = 0;
   h.api.open({ species, memberName: 'Robert', onSave: async () => { saves++; } });
   assert.equal(h.spoken.length, 0); assert.equal(saves, 0);
-  assert.ok(h.document.body.textContent.includes('Voz del dispositivo'));
+  assert.ok(h.document.body.textContent.includes('voz oficial de Roxy'));
   await h.find('Continuar').click();
   assert.ok(h.document.body.textContent.includes('Añade una foto actual'));
   assert.equal(saves, 0);
   await h.find('Cerrar').click(); assert.equal(h.document.body.children.length, 0);
 });
 
-test('device narration starts by tap, updates on navigation, and stops on close', async () => {
+test('official narration starts by tap, updates on navigation, and stops on close', async () => {
   const h = setup(); h.api.open({ species, plant: { id: 'p', species_key: 'pothos' }, onSave: async () => {} });
   await h.find('Escuchar a Roxy').click(); assert.equal(h.spoken.length, 1);
   await h.find('Continuar').click(); assert.equal(h.cancelled.length, 1); assert.equal(h.spoken.length, 1, 'No automatic narration on next step');

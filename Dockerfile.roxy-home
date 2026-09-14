@@ -72,3 +72,6 @@ RUN mkdir -p /var/data/roxy_home
 EXPOSE 10000
 
 CMD ["sh", "-c", "uvicorn tools.roxy_home_service:app --host 0.0.0.0 --port ${PORT:-10000} --no-access-log"]
+
+COPY assets/roxy_home_tour.js assets/roxy_home_tour.css ./assets/
+COPY assets/roxy_home/tour ./assets/roxy_home/tour

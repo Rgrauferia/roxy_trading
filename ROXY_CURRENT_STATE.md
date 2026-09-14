@@ -1,22 +1,86 @@
 # Roxy Home — estado operativo
 
-## 202 — VALIDADA LOCALMENTE: agente Home y cocina visual en español
+## 203 — VALIDADA LOCALMENTE; publicación en curso
 
-Botón general conectado al agente Responses de Home existente, con dictado del
-navegador por turnos y lectura oficial ElevenLabs. Sin nuevo LLM externo ni agente
-compartido. Iniciar consulta configuración Home; voz y comandos conservan límites,
-memoria, permisos y claves Home. Cierre/identidad/ocultación cancelan escucha/audio.
-Guía visual con avatar, paso destacado, navegación numerada y checklist temporal
-para ingredientes. MyPlate se traduce al abrir cada ficha con Luna, preservando
-líneas y cantidades; original accesible, sin catálogo persistente ni conversión de
-unidades. Lectura firmada para voz/consultas durante una hora, vinculada a receta y
-hogar. Etiquetada IA; no revisión culinaria. Proveedor no probado todavía en202.
-2782Python y488Node pasan;11PostgreSQL omitidas. QA sintética: guía y
-conversación separadas,393px sin overflow, cambioES/EN conserva paso2,
-checklist local. Voz real y micrófono físico todavía pendientes en202. Publicar
-y verificar el proveedor antes de afirmar operativo.
-Informe: `reports/home_release_202_20260914.md`. Preservar prototipos y documentos
-anteriores. No afirmar micrófono ni audio físico comprobados.
+Solicitud vigente: sustituir la voz masculina e integrar una bienvenida animada de
+Home completo. Trece capítulos reales, películas originales preservadas, explicación
+de ubicación/calendario, progreso privado por miembro y voz oficial ElevenLabs.
+Cocina deja de bloquear la entrada general. Guías de Cocina/Jardín/Ejercicio usan
+el mismo canal oficial; nunca eligen una voz del dispositivo automáticamente.
+Ejercicio permite leer/escuchar movimientos y confirmar Actividad personal en el
+calendario del hogar. Entrenamiento personalizado sigue pendiente de PostgreSQL
+privado y revisión profesional. No se guardan datos de salud en JSON.
+La demo admite fichas manuales de plantas y habitaciones/fotos/medidas; mantiene
+bloqueados análisis y generación de imágenes. La creación de plantas de demo no
+llama al identificador aunque el cliente lo solicite.
+QA sintética8769: altas y persistencia de compra, despensa, planta/diario, mascota,
+habitación, perfil Nexo y dos eventos; 13capítulos y393px sin overflow horizontal.
+974Node aprobadas; 402Python/11PG omitidas en paquete/tour/fitness;64Python de
+plantas/diseño/demo/tour aprobadas después del ajuste de acceso manual.
+Preservación:4789archivos anteriores presentes,3758prototipos byteidénticos.
+Público aún202 hasta verificar despliegue y reproducción oficial real.
+Informe: `reports/home_release_203_20260914.md`.
+
+## 14/09 — recorrido de bienvenida recuperado para revisión
+
+Roberto pidió ver la historia, preguntas, apariencia y explicación por módulo ya
+trabajadas. Prototipo original `prototypes/roxy-cinema` servido en127.0.0.1:8796;
+ningún archivo del prototipo reescrito.28archivos protegidos íntegros y20pruebas
+aprobadas. Video real local y pausa de decisión, Renueva/Nexo y preguntas revisados.
+Vista local separada127.0.0.1:8768 con fixture existente de cuenta ficticia muestra
+las cuatro pantallas culinarias del código publicado; respuestas no guardadas,
+proveedores bloqueados. Ambos servidores quedan activos para la revisión del usuario.
+La historia de8capítulos/cinco módulos nunca se conectó al alta pública. Compra,
+Calendario y Ejercicios no tienen capítulo propio; voz del prototipo es provisional.
+No modificación ni despliegue público; primera alta Cloudflare real sigue pendiente.
+Mapa de preguntas/estado: `reports/home_onboarding_walkthrough_20260914.md`.
+
+## 14/09 — registro público habilitado; primera alta humana pendiente
+
+Enlace compartible: https://roxy-home.onrender.com → /home. Solicitud de Roberto:
+permitir que personas nuevas prueben Home en hogares propios. Indicador de registro
+habilitado en Render, único campo cambiado; otras44variables sin editar. Mismo
+código202/49a3548; deploy final dep-dajnns8ae00c73ams010 Live32.8s. Primer guardado
+no conservó1; detectado y corregido, sin afirmar éxito por el botón de guardar.
+Endpoint200/enabledtrue y entrada anónima Safari privado verificadas. Formulario
+visible y widgetCloudflare real presenta casilla humana. Alta válida, códigos,
+onboarding y nuevo login pendientes de Roberto en esa ventana; no CAPTCHA simulado
+ni cuenta creada por el agente. Registro queda abierto con CAPTCHA/cuotas originales.
+Demo5días/5consultas diarias, hogar privado, sin tarjeta/cobro automático. Voz oficial
+no incluida; lectura de recetas con voz del dispositivo. Capacidad100hogares/20altas
+por día/3por conexión y6perfiles por hogar. Tokens inválidos422/origen ajeno403,
+sin cookies; cuentas/compras sin sesión401.253Python dirigidas y47Node aprobadas.
+Ningún secreto copiado, ninguna invitación enviada, sin cambiar datos del hogar.
+Informe: `reports/home_public_access_20260914.md`. No redeploy por estas notas.
+
+## 202 — PUBLICADA: agente Home y cocina visual en español
+
+Botón general Roxy conectado al agente Responses de Home existente; dictado del
+navegador por turnos y voz oficial ElevenLabs. Claves, memoria y presupuesto Home.
+Respuestas escritas se leen con voz oficial; alternativa de dispositivo en Privacidad.
+Micrófono cerrado mientras procesa/habla; cancelación por cierre/identidad/ocultación.
+Guía con avatar, paso destacado, navegación numerada, siguiente paso desplegable
+e ingredientes marcables localmente. MyPlate se traduce al abrir cada receta con
+Luna, conservando cantidades y orden; original íntegro accesible. Lectura firmada
+por una hora para voz/consultas, sin catálogo persistente ni conversión de unidades.
+Títulos del catálogo conservan el original; ficha y guía abiertas sí pasan a español.
+
+2782Python/11PGomitidas y488Node verdes. Primera publicación8fceed2f detectó404
+por COPY faltante del nuevo módulo; corregido y18pruebas de paquete/PWA aprobadas,
+incluida cobertura de todos los scripts HTML en Docker. Final49a3548a793f794fc34f2e06bc0c725c59063b6d,
+Render dep-dajnhefqj5pc73bd4ccg Live53.9s. Health200 y9archivos byteidénticos.
+UI pública14 conserva sesión/meta202/módulo2. Pregunta general real respondida por
+Home y evento playing de voz oficial observado. Pollo en2pasos: traducción real,
+4ingredientes/7pasos, cotejada con original; cantidades/tiempos/165F conservados.
+Lecturas oficiales de pasos1y2 completadas; vueltaES/EN conserva paso2. Dejamos
+guía española paso2/7 abierta, voz pausada y marcada como entrega. No se alteraron
+compras, planes ni recetas guardadas; conversación general y contadores/caché se
+usan normalmente. No inspección adicional de tokens del servidor en este bloque;
+la contabilidad usa el ledger Home existente. Micrófono/altavoz físico no comprobados.
+QA393px sin overflow, datos sintéticos eliminados automáticamente al apagar58357;
+pestañas QA y Render cerradas, viewport restablecido. Original del usuario10 se
+conserva.4789archivos anteriores presentes/3758prototipos byteidénticos. No redeploy
+sólo por notas finales. Informe: `reports/home_release_202_20260914.md`.
 
 ## 201 — PUBLICADA: preparación uniforme y voz oficial recuperada
 

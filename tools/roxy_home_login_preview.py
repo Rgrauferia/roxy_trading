@@ -17,6 +17,12 @@ from pathlib import Path
 
 
 def main() -> None:
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--port", type=int, default=8768)
+    args = parser.parse_args()
+    if not 1024 <= args.port <= 65535:
+        parser.error("Use a loopback port between 1024 and 65535.")
     import requests
     import uvicorn
 
@@ -43,7 +49,7 @@ def main() -> None:
             from roxy_os.home_accounts import HomeAccountStore
             from tools import roxy_home_service as service
 
-            service.SESSION_COOKIE = "roxy_home_login_qa_session"
+            service.SESSION_COOKIE = "roxy_home_login_qa_session" + (f"_{args.port}" if args.port != 8768 else "")
 
             def local_cookie(response, value):
                 # Only this loopback fixture uses a non-Secure cookie over HTTP.
@@ -58,9 +64,9 @@ def main() -> None:
                 password="Local-QA-only-2026",
             )
             print(f"Disposable synthetic data only: {directory}", flush=True)
-            print("Login QA: http://127.0.0.1:8768/lista#hoy", flush=True)
+            print(f"Login QA: http://127.0.0.1:{args.port}/lista#hoy", flush=True)
             print("Synthetic login only: loginqa / Local-QA-only-2026", flush=True)
-            uvicorn.run(service.app, host="127.0.0.1", port=8768, access_log=False)
+            uvicorn.run(service.app, host="127.0.0.1", port=args.port, access_log=False)
         finally:
             os.chdir(original_directory)
 

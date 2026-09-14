@@ -49,6 +49,30 @@ def trial_access_mode(method: str, path: str) -> str:
     A request quota supplements, never replaces/increases, the Home AI ledger.
     No image/video generation, voice sessions, commerce feeds or device control.
     """
+    if (method, path) in {("GET", "/v1/home-tour"), ("PUT", "/v1/home-tour"), ("POST", "/v1/home-tour/speech")}:
+        # Fixed public narration only, shared cache, existing Home TTS ledger.
+        # Does not enable arbitrary speech, conversations or video generation.
+        return "local"
+    # Private manual records and uploads. Plant creation explicitly suppresses
+    # identification for trials; all paid analysis/generation routes stay denied.
+    if method == "POST" and re.fullmatch(r"/v1/home-plants/[^/]+", path):
+        return "local"
+    if method in {"PATCH", "DELETE"} and re.fullmatch(r"/v1/home-plants/[^/]+/[^/]+", path):
+        return "local"
+    if method == "GET" and re.fullmatch(r"/v1/home-plants/[^/]+/[^/]+/(?:image|journal/[^/]+/image)", path):
+        return "local"
+    if method == "POST" and re.fullmatch(r"/v1/home-plants/[^/]+/[^/]+/(?:journal|reminders|tasks/[^/]+/complete)", path):
+        return "local"
+    if method == "PUT" and re.fullmatch(r"/v1/home-plants/[^/]+/vacation", path):
+        return "local"
+    if method == "POST" and re.fullmatch(r"/v1/home-design/[^/]+/projects", path):
+        return "local"
+    if method == "GET" and re.fullmatch(r"/v1/home-design/[^/]+/projects/[^/]+/image/(?:original|proposal)", path):
+        return "local"
+    if method == "PUT" and re.fullmatch(r"/v1/home-design/[^/]+/projects/[^/]+/measurements", path):
+        return "local"
+    if method == "DELETE" and re.fullmatch(r"/v1/home-design/[^/]+/projects/[^/]+", path):
+        return "local"
     if (method, path) in {("GET", "/api/fitness/v1/status"), ("GET", "/api/fitness/v1/me/profile"), ("GET", "/api/fitness/v1/me/data"), ("PATCH", "/api/fitness/v1/me/profile"), ("POST", "/api/fitness/v1/me/consents"), ("DELETE", "/api/fitness/v1/me/data"), ("POST", "/api/fitness/v1/plans/preview")}:
         # Preference foundation only; no workouts, AI calls or commercial writes.
         return "local"

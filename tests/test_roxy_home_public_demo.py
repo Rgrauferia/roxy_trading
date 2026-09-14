@@ -91,6 +91,59 @@ def test_trial_pet_products_are_private_and_expiration_blocks_additions(demo):
     assert service._store().list_items(namespace) == before
 
 
+def test_trial_manual_plants_and_rooms_persist_without_paid_calls(demo, tmp_path, monkeypatch):
+    import base64
+    from types import SimpleNamespace
+
+    for name, filename in {"ROXY_HOME_PLANTS_PATH": "plants.json", "ROXY_HOME_PLANTS_IMAGE_DIR": "plant-images",
+                           "ROXY_HOME_DESIGN_PATH": "design.json", "ROXY_HOME_DESIGN_IMAGE_DIR": "design-images",
+                           "ROXY_HOME_CALENDAR_PATH": "calendar.json"}.items():
+        monkeypatch.setenv(name, str(tmp_path / filename))
+    monkeypatch.setattr(service.HomePlantIdentifier, "from_env", lambda: pytest.fail("Manual trial called identification"))
+    monkeypatch.setattr(service.HomeDesignGenerator, "from_env", lambda: SimpleNamespace(configured=True))
+    monkeypatch.setattr(HomeAccountStore, "reserve_trial_request", lambda *_: pytest.fail("Manual record spent AI quota"))
+    tester, outsider = client(), client()
+    member = signup(tester).json()
+    signup(outsider, "trialtwo")
+    namespace = member["storage_user_id"]
+    photo = "data:image/png;base64," + base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"synthetic-home-qa-photo").decode()
+    plants = f"/v1/home-plants/{namespace}"
+    plant_snapshot = tester.get(plants, headers={"X-Roxy-Snapshot-Version": "2"})
+    assert plant_snapshot.status_code == 200, plant_snapshot.text
+    assert plant_snapshot.json()["identification_configured"] is False
+    # Even a forged request asking for identification cannot reach a provider.
+    created = tester.post(plants, json={"display_name": "Planta de prueba", "species_key": "unknown", "photo_data_url": photo, "identify_photo": True})
+    assert created.status_code == 201, created.text
+    plant = created.json()["plant"]
+    detail = plants + "/" + plant["id"]
+    assert tester.get(detail + "/image").status_code == 200
+    assert outsider.get(detail + "/image").status_code == 403
+    assert tester.patch(detail, json={"room": "Ventana"}).status_code == 200
+    assert tester.post(detail + "/journal", json={"notes": "Sólo observé", "result": "CHECKED"}).status_code == 201
+    saved = tester.get(plants).json()["plants"][0]
+    assert saved["room"] == "Ventana" and saved["journal"][0]["notes"] == "Sólo observé"
+    assert tester.post(plants + "/identify", json={"photo_data_url": photo}).status_code == 403
+    rooms = f"/v1/home-design/{namespace}"
+    created = tester.post(rooms + "/projects", json={"name": "Sala de prueba", "room_type": "living_room", "style": "natural", "budget": 500, "photo_data_url": photo})
+    assert created.status_code == 201, created.text
+    project = created.json()["project"]
+    path = rooms + "/projects/" + project["id"]
+    assert tester.get(path + "/image/original").status_code == 200
+    assert outsider.get(path + "/image/original").status_code == 403
+    assert tester.put(path + "/measurements", json={"wall_width": 300}).status_code == 200
+    snapshot = tester.get(rooms).json()
+    assert snapshot["generation_configured"] is False and snapshot["analysis_access"] == "not_included_in_demo"
+    assert snapshot["projects"][0]["name"] == "Sala de prueba"
+    for paid in ("analysis", "proposal", "revision", "commerce"):
+        assert tester.post(path + "/" + paid, json={}).status_code == 403
+    expired = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
+    demo._mutate(lambda data: data["households"][member["household_id"]]["trial"].update(expires_at=expired))
+    assert tester.patch(detail, json={"room": "Cambio bloqueado"}).status_code == 403
+    assert tester.put(path + "/measurements", json={"wall_width": 400}).status_code == 403
+    assert tester.get(detail + "/image").status_code == 200
+    assert tester.get(path + "/image/original").status_code == 200
+
+
 def test_signup_requires_verification_acknowledgement_and_durable_admission_caps(demo):
     tester = client()
     assert signup(tester, verification_token="bad-token").status_code == 422

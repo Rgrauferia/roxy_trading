@@ -40,9 +40,9 @@ function harness() {
   const document=new Target(); document.hidden=false; document.createElement=tag=>new Element(tag,document); document.body=document.createElement('body'); document.body.isRoot=true; document.documentElement=document.body;
   const window=new Target(); window.document=document;
   window.MutationObserver=class {constructor(fn){this.fn=fn;this.active=false;observers.push(this);}observe(){this.active=true;}disconnect(){this.active=false;}};
-  window.SpeechSynthesisUtterance=class {constructor(text){this.text=text;}};
-  const voices=[{name:'Local Spanish',lang:'es-US',localService:true},{name:'Local English',lang:'en-GB',localService:true}];
-  window.speechSynthesis={getVoices:()=>voices,speak:utterance=>speechCalls.push({type:'speak',utterance}),cancel:()=>speechCalls.push({type:'cancel'})};
+  let playing=false; const voices=[];
+  window.RoxyHomeTour={isPlaying:()=>playing,speak:(chapter,status)=>{playing=true;speechCalls.push({type:'speak',chapter});status('playing','Habla Roxy · voz oficial');},stop:()=>{playing=false;speechCalls.push({type:'cancel'});}};
+  window.speechSynthesis={speak:()=>{throw new Error('Device voice must not be used');}};
   const deny=name=>{forbidden.push(name);throw new Error(`Unexpected ${name}`);};
   vm.runInNewContext(code,{window,AbortController,setTimeout(fn,delay){const id=++timerId;timers.set(id,{fn,due:now+delay});return id;},clearTimeout(id){timers.delete(id);},fetch(){deny('fetch');},localStorage:{getItem(){deny('storage');},setItem(){deny('storage');}},sessionStorage:{getItem(){deny('session');},setItem(){deny('session');}},indexedDB:{open(){deny('database');}}});
   const container=document.createElement('div'); document.body.append(container);
@@ -124,11 +124,11 @@ test('409 offers explicit reload; no background overwrite and retry uses returne
   const h=harness(),calls=[];h.mount({api:async(path,options)=>{calls.push(options);if(calls.length===1){const error=new Error('conflict');error.status=409;throw error;}if(options.method==='GET')return{...envelope(baseProfile()),revision:3};return{...envelope(JSON.parse(options.body).profile),revision:4};}});complete(h);find(h.container,'button','Guardar y descubrir recetas').click();await settle();assert.equal(calls.length,1);assert.match(error(h.container).textContent,/otra sesión/);
   find(h.container,'button','Descartar cambios y cargar el perfil guardado').click();await settle();assert.equal(calls[1].method,'GET');assert.equal(field(h.container,'country_of_origin').value,'Perú');find(h.container,'button','Continuar').click();find(h.container,'button','Continuar').click();find(h.container,'button','Continuar').click();assert.equal(field(h.container,'consent').checked,false);field(h.container,'consent').checked=true;field(h.container,'consent').fire('change');find(h.container,'button','Guardar cambios').click();await settle();assert.equal(JSON.parse(calls[2].body).expected_revision,3);assert.equal(h.saved.length,1);
 });
-test('voice is explicit, local, language-matched and cancelled on navigation/language/disposal',()=>{
-  const h=harness(),controller=h.mount();choose(h.container,'language','es');find(h.container,'button','Escuchar a Roxy').click();assert.equal(h.speechCalls[0].utterance.lang,'es');assert.equal(h.speechCalls[0].utterance.voice.localService,true);choose(h.container,'language','en');assert.equal(h.speechCalls.at(-1).type,'cancel');assert.equal(h.speechCalls.filter(call=>call.type==='speak').length,1);find(h.container,'button','Listen to Roxy').click();assert.equal(h.speechCalls.at(-1).utterance.lang,'en');controller.dispose();assert.equal(h.speechCalls.at(-1).type,'cancel');assert.equal(h.timers.size,0);
+test('official Spanish guidance is explicit and cancelled on navigation, language change and disposal',()=>{
+  const h=harness(),controller=h.mount();choose(h.container,'language','es');find(h.container,'button','Escuchar a Roxy').click();assert.equal(h.speechCalls[0].chapter,'recipe-0');choose(h.container,'language','en');assert.equal(h.speechCalls.at(-1).type,'cancel');assert.equal(h.speechCalls.filter(call=>call.type==='speak').length,1);find(h.container,'button','Listen to Roxy').click();assert.equal(h.speechCalls.at(-1).chapter,'recipe-0');controller.dispose();assert.equal(h.speechCalls.at(-1).type,'cancel');assert.equal(h.timers.size,0);
 });
-test('a remote or wrong-language voice is never used as a fallback',()=>{
-  const h=harness();h.voices.splice(0,h.voices.length,{lang:'es-US',localService:false},{lang:'en-US',localService:true});h.mount();choose(h.container,'language','es');find(h.container,'button','Escuchar a Roxy').click();assert.equal(h.speechCalls.length,0);assert.match(h.container.textContent,/no hay una voz local/);
+test('missing official voice never falls back to a device voice',()=>{
+  const h=harness();delete h.window.RoxyHomeTour;h.mount();choose(h.container,'language','es');assert.equal(find(h.container,'button','Escuchar a Roxy').disabled,true);assert.equal(h.speechCalls.length,0);
 });
 test('document hiding cancels owned speech and aborts pending save without claiming success',async()=>{
   const h=harness(),pending=deferred();let signal;h.mount({api:(path,options)=>{signal=options.signal;return pending.promise;}});complete(h);find(h.container,'button','Guardar y descubrir recetas').click();await settle();h.document.hidden=true;h.document.fire('visibilitychange');await settle();assert.equal(signal.aborted,true);pending.resolve({...envelope(baseProfile()),revision:1});await settle();assert.equal(h.saved.length,0);
