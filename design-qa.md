@@ -1,3 +1,19 @@
+# QA215 — verificación pública final
+
+**final result: passed** para el rediseño de Más y acceso público al estudio/catálogo.
+
+Render Live882f4c86; URL https://roxy-home.onrender.com/lista#mas. Capturas públicas
+reports/home-more-215/04-public-more-mobile.jpg y05-public-exercise-mobile.jpg
+abiertas juntas e inspeccionadas a393×852. Reflejan los assets aprobados existentes,
+tipografía verde/crema, imágenes cargadas y controles legibles; ancho393/393.
+Cuenta e historial anteriores presentes. Más→Ejercicio→biblioteca→rutinas→Yoga y
+pasos españoles comprobados; Guía abre/cierra; consola sin errores. No escrituras
+privadas. Guardado personal de Ejercicio pendiente de PostgreSQL público; no se
+certifica módulo completo ni Safari/voz físicos. Evidencia HTTP y límites en
+reports/home-more-215/publication-readiness.md.
+
+---
+
 # QA215 — Más y seguimiento214
 
 Source visual truth: reports/home-more-215/01-user-public-more.jpg (pantalla rechazada,589×1279), assets/roxy_home/world/living-room-205.png (arte aprobado1672×941), reports/home-fitness-213/session-immersive-mobile.jpg (393×852).

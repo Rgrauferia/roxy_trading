@@ -1,32 +1,44 @@
 # Roxy Home — estado operativo
 
-## 215 — MÁS INMERSIVO VERIFICADO LOCALMENTE; PUBLICACIÓN EN PREPARACIÓN
+## 215 — PUBLICADO Y VERIFICADO EN LA WEB PÚBLICA
 
-Corrección de Roberto: foto pública203 mostraba menú plano y no veía avances.
-Más ahora ofrece entrada de casa y seis estancias fotográficas, accesos cotidianos
-y ajustes agrupados. Conserva33IDs,9destinos anteriores y herramientas de cocina.
-CUA393×852 y858×779:Más→Mascotas/Ejercicio/ajustes, sinerrores ni desbordamiento.
-QA visual pasado, reports/home-more-215/audit-and-implementation.md.
+La foto de Roberto mostraba el menú antiguo203 porque los avances204–214 solo
+estaban en el entorno local. Ahora Más tiene entrada de casa, seis estancias con
+imágenes, accesos cotidianos y ajustes agrupados. Conserva33IDs,9destinos y todas
+las herramientas anteriores. Las habitaciones y el estudio de Ejercicio ya están
+publicados en https://roxy-home.onrender.com/lista#mas.
 
-214 terminado localmente: Mi evolución compara registros por ejercicio/versión/fecha;
-objetivos nuevos elegidos y editables, separados de resultados, sin subir cargas
-automáticamente. Referencia protegida por versión; historial y privacidad preservados.
-1093casos Python verificados/363Node pasan. CUA2registros sintéticos y11actividades
-(2realizadas/9pendientes),2mediciones conservadas; Ver registro abre resumen directo.
-Informe reports/home-fitness-214/implementation.md.
+Render Live: commit882f4c8642110ccd44a5d55bee32185330cb7051, despliegue
+dep-dak8kq6k1f9s73fsti30. El primer build1508e764 falló antes del cambio de servicio:
+faltaba incluir en Git el catálogo público de clases209. Corregido con excepción
+específica en .gitignore, catálogo atribuido y41pruebas finales aprobadas.
 
-Público203 confirmado enHTTPyRender. RamaHomecodex/roxy-home-nfc, servicio
-srv-da0l3vs9v7es739kcmd0, Dockerfile.roxy-home, disco10GB/var/data verificados.
-No ROXY_HOME_FITNESS_DATABASE_URL enlosnombresdeentorno, valores no leídos.
-Diseño/catálogos pueden publicarse; guardado personal requiere PostgreSQL exclusivo
-Home conTLS/RLS/rolmínimo y4migraciones. No contratar ni cambiar infraestructura
-sin decisión concreta. No aplicar Blueprintcompleto (contiene otros productos).
-Enprepublicación se corrigen acceso de cuentasdeprueba y descargaexcesiva inicialSW.
+HTTP /health200; HTML/APP/SW215;22archivos públicos idénticos a los locales.
+CUA público393×852 sin desbordamiento: Más→Ejercicio→biblioteca18recursos→
+6rutinas→Yoga→indicaciones españolas; guía abre el recorrido; cuenta e historial
+anteriores presentes. Consola sin errores, sin escrituras en datos del hogar.
+Capturas públicas04/05 en reports/home-more-215; QA visual pasado.
 
-Preview8771/PID92240/sesión15682, mismo estado sintético207.8770/PID63912
-intacto convozfija;8771 sinTTS. Todosoriginales/prototipos/datosanterioresconservados.
-Faltan alternativaspersonales/ampliaciónrutinas; AppleWatch no conectado; avatar/
-Runway pausados. Mascotas debe seguir al terminarprioridadEjercicio.
+214 está incluido en el código publicado: Mi evolución y objetivos editables,
+separados de resultados, sin aumentos automáticos. Su almacenamiento solo está
+verificado en PostgreSQL LOCAL:1093casos Python/363Node,11actividades sintéticas,
+2registros y2mediciones conservados. Planes, mediciones y registros personales NO
+están disponibles en público: falta ROXY_HOME_FITNESS_DATABASE_URL. No afirmar que
+el entrenador completo funciona ni que el seguimiento público está habilitado.
+
+Servicio Home srv-da0l3vs9v7es739kcmd0, rama codex/roxy-home-nfc,
+Dockerfile.roxy-home y disco10GB/var/data preservados. Sin cambios de infraestructura,
+secretos ni datos de clientes. Próximo paso: preparar decisión concreta de base
+PostgreSQL exclusiva Home con TLS/RLS/rol mínimo y4migraciones; no contratar sin
+aprobación del coste. No aplicar Blueprint completo: contiene otros productos.
+
+Preview8771/PID92240/sesión15682 conserva estado sintético207;8770/PID63912
+intacto con voz fija.8771 sinTTS. Originales y prototipos conservados. Pendientes:
+más alternativas/rutinas y personalización; AppleWatch sin conectar; avatar/Runway
+pausados. Mascotas sigue después de terminar la prioridad Ejercicio.
+Informes: reports/home-more-215/publication-readiness.md y
+reports/home-fitness-214/implementation.md. Notas finales solo locales; no desplegar
+otra vez únicamente para publicar documentación.
 
 ## 213 — RUTINAS Y REGISTROS POR EJERCICIO VERIFICADOS LOCALMENTE
 

@@ -207,3 +207,32 @@ hogares reales.
 ## Build correction after first publication attempt
 
 Render build1508e764 failed before service switch because data/home_fitness_classes_209.json was excluded by the broad data/*.json Git rule. Local file-existence/Docker-copy checks had not checked Git tracking. Added only the public attributed classes catalogue and a specific ignore exception. Audited every explicit DockerCOPY file against git ls-files: this was the only missing source. No privatedata/fixture added. Public203 remained running. Retry uses unchanged app215 code.
+
+Render settings verified in-browser by root: branchcodex/roxy-home-nfc, Dockerfile.roxy-home, disk10GB mounted/var/data. Environment key list has noROXY_HOME_FITNESS_DATABASE_URL; values were not revealed. Commit1508e764 pushed, build dep-dak8kc142hec73bmag2g failed before switchinglive; commit882f4c86 includes the publicclasscatalogue and has been pushed for retry. Publicverificationpending.
+
+
+## Publicación completada y comprobada
+
+Segundo despliegue `dep-dak8kq6k1f9s73fsti30`: **Live**, commit
+`882f4c8642110ccd44a5d55bee32185330cb7051`, confirmado en Render. La corrección del
+catálogo pasó41pruebas dirigidas. Ningún otro origen explícito COPY faltaba en Git.
+
+Verificación HTTP2026-09-15T00:03:19Z (14sep, hora local): `/health`200/ok,
+HTML/meta215,APP215 y ambos alias SW215.22endpoints estáticos (13JS/CSS,7fondos,
+2workers) coinciden byte a byte con el código local. Acceso anónimo a catálogos de
+Fitness devuelve401 yprivate,no-store; la sesión real sí los abre correctamente.
+
+CUA público393×852: Más nuevo, estudio Ejercicio, biblioteca18recursos (15clases y
+3demostraciones),6rutinas editoriales españolas, detalle Yoga y pasos de Montaña.
+Guía de Roxy abre el recorrido y Salir vuelve a Más. Ajustes conserva cuenta y
+entrada histórica anterior. No se enviaron formularios ni guardaron datos del hogar.
+Consola vacía; ancho393/393. Capturas públicas04-public-more-mobile.jpg y
+05-public-exercise-mobile.jpg inspeccionadas juntas y aprobadas visualmente.
+Prueba responsive en navegador Codex; no representa prueba de Safari físico.
+
+La nueva versión publica código204–215. **El guardado privado de Ejercicio sigue
+sin habilitarse públicamente**: falta PostgreSQL exclusivoHome. No se contrataron
+servicios, cambiaron entorno/disco ni reutilizaron secretos. La voz física y el
+entrenador personalizado completo no se certifican en esta pasada. Originales,
+prototipos y los dos previews locales permanecen intactos. Documentación final se
+conserva localmente, sin otro push exclusivamente para notas.

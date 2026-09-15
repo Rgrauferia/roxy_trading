@@ -3,10 +3,10 @@
   "updated_on": "2026-09-14",
   "deployment_branch": "codex/roxy-home-nfc",
   "public_url": "https://roxy-home.onrender.com/lista#hoy",
-  "last_verified_public_version": 203,
-  "deployed_implementation_commit": "8b3ab515b5ceeceb19d26abb3b2136e17dbf968c",
+  "last_verified_public_version": 215,
+  "deployed_implementation_commit": "882f4c8642110ccd44a5d55bee32185330cb7051",
   "candidate_version": 215,
-  "candidate_status": "local_editorial_routines_and_training_logs_verified",
+  "candidate_status": "published_visual_and_catalogues_verified_private_storage_pending",
   "candidate_199": {
     "published": true,
     "implementation_commit": "4652e5200594401ed719cf7c928a8ade2010e97a",
@@ -734,7 +734,7 @@
     "Aderezo César photo showed a salad; quarantine until an exact replacement is visually reviewed",
     "Only five manufacturer ingredient panels screened; restrictions fail closed, not clinical allergy clearance"
   ],
-  "next_step": "Publish verified Home215 visual rooms/More entrance and Exercise204–214 improvements to the existing Home service so Roberto can see them from his phone. Configure Home-only private Fitness PostgreSQL after a concrete infrastructure decision; public personal plans/logs remain unavailable until verified. Then broaden routine alternatives/adaptation and finish Exercise before auditing and implementing Pets. Avatar/Runway paused, Apple Watch pending. Preserve prior data/prototypes and8770voice.",
+  "next_step": "Home215 is publicly deployed and verified: immersive More/rooms, cinematic Exercise and six Spanish editorial routines. Prepare a concrete Home-only private PostgreSQL option/cost for approval, then configure TLS/RLS/minimal role and four migrations and verify public plans/results. Broaden reviewed routine alternatives/adaptation and finish Exercise before auditing and implementing Pets. Avatar/Runway paused; Apple Watch pending. Preserve household data, original media, prototypes and8770voice. Do not redeploy solely for final notes.",
   "launch": {
     "five_day_web_beta": "registration_enabled_positive_signup_verified_20260914",
     "app_store": "target_next_month_not_guaranteed",
@@ -1137,7 +1137,7 @@
     "final_notes_local_only": true
   },
   "candidate_204": {
-    "published": false,
+    "published": true,
     "next_step": "204 local house and official Home voice verified for entry/map/fitness; public203 unchanged. User asked about Runway: recommend reusable narrated clips plus realtime avatar preserving Home Responses agent and ElevenLabs TTS via LiveKit. Runway is not connected and no jobs were submitted. Decide media route/credits, finish audiovisual forms and lip sync; preserve all original assets and household data.",
     "report": "reports/home_world_204_20260914.md",
     "scope": "Member-bound interactive house, reviewed personalization, embedded recipe onboarding and continuous garden narration, contextual real forms",
@@ -1169,11 +1169,13 @@
     "voice_preview_tests": 13,
     "voice_preview_requests": 3,
     "voice_preview_characters": 525,
-    "voice_preview_snapshot_files_preserved": 7
+    "voice_preview_snapshot_files_preserved": 7,
+    "included_in_release": 215,
+    "publication_note": "Code included in215. Historical local verification remains as recorded; private Fitness storage remains unavailable publicly."
   },
-  "current_objective": "Publish verified Home215 visual rooms/More entrance and Exercise204–214 improvements to the existing Home service so Roberto can see them from his phone. Configure Home-only private Fitness PostgreSQL after a concrete infrastructure decision; public personal plans/logs remain unavailable until verified. Then broaden routine alternatives/adaptation and finish Exercise before auditing and implementing Pets. Avatar/Runway paused, Apple Watch pending. Preserve prior data/prototypes and8770voice.",
+  "current_objective": "Home215 is publicly deployed and verified: immersive More/rooms, cinematic Exercise and six Spanish editorial routines. Prepare a concrete Home-only private PostgreSQL option/cost for approval, then configure TLS/RLS/minimal role and four migrations and verify public plans/results. Broaden reviewed routine alternatives/adaptation and finish Exercise before auditing and implementing Pets. Avatar/Runway paused; Apple Watch pending. Preserve household data, original media, prototypes and8770voice. Do not redeploy solely for final notes.",
   "candidate_205": {
-    "published": false,
+    "published": true,
     "report": "reports/home_living_205_20260914.md",
     "scope": "Everyday Sala and Cocina scenes connected to existing day, recipes, pantry, shopping and calendar tools; other modules retain existing interfaces.",
     "tests_node": 35,
@@ -1196,10 +1198,12 @@
     },
     "limits": "No production change; dynamic recipe TTS,recipe media,MyPlate and OpenAI blocked in isolated preview; physical speaker unverified.",
     "preservation": "No tracked files missing; four original films byte-identical to HEAD; prototypes preserved; no public household writes.",
-    "next_step": "205 local Sala+Cocina connected to real tools and verified on mobile/desktop; public203 unchanged. Review visuals with Roberto; finish Runway connection and lip-synced original Roxy avatar, then extend immersive rooms to remaining modules. Preview8770 fixed-script voice works; dynamic cooking voice/OpenAI/MyPlate remain blocked in synthetic preview. Preserve all original assets, prototypes and household data."
+    "next_step": "205 local Sala+Cocina connected to real tools and verified on mobile/desktop; public203 unchanged. Review visuals with Roberto; finish Runway connection and lip-synced original Roxy avatar, then extend immersive rooms to remaining modules. Preview8770 fixed-script voice works; dynamic cooking voice/OpenAI/MyPlate remain blocked in synthetic preview. Preserve all original assets, prototypes and household data.",
+    "included_in_release": 215,
+    "publication_note": "Code included in215. Historical local verification remains as recorded; private Fitness storage remains unavailable publicly."
   },
   "candidate_206": {
-    "published": false,
+    "published": true,
     "report": "reports/home_living_206_20260914.md",
     "tests_node": 59,
     "tests_python": 51,
@@ -1211,10 +1215,12 @@
       "requests": 7,
       "characters": 1490
     },
-    "next_step": "Avatar/Runway paused by Roberto. Complete and verify personal exercise plan, calendar and self-reported progress with private Home PostgreSQL; then audit remaining modules. Preserve existing204-206work, originals and household data; public203 unchanged."
+    "next_step": "Avatar/Runway paused by Roberto. Complete and verify personal exercise plan, calendar and self-reported progress with private Home PostgreSQL; then audit remaining modules. Preserve existing204-206work, originals and household data; public203 unchanged.",
+    "included_in_release": 215,
+    "publication_note": "Code included in215. Historical local verification remains as recorded; private Fitness storage remains unavailable publicly."
   },
   "candidate_207": {
-    "published": false,
+    "published": true,
     "status": "local_base_verified_not_personalized",
     "report": "reports/home_fitness_functional_207_20260914.md",
     "user_priority": [
@@ -1229,7 +1235,9 @@
     "tests_package_followup": 39,
     "preview": "http://127.0.0.1:8771/lista#ejercicio",
     "public_postgres_configured": false,
-    "qa": "2saved activities;1completed;second rescheduled16Sep18:30;generic30min calendar event persists once;393px nooverflow"
+    "qa": "2saved activities;1completed;second rescheduled16Sep18:30;generic30min calendar event persists once;393px nooverflow",
+    "included_in_release": 215,
+    "publication_note": "Code included in215. Historical local verification remains as recorded; private Fitness storage remains unavailable publicly."
   },
   "fitness_design_208": {
     "published": false,
@@ -1243,7 +1251,7 @@
     "catalogue_count_clarification": "16 refers only to NHS guide movements; 21 separate wger entries existed then, expanded to25 in209."
   },
   "candidate_209": {
-    "published": false,
+    "published": true,
     "status": "local_source_discovery_verified",
     "report": "reports/home_fitness_library_209_20260914.md",
     "wger_entries": 25,
@@ -1267,7 +1275,9 @@
     "preview": "http://127.0.0.1:8771/lista#ejercicio",
     "preview_pid": 22637,
     "preview_session": 47027,
-    "public_postgres_configured": false
+    "public_postgres_configured": false,
+    "included_in_release": 215,
+    "publication_note": "Code included in215. Historical local verification remains as recorded; private Fitness storage remains unavailable publicly."
   },
   "fitness_visual_210": {
     "status": "approved_all_three",
@@ -1300,7 +1310,7 @@
     "implementation_version": 211
   },
   "candidate_211": {
-    "published": false,
+    "published": true,
     "scope": "Persistent exercise entry/map and source reader connected to existing catalogue, private plan and self-reported records.",
     "report": "reports/home-fitness-211/implementation.md",
     "design_qa": "design-qa.md",
@@ -1326,7 +1336,9 @@
     "household_data_modified": false,
     "source_assets_preserved": true,
     "public_postgres_configured": false,
-    "next_step": "Review local211 cinematic exercise with Roberto, then implement professionally reviewed personalization and private measurements/results. Source guide and chosen schedule are not individualized training. Apple Watch/native HealthKit pending; avatar/Runway paused. Preserve originals, prototypes,8770voice runtime and public203."
+    "next_step": "Review local211 cinematic exercise with Roberto, then implement professionally reviewed personalization and private measurements/results. Source guide and chosen schedule are not individualized training. Apple Watch/native HealthKit pending; avatar/Runway paused. Preserve originals, prototypes,8770voice runtime and public203.",
+    "included_in_release": 215,
+    "publication_note": "Code included in215. Historical local verification remains as recorded; private Fitness storage remains unavailable publicly."
   },
   "next_module_after_fitness": {
     "module": "pets",
@@ -1336,7 +1348,7 @@
     "status": "queued_not_started"
   },
   "candidate_212": {
-    "published": false,
+    "published": true,
     "status": "local_measurements_and_availability_agenda_verified",
     "report": "reports/home-fitness-212/implementation.md",
     "design_qa": "design-qa.md",
@@ -1364,10 +1376,12 @@
     "public_postgres_configured": false,
     "qa": "CUA858pxand393px; syntheticadultprofile,kg/cm pluslb/ft-in measurements; review/save3proposedactivities keeps2previous; serverrestart+reload retains5activities1completedand2measurements; no consoleerrors; viewportreset.",
     "voice_8771": "not configured;8770PID63912 preserved",
-    "next_step": "Complete the requested exercise trainer with varied reviewed home/gym routines, explicit equipment and ability choices, detailed Spanish technique, progression and per-exercise follow-up.212 private measurements and availability-based source-guide agenda are verified locally, not a complete personalized trainer. After Exercise is complete, implement and audit Pets with the approved immersive interactive style. Avatar/Runway paused; Apple Watch native integration pending. Preserve originals, prototypes,8770 voice runtime and public203."
+    "next_step": "Complete the requested exercise trainer with varied reviewed home/gym routines, explicit equipment and ability choices, detailed Spanish technique, progression and per-exercise follow-up.212 private measurements and availability-based source-guide agenda are verified locally, not a complete personalized trainer. After Exercise is complete, implement and audit Pets with the approved immersive interactive style. Avatar/Runway paused; Apple Watch native integration pending. Preserve originals, prototypes,8770 voice runtime and public203.",
+    "included_in_release": 215,
+    "publication_note": "Code included in215. Historical local verification remains as recorded; private Fitness storage remains unavailable publicly."
   },
   "candidate_213": {
-    "published": false,
+    "published": true,
     "status": "local_editorial_routines_and_training_logs_verified",
     "report": "reports/home-fitness-213/implementation.md",
     "design_qa": "design-qa.md",
@@ -1401,11 +1415,13 @@
     "public_postgres_configured": false,
     "voice_8771": "not configured;8770PID63912 preserved",
     "qa": "CUA858pxand393px; review/save three routine dates preserves five previous; actual synthetic sets/omission/duration saved and separately completed; restart+reload retains8 activities/1log/2measurements; no consoleerrors or horizontal overflow; viewportreset.",
-    "next_step": "Complete exercise progression between sessions, longitudinal per-exercise comparisons, broader reviewed routines and individual alternatives by ability, age and goals.213 editorial routines with equipment/movement confirmation, availability-based agenda and private actual set logs are verified locally, not a complete professional trainer. Then implement and audit Pets with the approved immersive style. Avatar/Runway paused; Apple Watch native integration pending. Preserve originals, prototypes,8770 voice runtime and public203."
+    "next_step": "Complete exercise progression between sessions, longitudinal per-exercise comparisons, broader reviewed routines and individual alternatives by ability, age and goals.213 editorial routines with equipment/movement confirmation, availability-based agenda and private actual set logs are verified locally, not a complete professional trainer. Then implement and audit Pets with the approved immersive style. Avatar/Runway paused; Apple Watch native integration pending. Preserve originals, prototypes,8770 voice runtime and public203.",
+    "included_in_release": 215,
+    "publication_note": "Code included in215. Historical local verification remains as recorded; private Fitness storage remains unavailable publicly."
   },
   "candidate_214": {
-    "published": false,
-    "status": "verified_locally_included_in215",
+    "published": true,
+    "status": "code_published_in215_private_storage_verified_locally_only",
     "report": "reports/home-fitness-214/implementation.md",
     "tests_python_covered": 1093,
     "tests_node": 363,
@@ -1418,11 +1434,13 @@
     "clinical_approval": false,
     "public_private_storage": "not_configured",
     "design_qa": "design-qa.md",
-    "design_qa_result": "passed"
+    "design_qa_result": "passed",
+    "included_in_release": 215,
+    "publication_note": "Code included in215. Historical local verification remains as recorded; private Fitness storage remains unavailable publicly."
   },
   "candidate_215": {
-    "published": false,
-    "status": "local_visual_verified_publication_preparation",
+    "published": true,
+    "status": "published_visual_and_catalogues_verified_private_storage_pending",
     "report": "reports/home-more-215/audit-and-implementation.md",
     "readiness": "reports/home-more-215/publication-readiness.md",
     "design_qa": "design-qa.md",
@@ -1435,6 +1453,23 @@
     "render_service": "srv-da0l3vs9v7es739kcmd0",
     "render_branch_verified": "codex/roxy-home-nfc",
     "render_disk_verified": "10GB /var/data, unchanged",
-    "infrastructure_changes": false
+    "infrastructure_changes": false,
+    "implementation_commit": "882f4c8642110ccd44a5d55bee32185330cb7051",
+    "render_deploy": "dep-dak8kq6k1f9s73fsti30",
+    "render_status": "Live",
+    "public_proof": "health200;HTML/APP/SW215;22static endpoints SHA256 identical. Authenticated393x852 More/Exercise/library18resources/routines6/Yoga Spanish movement instructions verified; guide opens; member session and purchase history retained; console empty; no overflow.",
+    "public_verification_utc": "2026-09-15T00:03:19Z",
+    "production_user_data_modified": false,
+    "screenshots": [
+      "reports/home-more-215/04-public-more-mobile.jpg",
+      "reports/home-more-215/05-public-exercise-mobile.jpg"
+    ],
+    "public_deliverable_tab": "13",
+    "final_notes_local_only": true,
+    "first_build_failure": {
+      "deploy": "dep-dak8kc142hec73bmag2g",
+      "commit": "1508e7642a6d142a31f99cf04f9ccf534e73f4d7",
+      "cause": "Public209class catalogue excluded by data/*.json Git rule; corrected with specific exception and catalogue file. Prior service remained running until successful second deployment."
+    }
   }
 }
