@@ -29,7 +29,19 @@ campos; desafío sintético aprobado; POST crea una cuenta aislada, muestra prog
 y ocho códigos. Cerrar códigos devuelve confirmación de cuenta creada. Login con
 la misma contraseña abre bienvenida. No errores de consola ni overflow. No se
 exportan ni guardan códigos; no se completan permisos ni configuraciones del hogar.
-Capturas02password-feedback-mobile.jpg y03verification-feedback-mobile.jpg
+Capturas02-password-feedback-mobile.jpg y03-verification-feedback-mobile.jpg
 inspeccionadas juntas. Prueba de app, no Safari físico ni proveedorTurnstile real.
 
 JS sintaxis y git diff --check correctos. Código216 listo para publicar al servicio existente; sin cambios de infraestructura/autenticación.
+
+## Publicación y límite de la verificación
+
+Commit17f0f835e857d89f80d82e9101b4bcae624a902c publicado mediante ramaHomeexistente.
+Render dep-dak8vv6k1f9s73ft60rg Live. HTTP health200;HTML216,registroenabledtrue,
+cuatroassets modificados byteidénticos a la prueba. CUA público:meta216,scriptregistro4,
+sesión anterior conservada yconsola sin errores. Sin cambios de infraestructura,
+secretos ni cuentas reales. La persona debe volver a intentar: confirmación pedida
+en conversación, pendiente. No se presenta alta positiva real ni causa exacta de
+su iPhone como verificadas.
+
+Limpieza: se detuvo únicamente fixture31751/PID7350. Pestañas QA/Render cerradas, viewport restaurado, público13 conservado. Previews8770/8771yprototiposintactos. Notasfinalessololocales.

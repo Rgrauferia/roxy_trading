@@ -3,10 +3,10 @@
   "updated_on": "2026-09-14",
   "deployment_branch": "codex/roxy-home-nfc",
   "public_url": "https://roxy-home.onrender.com/lista#hoy",
-  "last_verified_public_version": 215,
-  "deployed_implementation_commit": "882f4c8642110ccd44a5d55bee32185330cb7051",
+  "last_verified_public_version": 216,
+  "deployed_implementation_commit": "17f0f835e857d89f80d82e9101b4bcae624a902c",
   "candidate_version": 216,
-  "candidate_status": "local_registration_feedback_verified_publication_pending",
+  "candidate_status": "published_registration_feedback_recovery_verified_actual_user_retry_pending",
   "candidate_199": {
     "published": true,
     "implementation_commit": "4652e5200594401ed719cf7c928a8ade2010e97a",
@@ -734,7 +734,7 @@
     "Aderezo César photo showed a salad; quarantine until an exact replacement is visually reviewed",
     "Only five manufacturer ingredient panels screened; restrictions fail closed, not clinical allergy clearance"
   ],
-  "next_step": "Finish registration216 tests and publish to existing Home service. Verify public assets and ask user to retry actual registration; exact device failure not established. Preserve all public accounts, authentication gates, original media and previews. Then resume Exercise private storage/readiness and routine adaptation before Pets.",
+  "next_step": "Home216 registration feedback/retry fix is public. Await actual user retry: account was absent before fix; do not claim their signup succeeded or exact device cause. Local valid signup followed by exact-password login passed; public health/assets/browser216 confirmed. Then resume Exercise private storage/readiness and reviewed routine adaptation before Pets; preserve data, secrets, prototypes and8770voice.",
   "launch": {
     "five_day_web_beta": "registration_enabled_positive_signup_verified_20260914",
     "app_store": "target_next_month_not_guaranteed",
@@ -1173,7 +1173,7 @@
     "included_in_release": 215,
     "publication_note": "Code included in215. Historical local verification remains as recorded; private Fitness storage remains unavailable publicly."
   },
-  "current_objective": "Finish registration216 tests and publish to existing Home service. Verify public assets and ask user to retry actual registration; exact device failure not established. Preserve all public accounts, authentication gates, original media and previews. Then resume Exercise private storage/readiness and routine adaptation before Pets.",
+  "current_objective": "Home216 registration feedback/retry fix is public. Await actual user retry: account was absent before fix; do not claim their signup succeeded or exact device cause. Local valid signup followed by exact-password login passed; public health/assets/browser216 confirmed. Then resume Exercise private storage/readiness and reviewed routine adaptation before Pets; preserve data, secrets, prototypes and8770voice.",
   "candidate_205": {
     "published": true,
     "report": "reports/home_living_205_20260914.md",
@@ -1474,8 +1474,8 @@
   },
   "objective_after_registration": "Home215 is publicly deployed and verified: immersive More/rooms, cinematic Exercise and six Spanish editorial routines. Prepare a concrete Home-only private PostgreSQL option/cost for approval, then configure TLS/RLS/minimal role and four migrations and verify public plans/results. Broaden reviewed routine alternatives/adaptation and finish Exercise before auditing and implementing Pets. Avatar/Runway paused; Apple Watch pending. Preserve household data, original media, prototypes and8770voice. Do not redeploy solely for final notes.",
   "candidate_216": {
-    "published": false,
-    "status": "local_registration_feedback_verified_publication_pending",
+    "published": true,
+    "status": "published_registration_feedback_recovery_verified_actual_user_retry_pending",
     "report": "reports/home-signup-216/implementation.md",
     "reported_account_found": false,
     "public_registration_enabled": true,
@@ -1487,6 +1487,14 @@
     "preview_pid": 7350,
     "preview_session": 90845,
     "tests_node_final": 76,
-    "tests_backend_baseline": 272
+    "tests_backend_baseline": 272,
+    "implementation_commit": "17f0f835e857d89f80d82e9101b4bcae624a902c",
+    "render_deploy": "dep-dak8vv6k1f9s73ft60rg",
+    "render_status": "Live",
+    "public_proof": "health200;HTML216;registrationenabledtrue;fourchangedstaticassetsbyteidentical. Browsermeta216/scriptregistration4;existingmembersessionretained;consoleempty.",
+    "reported_user_retry": "pending",
+    "exact_reported_device_cause_verified": false,
+    "final_notes_local_only": true,
+    "qa_cleanup": "Own synthetic31751/PID7350 stopped after successfultest; original8770/8771andprototypepreviews preserved. Public13delivered;viewportreset."
   }
 }

@@ -1,3 +1,16 @@
+# QA216 — claridad y recuperación del registro
+
+**final result: passed** para los estados de formulario corregidos, en CUA393×852.
+Capturas reports/home-signup-216/02-password-feedback-mobile.jpg y
+03-verification-feedback-mobile.jpg inspeccionadas juntas: error persistente legible,
+CTA visible, estado de seguridad yreintento. Ancho de página393sin overflow; inputs
+16pxmínimo evitan zoom por tamaño pequeño enSafari. Safari físico no probado.
+Caso válido deQA crea cuenta y códigos; al cerrar códigos y usar misma contraseña
+se abre bienvenida. Público216 ysu sesión anterior comprobados; alta de la persona
+reportada sigue pendiente de reintento real. Ningún dato real cambiado.
+
+---
+
 # QA215 — verificación pública final
 
 **final result: passed** para el rediseño de Más y acceso público al estudio/catálogo.

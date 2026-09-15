@@ -1,6 +1,6 @@
 # Roxy Home — estado operativo
 
-## 216 — REGISTRO CORREGIDO Y VERIFICADO LOCALMENTE; PUBLICACIÓN PENDIENTE
+## 216 — ARREGLO DEL REGISTRO PUBLICADO; REINTENTO DEL USUARIO PENDIENTE
 
 Roberto reporta que crear cuenta no responde y después login falla. La consulta
 operativa para el usuario exacto reportado encontró0cuentas; no se leyeron secretos
@@ -15,7 +15,11 @@ reintento→comprobación local→alta→códigos→cerrar→login con misma con
 bienvenida. Una cuenta sintética nueva; sin errores de consola/desbordamiento.
 44Python paquete y76Node registro/login/recuperación aprobadas;272casos backend
 de referencia aprobados por revisión independiente.
-Público215 todavía. Informe reports/home-signup-216/implementation.md.
+Público216 confirmado: Render Live17f0f835, despliegue
+dep-dak8vv6k1f9s73ft60rg, health200,HTML216/registroJS4 y cuatroassets iguales.
+Sesión pública anterior conservada; consola sin errores. Reintento real de la
+persona solicitado; todavía no confirmar su alta ni atribuir causa exacta al iPhone.
+Informe reports/home-signup-216/implementation.md.
 Al terminar este arreglo retomar los pendientes215 de Ejercicio antes de Mascotas.
 
 
