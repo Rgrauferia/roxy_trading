@@ -1,291 +1,52 @@
-/* The existing More routes, presented as rooms in the same Roxy Home. */
-#morePanel {
-  --more-forest: #173d30;
-  --more-paper: #fffaf0;
-  gap: 20px;
-  padding-bottom: 16px;
-}
-#morePanel .more-home-hero {
-  position: relative;
-  isolation: isolate;
-  min-height: 370px;
-  overflow: hidden;
-  border-radius: 28px;
-  background: #6b614d;
-  color: var(--more-paper);
-}
-#morePanel .more-home-scene {
-  position: absolute;
-  z-index: -1;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: 57% 50%;
-}
-#morePanel .more-home-label {
-  position: absolute;
-  top: 20px;
-  left: 20px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 8px 12px;
-  border: 1px solid #fffaf052;
-  border-radius: 999px;
-  background: #193b30dc;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .02em;
-}
-#morePanel .more-home-label .material-symbols-rounded { font-size: 17px; }
-#morePanel .more-home-welcome {
-  position: relative;
-  width: fit-content;
-  max-width: calc(100% - 36px);
-  margin: 108px 18px 18px;
-  padding: 20px;
-  border: 1px solid #fffaf02b;
-  border-radius: 20px;
-  background: #143629e8;
-}
-#morePanel .more-eyebrow {
-  margin: 0 0 7px;
-  color: #896929;
-  font-size: 10px;
-  line-height: 1.5;
-  font-weight: 800;
-  letter-spacing: .13em;
-  text-transform: uppercase;
-}
-#morePanel .more-home-welcome .more-eyebrow { color: #e0c789; }
-#morePanel #moreTitle {
-  color: var(--more-paper);
-  font-size: clamp(39px, 8.5vw, 58px);
-  line-height: .98;
-  font-weight: 500;
-  letter-spacing: -.035em;
-}
-#morePanel #moreTitle em { font-weight: 400; }
-#morePanel .more-home-welcome > p:not(.more-eyebrow) {
-  margin: 13px 0 18px;
-  max-width: 245px;
-  color: #f1efdf;
-  font-size: 12px;
-  line-height: 1.5;
-}
-#morePanel .more-home-enter {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  width: 100%;
-  min-height: 46px;
-  padding: 10px 15px;
-  border: 0;
-  border-radius: 12px;
-  background: var(--more-paper);
-  color: var(--more-forest);
-  font-size: 12px;
-  font-weight: 800;
-}
-#morePanel .more-home-enter .material-symbols-rounded { font-size: 20px; }
-#morePanel .more-spaces-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin: 3px 2px -5px;
-}
-#morePanel .more-spaces-heading h3,
-#morePanel .more-tools-heading h3 {
-  margin: 0;
-  color: var(--more-forest);
-  font-size: clamp(25px, 5.5vw, 31px);
-  font-weight: 500;
-  letter-spacing: -.025em;
-}
-#morePanel .more-spaces-heading > .material-symbols-rounded { color: #96743d; font-size: 30px; }
-#morePanel .more-rooms {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-#morePanel .more-room {
-  position: relative;
-  isolation: isolate;
-  display: flex;
-  align-items: flex-end;
-  min-width: 0;
-  min-height: 196px;
-  padding: 0;
-  overflow: hidden;
-  border: 1px solid #21452f21;
-  border-radius: 20px;
-  background: #3d4838;
-  color: var(--more-paper);
-  text-align: left;
-  box-shadow: 0 5px 15px #2136290c;
-}
-#morePanel .more-room img {
-  position: absolute;
-  z-index: -1;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-  transition: transform .45s ease;
-}
-#morePanel .more-room-fitness img { object-position: 64% 60%; }
-#morePanel .more-room-pets img { object-position: 48% 60%; }
-#morePanel .more-room-garden img { object-position: 60% 50%; }
-#morePanel .more-room-family img { object-position: 53% 50%; }
-#morePanel .more-room-arrow {
-  position: absolute;
-  top: 11px;
-  right: 11px;
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border: 1px solid #fffaf080;
-  border-radius: 50%;
-  color: var(--more-paper);
-  background: #173d30d9;
-  font-size: 18px;
-}
-#morePanel .more-room-copy {
-  display: grid;
-  gap: 5px;
-  width: 100%;
-  padding: 13px 12px 15px;
-  background: #15392fec;
-}
-#morePanel .more-room-copy strong {
-  color: var(--more-paper);
-  font: 500 25px/1 Georgia, 'Times New Roman', serif;
-  letter-spacing: -.025em;
-}
-#morePanel .more-room-copy small {
-  display: block;
-  color: #efeede;
-  font-size: 10px;
-  line-height: 1.4;
-}
-#morePanel .more-everyday {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  padding: 0 17px;
-  border: 1px solid #173d3026;
-  border-radius: 20px;
-  background: #fffdf7;
-}
-#morePanel .more-everyday button {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) 20px;
-  align-items: center;
-  gap: 11px;
-  min-height: 68px;
-  padding: 13px 0;
-  border: 0;
-  border-bottom: 1px solid #173d3017;
-  border-radius: 0;
-  background: transparent;
-  color: var(--more-forest);
-  text-align: left;
-}
-#morePanel .more-everyday button:last-child { border-bottom: 0; }
-#morePanel .more-everyday button > .material-symbols-rounded { color: #907445; font-size: 24px; }
-#morePanel .more-everyday button > .material-symbols-rounded:last-child { color: #63806c; font-size: 20px; }
-#morePanel .more-everyday strong { display: block; font-size: 13px; line-height: 1.4; }
-#morePanel .more-everyday small { display: block; margin-top: 3px; color: #617166; font-size: 11px; line-height: 1.35; }
-#morePanel .more-tools-heading { margin: 8px 2px -4px; }
-#morePanel > .recipe-tools-section,
-#morePanel > .more-settings {
-  padding: 0 18px;
-  border: 1px solid #173d3021;
-  border-radius: 18px;
-  background: #fffdf7;
-  box-shadow: none;
-}
-#morePanel > .recipe-tools-section > summary,
-#morePanel > .more-settings > summary {
-  min-height: 62px;
-  padding: 19px 0;
-  color: var(--more-forest);
-  font-size: 14px;
-  line-height: 1.45;
-  cursor: pointer;
-}
-#morePanel > .recipe-tools-section[open] { padding-bottom: 18px; }
-#morePanel > .more-settings > summary { position: relative; padding-left: 32px; }
-#morePanel > .more-settings > summary > .material-symbols-rounded {
-  position: absolute;
-  top: 20px;
-  left: 0;
-  color: #8e703a;
-  font-size: 22px;
-}
-#morePanel > .more-settings > summary small { display: block; margin-top: 3px; color: #637366; font-size: 11px; font-weight: 400; }
-#morePanel .more-settings-body { display: grid; gap: 16px; padding-bottom: 18px; }
-#morePanel .more-settings-body > .card { padding: 17px; border-radius: 15px; box-shadow: none; }
-#morePanel .more-settings-body h3 { font-size: 24px; }
-#morePanel .more-settings-body p { font-size: 13px; line-height: 1.6; }
-#morePanel .more-settings-body button { min-height: 44px; }
-#morePanel .more-home-enter:focus-visible,
-#morePanel .more-room:focus-visible,
-#morePanel .more-everyday button:focus-visible,
-#morePanel summary:focus-visible { outline: 3px solid #ae7e25; outline-offset: 4px; }
-@media (hover: hover) {
-  #morePanel .more-room:hover img { transform: scale(1.045); }
-  #morePanel .more-home-enter:hover { background: #f0e5cd; }
-  #morePanel .more-everyday button:hover { color: #8a6423; }
-}
-@media (min-width: 650px) {
-  #morePanel { gap: 24px; }
-  #morePanel .more-home-hero { min-height: 415px; }
-  #morePanel .more-home-scene { object-position: 60% 55%; }
-  #morePanel .more-home-label { top: 24px; left: 28px; }
-  #morePanel .more-home-welcome { max-width: 365px; margin: 96px 28px 28px; padding: 25px; }
-  #morePanel .more-home-welcome > p:not(.more-eyebrow) { max-width: none; font-size: 14px; }
-  #morePanel .more-home-enter { font-size: 13px; }
-  #morePanel .more-rooms { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-  #morePanel .more-room { min-height: 245px; }
-  #morePanel .more-room-copy { padding: 17px; }
-  #morePanel .more-room-copy strong { font-size: 29px; }
-  #morePanel .more-room-copy small { font-size: 11px; }
-  #morePanel .more-everyday { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 25px; padding: 0 22px; }
-  #morePanel .more-everyday button:nth-last-child(-n + 2) { border-bottom: 0; }
-}
-@media (max-width: 360px) {
-  #morePanel .more-home-welcome { padding: 17px; }
-  #morePanel .more-home-label { top: 16px; left: 17px; }
-  #morePanel .more-rooms { gap: 10px; }
-  #morePanel .more-room { min-height: 183px; }
-  #morePanel .more-room-copy strong { font-size: 23px; }
-  #morePanel .more-room-copy small { font-size: 10px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  #morePanel { animation: none; }
-  #morePanel .more-room img { transition: none; }
-  #morePanel .more-room:hover img { transform: none; }
-}
-/* More is already the room chooser; keep its entrance free of duplicate navigation. */
-body:has(#morePanel:not([hidden])) #homeLivingBar { display: none; }
-#morePanel .more-home-hero > .rht-module-help {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  width: auto;
-  min-height: 44px;
-  margin: 0;
-  padding: 10px 12px;
-  border: 1px solid #fffaf075;
-  border-radius: 999px;
-  background: #173d30ed;
-  color: #fffaf0;
-  font-size: 11px;
-  line-height: 1.35;
-}
-#morePanel .more-home-hero > .rht-module-help:focus-visible { outline: 3px solid #e0c789; outline-offset: 3px; }
+/* One directory for the existing Home modules. Settings stay secondary. */
+#morePanel{--more-forest:#173d30;--more-paper:#fffaf0;gap:16px;padding-bottom:16px}
+#morePanel .more-spaces-heading{padding:6px 2px 0}
+#morePanel #moreTitle{margin:0;color:var(--more-forest);font:500 38px/1.05 Georgia,serif;letter-spacing:-.025em}
+#morePanel .more-spaces-heading p{margin:7px 0 0;color:#586a60;font-size:14px}
+#morePanel .more-rooms{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+#morePanel .more-room{position:relative;isolation:isolate;display:flex;align-items:flex-end;min-width:0;min-height:120px;padding:0;overflow:hidden;border:0;border-radius:16px;background:#3d4838;color:var(--more-paper);text-align:left}
+#morePanel .more-room img{position:absolute;z-index:-2;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .4s ease}
+#morePanel .more-room:before{content:'';position:absolute;z-index:-1;inset:0;background:linear-gradient(0deg,#0a281cf2,rgba(10,40,28,.54) 53%,rgba(10,40,28,.06))}
+#morePanel .more-room-fitness img{object-position:64% 60%}
+#morePanel .more-room-pets img{object-position:48% 60%}
+#morePanel .more-room-plants img{object-position:60% 50%}
+#morePanel .more-room-family img{object-position:53% 50%}
+#morePanel .more-room-copy{display:grid;gap:5px;min-width:0;width:100%;padding:13px 12px}
+#morePanel .more-room-copy strong{color:var(--more-paper);font:500 24px/1.1 Georgia,serif;overflow-wrap:anywhere}
+#morePanel .more-room-copy small{color:#f3f0e6;font-size:11px;line-height:1.4;overflow-wrap:anywhere}
+#morePanel>.recipe-tools-section,#morePanel>.more-settings{padding:0 14px;border:0;border-top:1px solid #173d3026;border-radius:0;background:transparent;box-shadow:none}
+#morePanel>.recipe-tools-section>summary,#morePanel>.more-settings>summary{min-height:48px;padding:14px 0;color:var(--more-forest);font-size:14px;line-height:1.4;cursor:pointer}
+#morePanel>.recipe-tools-section[open]{padding-bottom:16px}
+#morePanel>.more-settings>summary{position:relative;padding-left:30px}
+#morePanel>.more-settings>summary>.material-symbols-rounded{position:absolute;top:13px;left:0;color:#8e703a;font-size:22px}
+#morePanel .more-settings-body{display:grid;gap:16px;padding-bottom:18px}
+#morePanel .more-settings-body>.card{padding:17px;border-radius:15px;box-shadow:none}
+#morePanel .more-settings-body h3{font-size:24px}
+#morePanel .more-settings-body p{font-size:13px;line-height:1.6}
+#morePanel .more-settings-body button{min-height:44px}
+#morePanel .more-room:focus-visible,#morePanel summary:focus-visible{outline:3px solid #ae7e25;outline-offset:3px}
+body:has(#morePanel:not([hidden])) #homeLivingBar{display:none}
+#moreGuideEntry .rht-module-help{width:100%;margin:0;font-size:14px}
+/* Higher specificity isolates the primary bar from legacy module navigation. */
+body #homeNavigation{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;overflow:visible;padding:6px 12px calc(6px + env(safe-area-inset-bottom));background:#fcfaf4f5;backdrop-filter:blur(14px)}
+body #homeNavigation>button{display:flex!important;flex-direction:column;align-items:center;justify-content:center;order:0!important;gap:4px;min-width:0;width:auto;min-height:58px;margin:0;padding:5px 3px;border-radius:16px}
+body #homeNavigation>button strong{font-size:12px;line-height:1.25}
+body #homeNavigation .roxy-nav img{width:32px;height:32px;margin:0;border-width:2px;transform:none}
+body #homeNavigation>button>.material-symbols-rounded{font-size:26px}
+@media(hover:hover){#morePanel .more-room:hover img{transform:scale(1.04)}}
+@media(min-width:650px){#morePanel{gap:20px}#morePanel .more-rooms{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}#morePanel .more-room{min-height:170px}#morePanel #moreTitle{font-size:44px}}
+@media(max-width:360px){#morePanel .more-room{min-height:108px}#morePanel .more-room-copy{padding:11px 10px}#morePanel .more-room-copy strong{font-size:22px}}
+@media(prefers-reduced-motion:reduce){#morePanel{animation:none}#morePanel .more-room img{transition:none}#morePanel .more-room:hover img{transform:none}}
+/* Supporting tools are disclosed after the primary task, without repeated banners. */
+#app .app-panel>.rht-module-help{justify-self:end;align-self:flex-end;width:auto;min-height:44px;margin:0;padding:9px 12px;background:transparent;border:0;box-shadow:none;font-size:13px;color:#284f3e;text-decoration:underline;text-underline-offset:4px}
+#shoppingPanel .shopping-add{display:flex;justify-content:flex-end;margin:0}
+#shoppingPanel .shopping-add>button:not([hidden]){display:flex;align-items:center;gap:6px;min-height:46px;padding:10px 16px;background:#194d3b;color:#fffaf0;border-radius:14px}
+#shoppingPanel .shopping-tool{min-width:0;border-top:1px solid #214f3a26;padding:0 4px}
+#shoppingPanel .shopping-tool>summary{padding:16px 0;min-height:50px;cursor:pointer;color:#214f3a;font-weight:650;font-size:14px}
+#shoppingPanel .shopping-tool>.content-section{padding:12px 0 20px;border:0;box-shadow:none}
+#shoppingPanel .shopping-tool .section-heading>div>p,#shoppingPanel .shopping-tool .section-heading h2{display:none}
+#shoppingPanel .shopping-tool .shopping-commerce-shortcut{margin-top:16px}
+#shoppingPanel .shopping-heading{gap:8px;align-items:center}
+#shoppingPanel .shopping-heading h2{font-size:clamp(24px,6.5vw,30px);white-space:nowrap}
+#shoppingPanel .shopping-add-button{display:flex;align-items:center;justify-content:center;gap:4px;min-height:44px;padding:10px 12px;font-size:13px;white-space:nowrap}
+#shoppingPanel .shopping-heading>div{min-width:0}

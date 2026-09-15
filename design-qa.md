@@ -1,3 +1,17 @@
+# QA217 — navegación y controles móviles
+
+Estado: correcciones locales verificadas; publicación pendiente.
+Referencias: seis fotos del usuario y reports/home-mobile-217/01-avatar-before.jpg.
+Comparación junta01/06 confirma que cuatro opciones yCTA ahora caben;04/05Compra
+verifica estructura móvil ydetecta título partido320, corregido con rótuloCompra.
+08-spaces-final.jpg muestra los ocho destinos enun único directorio con tresopciones
+principales. Cuaderno07muestra Continuar accesible; se redujo además el título repetido.
+Mismos artes aprobados, coloresverde/crema, tipografía serif ycontroles de44px.
+CUA393/320; pruebasdeentradas yretorno, cantidad1→2→1yconfiguración sin guardar.
+No Safari físico/audio/provider ni almacenamiento privadoFitness público certificados.
+
+---
+
 # QA216 — claridad y recuperación del registro
 
 **final result: passed** para los estados de formulario corregidos, en CUA393×852.

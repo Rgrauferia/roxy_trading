@@ -21,7 +21,7 @@
     agenda: {name:'Calendario',eyebrow:'TIEMPO PARA LO IMPORTANTE',title:'Tu día también merece calma.',line:'Reúne tus planes y revísalos antes de guardarlos.',speech:'calendar',image:'/assets/roxy_home/world/living-room-205.png',
       objects:[['calendar','calendar_month','Abrir mi calendario','Consulta días, semanas y eventos',20,41],['action:calendar-new','edit_calendar','Crear un evento','Fecha, hora y confirmación',51,62],['today','today','Mi día','Cuidados y comidas de la semana',81,42]]},
   };
-  const spaces=[['house','home','Sala'],['kitchen','restaurant','Cocina'],['wellness','exercise','Ejercicio'],['atelier','chair','Renueva'],['garden','potted_plant','Jardín'],['companions','pets','Mascotas'],['connection','diversity_1','Nexo'],['agenda','calendar_month','Calendario']];
+
   const roomTools={house:'today',kitchen:'recipes',garden:'plants',wellness:'fitness',companions:'pets',atelier:'design',connection:'family',agenda:'calendar'};
   const toolRooms={today:'house',recipes:'kitchen',pantry:'kitchen',shopping:'kitchen',plants:'garden',fitness:'wellness',pets:'companions',design:'atelier',family:'connection',calendar:'agenda'};
   const workspacePanels=new Set(['today','calendar','recipes','shopping','pantry']);
@@ -74,13 +74,13 @@
     if(!ready){root.append(el('p','Preparando tu casa…','rhl-loading'));return;}
     if(!rooms[panel]){
       const back=button('',()=>navigate(room),'rhl-back');back.append(icon('arrow_back'),el('span',`Volver · ${rooms[room].name}`));
-      bar.append(back,roomNavigation('rhl-room-nav'));
+      bar.append(back);
       return;
     }
     const data=rooms[panel];
     const stage=el('div',null,'rhl-stage');stage.classList.toggle('rhl-still',!motion);
     const img=el('img',null,'rhl-room-image');img.src=data.image;img.alt=`${data.name} de la casa de Roxy`;img.fetchPriority='high';stage.append(img);
-    const header=el('header',null,'rhl-room-header');header.append(el('span',`Dentro de casa / ${data.name}`,'rhl-breadcrumb'),roomNavigation('rhl-room-nav'));
+    const header=el('header',null,'rhl-room-header');header.append(el('span',data.name,'rhl-breadcrumb'));
     const copy=el('div',null,'rhl-intro');copy.append(el('p',data.eyebrow,'rhl-eyebrow'),el('h1',data.title),el('p',data.line));
     const objects=el('nav',null,'rhl-objects');objects.setAttribute('aria-label',`Qué hacemos en ${data.name}`);
     for(const [destination,symbol,title,detail,x,y] of data.objects){
@@ -97,11 +97,9 @@
     const talk=button('Conversar',()=>{if(!valid())return;stop();context.converse?.()},'rhl-talk');
     controls.append(voice,repeat,talk);dock.append(portrait,words,controls,el('div',null,'rhl-audio'));
     const footer=el('div',null,'rhl-scene-footer');
-    const explore=button('Explorar mi casa',()=>{root.querySelector('.rhl-spaces')?.scrollIntoView({behavior:motion?'smooth':'auto',block:'center'});root.querySelector('.rhl-spaces button')?.focus({preventScroll:true})},'rhl-explore');footer.append(explore);
+    const explore=button('Explorar mi casa',()=>navigate('more'),'rhl-explore');footer.append(explore);
     const animate=button(motion?'Pausar ambiente':'Animar ambiente',()=>{motion=!motion;stage.classList.toggle('rhl-still',!motion);animate.textContent=motion?'Pausar ambiente':'Animar ambiente';animate.setAttribute('aria-pressed',String(!motion))},'rhl-motion');animate.setAttribute('aria-pressed',String(!motion));footer.append(animate);
     stage.append(header,copy,objects,dock,footer);root.append(stage);
-    const map=el('nav',null,'rhl-spaces');map.setAttribute('aria-label','Todos los espacios de Home');
-    for(const [destination,symbol,title] of spaces){const b=button('',()=>navigate(destination));b.append(icon(symbol),el('span',title));if(destination===panel)b.setAttribute('aria-current','page');map.append(b)}root.append(map);
     const focus=root.querySelector(`[data-destination="${lastFocus}"]`);if(focus)focus.focus({preventScroll:true});
   }
   // Narration continues after an intentional room change, never on page load.

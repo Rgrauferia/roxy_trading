@@ -88,14 +88,16 @@ for(const [room,chapter,destinations] of roomCases)test(`${room} opens its actua
   h.api.show(room);h.click('Activar voz');assert.equal(h.speech.at(-1).key,chapter);
 });
 
-test('every house entrance is reachable from the room map',()=>{
+test('every room opens the single spaces directory without another permanent map',()=>{
   const h=harness(),rooms=['house','kitchen',...roomCases.map(row=>row[0])];
   for(const room of rooms){
-    h.api.show(room);const map=h.root.querySelector('.rhl-spaces');
-    assert.equal(map.querySelectorAll('button').length,8);
-    const active=map.querySelectorAll('button').filter(button=>button.attrs['aria-current']==='page');
-    assert.equal(active.length,1);active[0].events.click();assert.equal(h.navigation.at(-1),room);
+    h.api.show(room);
+    assert.equal(h.root.querySelector('.rhl-spaces'),null);
+    h.click('Explorar mi casa');assert.equal(h.navigation.at(-1),'more');
   }
+});
+test('expired explore control cannot navigate to the spaces directory',()=>{
+  const h=harness();h.expire();h.click('Explorar mi casa');assert.deepEqual(h.navigation,[]);
 });
 
 test('existing tools keep a return button to their room without replacing the tool controls',()=>{

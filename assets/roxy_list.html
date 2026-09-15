@@ -8,15 +8,15 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="216" />
+  <meta name="roxy-home-version" content="217" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="manifest" href="/lista-manifest.json" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
   <link rel="stylesheet" href="/assets/roxy_home_tour.css?v=1" />
-  <link rel="stylesheet" href="/assets/roxy_home_world.css?v=4" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=141" />
+  <link rel="stylesheet" href="/assets/roxy_home_world.css?v=7" />
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=143" />
   <link rel="stylesheet" href="/assets/roxy_fitness.css?v=7" />
   <link rel="stylesheet" href="/assets/roxy_fitness_discovery.css?v=1" />
   <link rel="stylesheet" href="/assets/roxy_fitness_programs.css?v=1" />
@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/assets/roxy_fitness_measurements.css?v=1" />
   <link rel="stylesheet" href="/assets/roxy_fitness_training.css?v=4" />
   <link rel="stylesheet" href="/assets/roxy_fitness_progress.css?v=1" />
-  <link rel="stylesheet" href="/assets/roxy_home_more.css?v=1" />
+  <link rel="stylesheet" href="/assets/roxy_home_more.css?v=4" />
   <link rel="stylesheet" href="/assets/roxy_garden_guide.css?v=1" />
   <link rel="stylesheet" href="/assets/roxy_recipe_guide.css?v=4" />
   <link rel="stylesheet" href="/assets/roxy_recipe_onboarding.css?v=1" />
@@ -33,7 +33,7 @@
   <link rel="stylesheet" href="/assets/roxy_home_drinks.css?v=5" />
   <link rel="stylesheet" href="/assets/roxy_home_living.css?v=5" />
   <link rel="stylesheet" href="/assets/roxy_fitness_session.css?v=1" />
-  <link rel="stylesheet" href="/assets/roxy_fitness_world.css?v=6" />
+  <link rel="stylesheet" href="/assets/roxy_fitness_world.css?v=7" />
   <script src="/assets/roxy_maplibre_loader.js?v=1" defer></script>
   <script src="/assets/roxy_home_recipe_provider.js?v=2" defer></script>
   <script src="/assets/roxy_recipe_guide.js?v=6" defer></script>
@@ -50,15 +50,15 @@
   <script src="/assets/roxy_fitness_planner.js?v=11" defer></script>
   <script src="/assets/roxy_fitness_measurements.js?v=1" defer></script>
   <script src="/assets/roxy_fitness_discovery.js?v=3" defer></script>
-  <script src="/assets/roxy_fitness_world.js?v=2" defer></script>
+  <script src="/assets/roxy_fitness_world.js?v=3" defer></script>
   <script src="/assets/roxy_fitness.js?v=16" defer></script>
   <script src="/assets/roxy_garden_guide.js?v=4" defer></script>
   <script src="/assets/roxy_home_recovery.js?v=1" defer></script>
   <script src="/assets/roxy_home_conversation.js?v=2" defer></script>
-  <script src="/assets/roxy_home_world.js?v=5" defer></script>
-  <script src="/assets/roxy_home_living.js?v=5" defer></script>
+  <script src="/assets/roxy_home_world.js?v=7" defer></script>
+  <script src="/assets/roxy_home_living.js?v=7" defer></script>
   <script src="/assets/roxy_home_tour.js?v=3" defer></script>
-  <script src="/assets/roxy_list.js?v=223" defer></script>
+  <script src="/assets/roxy_list.js?v=225" defer></script>
   <script src="/assets/roxy_home_registration.js?v=4" defer></script>
 </head>
 <body>
@@ -67,8 +67,6 @@
       <span class="brand-mark" aria-hidden="true">R</span>
       <span><strong>Roxy Home</strong><small id="homeBrandSubtitle">Tu hogar, organizado</small></span>
     </a>
-    <button id="shareButton" class="quiet-button" type="button">Compartir</button>
-    <button type="button" class="quiet-button home-more-entry" data-tab-link="more" aria-label="Más secciones y ajustes"><span class="material-symbols-rounded" aria-hidden="true">apps</span></button>
   </header>
 
   <section id="recipeWelcomePage" class="recipe-welcome-page" hidden aria-label="Conozcamos tus gustos">
@@ -347,25 +345,22 @@
     </section>
 
     <section id="shoppingPanel" class="app-panel" data-panel="shopping" aria-labelledby="shoppingTitle" hidden>
-      <div class="quick-grid" aria-label="Acciones rápidas">
-        <button type="button" data-open-custom><strong>Agregar producto</strong><small>Nombre y cantidad</small></button>
-        <button type="button" data-tab-link="recipes"><strong>Recetas</strong><small>Comidas y bebidas</small></button>
-        <button id="focusListButton" type="button"><strong>Ver pendientes</strong><small>Tu lista activa</small></button>
+      <div hidden aria-label="Agregar a tu lista">
+
+        <button type="button" data-tab-link="recipes" hidden><strong>Recetas</strong><small>Comidas y bebidas</small></button>
+        <button id="focusListButton" type="button" hidden><strong>Ver pendientes</strong><small>Tu lista activa</small></button>
       </div>
 
       <section class="content-section" aria-labelledby="shoppingTitle">
-        <div class="section-heading"><div><p>Lista activa</p><h2 id="shoppingTitle">Por comprar</h2></div><span id="rowCount">0 productos</span></div>
+        <div class="section-heading shopping-heading"><div><h2 id="shoppingTitle">Compra</h2><span id="rowCount" hidden>0 productos</span></div><button type="button" class="primary shopping-add-button" data-open-custom aria-label="Agregar producto"><span class="material-symbols-rounded" aria-hidden="true">add</span>Agregar</button></div>
         <label class="search"><span>Buscar</span><input id="searchInput" type="search" placeholder="Buscar en tu lista" autocomplete="off" /></label>
         <div id="categoryFilters" class="chips" role="group" aria-label="Categorías"></div>
         <div id="shoppingList" class="shopping-list"></div>
         <div class="finish-row"><span aria-live="polite"><strong id="pendingTotal">0</strong> <span id="pendingLabel">productos pendientes</span></span><button id="completeButton" class="primary" type="button">Compra hecha</button></div>
-        <div class="shopping-commerce-shortcut">
-          <span class="material-symbols-rounded" aria-hidden="true">shopping_bag</span>
-          <span><strong>Comparar esta lista</strong><small>Busca opciones en Amazon después de revisar tus pendientes</small></span>
-          <button id="prepareAmazonButton" class="secondary" type="button">Comparar</button>
-        </div>
+
       </section>
 
+      <details class="shopping-tool"><summary>Comparar precios</summary>
       <section class="content-section commerce-card" aria-labelledby="commerceTitle">
         <div class="section-heading"><div><p>Roxy compra contigo</p><h2 id="commerceTitle">Dónde conviene comprar</h2><small id="commerceSummary">Personalizada según tus preferencias.</small></div><button id="refreshPricesButton" class="price-refresh" type="button">Actualizar</button></div>
         <div id="priceRecommendationStatus" class="price-recommendation-status" role="status">Roxy compara únicamente precios reales y vigentes.</div>
@@ -377,8 +372,15 @@
         <button id="prepareShoppingButton" class="primary full" type="button">Buscar productos de mi lista</button>
         <small id="affiliateDisclosure" class="affiliate-disclosure"></small>
         <div id="commerceRecent" class="commerce-recent" aria-live="polite"></div>
+        <div class="shopping-commerce-shortcut">
+          <span class="material-symbols-rounded" aria-hidden="true">shopping_bag</span>
+          <span><strong>Comparar esta lista</strong><small>Busca opciones en Amazon después de revisar tus pendientes</small></span>
+          <button id="prepareAmazonButton" class="secondary" type="button">Comparar</button>
+        </div>
       </section>
+      </details>
 
+      <details class="shopping-tool"><summary>Identificar un producto</summary>
       <section class="content-section product-identity-card" aria-labelledby="productIdentityTitle">
         <div class="section-heading"><div><p>Datos reales del producto</p><h2 id="productIdentityTitle">Identificar producto</h2><small>Escanea el código de barras o escribe el nombre.</small></div><span class="material-symbols-rounded" aria-hidden="true">barcode_scanner</span></div>
         <form id="productLookupForm" class="product-lookup-form">
@@ -392,16 +394,19 @@
         <div id="productLookupResult" class="product-lookup-result" aria-live="polite"></div>
         <small class="product-source-note">Open Food Facts · USDA FoodData Central · CPSC Recalls. La etiqueta y los avisos oficiales prevalecen.</small>
       </section>
+      </details>
 
+      <details class="shopping-tool"><summary>Productos habituales</summary>
       <section class="content-section staples-section" aria-labelledby="usualTitle">
         <div class="section-heading"><div><p>Un toque y listo</p><h2 id="usualTitle">Productos habituales</h2><small id="usualHint">Roxy aprende de tus compras.</small></div></div>
         <div id="usualProducts" class="product-grid"></div>
         <button id="toggleStaples" class="secondary full" type="button">Ver todos</button>
       </section>
+      </details>
     </section>
 
     <section id="recipesPanel" class="app-panel" data-panel="recipes" aria-labelledby="recipesTitle" hidden>
-      <div class="section-heading hero-heading"><div><p id="recipeHeroEyebrow">Roxy cocina contigo</p><h2 id="recipesTitle">Recetas</h2></div><span id="recipeHeroBadge">Guardado automático</span></div>
+      <div class="section-heading hero-heading"><div><p id="recipeHeroEyebrow">Roxy cocina contigo</p><h2 id="recipesTitle">Recetas</h2></div><span id="recipeHeroBadge" hidden>Guardado automático</span><button type="button" class="secondary human-recipe-only" data-tab-link="pantry">Mi despensa</button></div>
       <p id="recipeLead" class="lead">Explora preparaciones existentes y recetas con su fuente original. Los borradores pendientes permanecen separados. <span id="recipeCatalogHint"></span></p>
 
       <div id="recipeNavigation" class="recipe-navigation human-recipe-only">
@@ -530,56 +535,17 @@
     <section id="fitnessPanel" class="app-panel" data-panel="fitness" aria-label="Ejercicio" hidden><div id="fitnessRoot"></div></section>
 
     <section id="morePanel" class="app-panel" data-panel="more" aria-labelledby="moreTitle" hidden>
-      <div class="more-home-hero">
-        <img class="more-home-scene" src="/assets/roxy_home/world/living-room-205.png" alt="" width="1672" height="941" decoding="async" />
-        <span class="more-home-label"><span class="material-symbols-rounded" aria-hidden="true">home</span>Todos tus espacios</span>
-        <div class="more-home-welcome">
-          <p class="more-eyebrow">Bienvenido a Roxy Home</p>
-          <h2 id="moreTitle">Tu casa,<br /><em>a tu ritmo.</em></h2>
-          <p>Elige un espacio. Hazlo parte de tu día.</p>
-          <button class="more-home-enter" type="button" data-tab-link="house">Entrar en mi casa<span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span></button>
-        </div>
-      </div>
-      <div class="more-spaces-heading"><div><p class="more-eyebrow">Un lugar para cada momento</p><h3>¿Dónde empezamos?</h3></div><span class="material-symbols-rounded" aria-hidden="true">explore</span></div>
-      <nav class="more-rooms more-shortcuts" aria-label="Espacios de tu casa">
-        <button type="button" data-tab-link="fitness" class="more-room more-room-fitness">
-          <img src="/assets/roxy_home/fitness/studio-cinema-211.png" alt="" width="1487" height="1058" decoding="async" />
-          <span class="more-room-arrow material-symbols-rounded" aria-hidden="true">arrow_outward</span>
-          <span class="more-room-copy"><strong>Ejercicio</strong><small>Un momento para ti</small></span>
-        </button>
-        <button type="button" data-tab-link="pets" class="more-room more-room-pets">
-          <img src="/assets/roxy_home/world/pets-room-206.png" alt="" width="1672" height="941" loading="lazy" decoding="async" />
-          <span class="more-room-arrow material-symbols-rounded" aria-hidden="true">arrow_outward</span>
-          <span class="more-room-copy"><strong>Mascotas</strong><small>Ellos también son familia</small></span>
-        </button>
-        <button type="button" data-tab-link="plants" class="more-room more-room-garden">
-          <img src="/assets/roxy_home/world/garden-room-206.png" alt="" width="1672" height="941" loading="lazy" decoding="async" />
-          <span class="more-room-arrow material-symbols-rounded" aria-hidden="true">arrow_outward</span>
-          <span class="more-room-copy"><strong>Jardín</strong><small>Tu rincón para florecer</small></span>
-        </button>
-        <button type="button" data-tab-link="kitchen" class="more-room more-room-kitchen">
-          <img src="/assets/roxy_home/world/kitchen-room-205.png" alt="" width="1672" height="941" loading="lazy" decoding="async" />
-          <span class="more-room-arrow material-symbols-rounded" aria-hidden="true">arrow_outward</span>
-          <span class="more-room-copy"><strong>Cocina</strong><small>¿Qué preparamos hoy?</small></span>
-        </button>
-        <button type="button" data-tab-link="design" class="more-room more-room-design">
-          <img src="/assets/roxy_home/renueva-living-room-hero.webp" alt="" width="1536" height="1024" loading="lazy" decoding="async" />
-          <span class="more-room-arrow material-symbols-rounded" aria-hidden="true">arrow_outward</span>
-          <span class="more-room-copy"><strong>Renueva</strong><small>Imagina tu próximo espacio</small></span>
-        </button>
-        <button type="button" data-tab-link="family" class="more-room more-room-family">
-          <img src="/assets/roxy_home/tour/nexo-connection.png" alt="" width="1536" height="1024" loading="lazy" decoding="async" />
-          <span class="more-room-arrow material-symbols-rounded" aria-hidden="true">arrow_outward</span>
-          <span class="more-room-copy"><strong>Nexo</strong><small>Cerca de quienes quieres</small></span>
-        </button>
+      <header class="more-spaces-heading"><h2 id="moreTitle">Espacios</h2><p>¿Qué quieres hacer hoy?</p></header>
+      <nav class="more-rooms" aria-label="Módulos de tu casa">
+        <button type="button" data-tab-link="recipes" class="more-room more-room-recipes"><img src="/assets/roxy_home/world/kitchen-room-205.png" alt="" decoding="async" /><span class="more-room-copy"><strong>Cocina</strong><small>Recetas y despensa</small></span></button>
+        <button type="button" data-tab-link="fitness" class="more-room more-room-fitness"><img src="/assets/roxy_home/fitness/studio-cinema-211.png" alt="" decoding="async" /><span class="more-room-copy"><strong>Ejercicio</strong><small>Plan y progreso</small></span></button>
+        <button type="button" data-tab-link="shopping" class="more-room more-room-shopping"><img src="/assets/roxy_home/products/groceries.png" alt="" decoding="async" /><span class="more-room-copy"><strong>Compra</strong><small>Tu lista pendiente</small></span></button>
+        <button type="button" data-tab-link="pets" class="more-room more-room-pets"><img src="/assets/roxy_home/world/pets-room-206.png" alt="" decoding="async" /><span class="more-room-copy"><strong>Mascotas</strong><small>Perfiles y cuidados</small></span></button>
+        <button type="button" data-tab-link="plants" class="more-room more-room-plants"><img src="/assets/roxy_home/world/garden-room-206.png" alt="" decoding="async" /><span class="more-room-copy"><strong>Jardín</strong><small>Tus plantas</small></span></button>
+        <button type="button" data-tab-link="design" class="more-room more-room-design"><img src="/assets/roxy_home/renueva-living-room-hero.webp" alt="" decoding="async" /><span class="more-room-copy"><strong>Renueva</strong><small>Tus espacios</small></span></button>
+        <button type="button" data-tab-link="family" class="more-room more-room-family"><img src="/assets/roxy_home/tour/nexo-connection.png" alt="" decoding="async" /><span class="more-room-copy"><strong>Nexo</strong><small>Tu hogar conectado</small></span></button>
+        <button type="button" data-tab-link="calendar" class="more-room more-room-calendar"><img src="/assets/roxy_home/world/living-room-205.png" alt="" decoding="async" /><span class="more-room-copy"><strong>Calendario</strong><small>Planes y recordatorios</small></span></button>
       </nav>
-      <nav class="more-everyday more-shortcuts" aria-label="Accesos cotidianos">
-        <button type="button" data-tab-link="pantry"><span class="material-symbols-rounded" aria-hidden="true">kitchen</span><span><strong>Despensa</strong><small>Productos y preferencias</small></span><span class="material-symbols-rounded" aria-hidden="true">chevron_right</span></button>
-        <button type="button" data-tab-link="shopping"><span class="material-symbols-rounded" aria-hidden="true">shopping_bag</span><span><strong>Lista de compra</strong><small>Artículos pendientes</small></span><span class="material-symbols-rounded" aria-hidden="true">chevron_right</span></button>
-        <button type="button" data-tab-link="recipes"><span class="material-symbols-rounded" aria-hidden="true">menu_book</span><span><strong>Recetario</strong><small>Todas las categorías</small></span><span class="material-symbols-rounded" aria-hidden="true">chevron_right</span></button>
-        <button type="button" data-tab-link="calendar"><span class="material-symbols-rounded" aria-hidden="true">calendar_month</span><span><strong>Calendario</strong><small>Planes y recordatorios</small></span><span class="material-symbols-rounded" aria-hidden="true">chevron_right</span></button>
-      </nav>
-      <div class="more-tools-heading"><p class="more-eyebrow">A tu manera</p><h3>Los detalles de tu hogar</h3></div>
       <details id="recipeToolsSection" class="card kitchen-tools recipe-tools-section">
         <summary>Herramientas de cocina</summary>
         <p>Importa recetas, explora otras fuentes o haz una consulta de cocina.</p>
@@ -630,8 +596,10 @@
       </details>
       </details>
       <details class="more-settings card">
-        <summary><span class="material-symbols-rounded" aria-hidden="true">tune</span><span>Mi Roxy y mi hogar<small>Apariencia, perfiles y este dispositivo</small></span></summary>
+        <summary><span class="material-symbols-rounded" aria-hidden="true">tune</span><span>Ajustes y ayuda</span></summary>
         <div class="more-settings-body">
+          <div id="moreGuideEntry"></div>
+          <button id="shareButton" class="secondary full" type="button">Compartir Roxy Home</button>
       <section class="install-card card" aria-labelledby="installTitle">
         <h3 id="installTitle">Roxy siempre a mano</h3>
         <p>En iPhone: Compartir → Añadir a pantalla de inicio. También puedes abrir esta página desde tu sticker NFC.</p>
@@ -655,18 +623,10 @@
     </section>
   </main>
 
-  <nav class="bottom-nav" aria-label="Secciones de Roxy Home">
+  <nav class="bottom-nav" id="homeNavigation" aria-label="Navegación principal">
     <button class="active" type="button" data-tab-link="house"><span class="material-symbols-rounded" aria-hidden="true">home</span><strong>Casa</strong></button>
-    <button type="button" data-tab-link="shopping"><span class="material-symbols-rounded" aria-hidden="true">shopping_cart</span><strong>Compra</strong></button>
+    <button type="button" data-tab-link="more"><span class="material-symbols-rounded" aria-hidden="true">grid_view</span><strong>Espacios</strong></button>
     <button id="roxyVoiceLauncher" class="roxy-nav" type="button" aria-controls="roxyVoicePanel" aria-expanded="false"><img data-roxy-avatar src="/assets/roxy_home_avatar.jpg" alt="" /><strong>Roxy</strong></button>
-    <button type="button" data-tab-link="kitchen"><span class="material-symbols-rounded" aria-hidden="true">restaurant</span><strong>Cocina</strong></button>
-    <button class="fitness-nav" type="button" data-tab-link="fitness"><span class="material-symbols-rounded" aria-hidden="true">exercise</span><strong>Ejercicio</strong></button>
-    <button type="button" data-tab-link="design"><span class="material-symbols-rounded" aria-hidden="true">chair</span><strong>Renueva</strong></button>
-    <button type="button" data-tab-link="plants"><span class="material-symbols-rounded" aria-hidden="true">potted_plant</span><strong>Jardín</strong></button>
-    <button type="button" data-tab-link="pets"><span class="material-symbols-rounded" aria-hidden="true">pets</span><strong>Mascotas</strong></button>
-    <button type="button" data-tab-link="family"><span class="material-symbols-rounded" aria-hidden="true">hub</span><strong>Nexo</strong></button>
-    <button type="button" data-tab-link="calendar"><span class="material-symbols-rounded" aria-hidden="true">calendar_month</span><strong>Calendario</strong></button>
-    <button class="family-more-nav" type="button" data-tab-link="more"><span class="material-symbols-rounded" aria-hidden="true">more_horiz</span><strong>Más</strong></button>
   </nav>
 
   <dialog id="plantDialog" class="plant-dialog" aria-labelledby="plantDialogTitle">

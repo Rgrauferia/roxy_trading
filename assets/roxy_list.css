@@ -1390,3 +1390,19 @@ body.recipe-welcome-active .bottom-nav,body.recipe-welcome-active #roxyVoiceLaun
   #recipesPanel:not(.pet-mode) .recipe-card:not(.resume-card) strong{font-size:19px;line-height:1.2}
   #recipesPanel:not(.pet-mode) .recipe-card:not(.resume-card) small{font-size:11px;line-height:1.5;margin-top:6px}
 }
+
+/* Compact mobile lists retain large, separate quantity and delete controls. */
+#shoppingPanel .shopping-item>*{min-width:0}
+#shoppingPanel .shopping-copy strong,#shoppingPanel .shopping-copy small{overflow-wrap:anywhere}
+#shoppingPanel .finish-row{flex-wrap:wrap}
+#shoppingPanel .finish-row>span{min-width:0}
+@media(max-width:600px){
+ #shoppingPanel .shopping-item{grid-template-columns:48px minmax(0,1fr);gap:10px;padding:12px}
+ #shoppingPanel .shopping-item>img{width:48px;height:48px}
+ #shoppingPanel .item-controls{grid-column:1/-1;display:flex;justify-content:space-between;gap:16px;padding-top:8px;border-top:1px solid #173d3017}
+ #shoppingPanel .stepper{grid-template-columns:44px 44px 44px;min-height:44px}
+ #shoppingPanel .stepper button{width:44px;height:44px}
+ #shoppingPanel .delete{width:44px;height:44px}
+ #shoppingPanel .shopping-copy strong{font-size:15px;line-height:1.35}
+ #shoppingPanel .shopping-copy small{font-size:12px;line-height:1.4}
+}

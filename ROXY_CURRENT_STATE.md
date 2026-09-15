@@ -1,6 +1,20 @@
 # Roxy Home — estado operativo
 
-## 216 — ARREGLO DEL REGISTRO PUBLICADO; REINTENTO DEL USUARIO PENDIENTE
+## 217 — NAVEGACIÓN SENCILLA Y MÓVIL, VERIFICACIÓN LOCAL
+
+Roberto pidió menos menús/carteles y encontrar módulos fácilmente. Barra Casa /
+Espacios / Roxy; ocho módulos directos juntos; Casa sinmapa repetido, ajustes/guía
+plegados; Compra centra la lista, controles44px yutilidades plegadas. Despensa sigue
+accesible desde Cocina. Ejercicio tiene botón textual Espacios en su estudio.
+Recorte de bienvenida reproducido: CSSdeCasa alcanzaba main interno; sustituido
+por región section, avatares2×2 y Continuar accesible en cuaderno. Media/voz original,
+IDs, datos y rutas anteriores conservados. QA393/320;63Node+18Python y suiteFitness
+aprobadas. Informereports/home-mobile-217/implementation.md. Código local217;
+publicación todavía pendiente. No afirmar aplicación/móduloscompletos ni selfie.
+Tras publicar/verificar volver a privadosFitness/variedad ydespuésMascotas. No cambios
+deinfraestructura, secrets ni datos públicos. Previews8770/8771/prototiposintactos.
+
+## 216 — REGISTRO PUBLICADO; ACCESO CONFIRMADO POR EL USUARIO
 
 Roberto reporta que crear cuenta no responde y después login falla. La consulta
 operativa para el usuario exacto reportado encontró0cuentas; no se leyeron secretos
@@ -17,8 +31,9 @@ bienvenida. Una cuenta sintética nueva; sin errores de consola/desbordamiento.
 de referencia aprobados por revisión independiente.
 Público216 confirmado: Render Live17f0f835, despliegue
 dep-dak8vv6k1f9s73ft60rg, health200,HTML216/registroJS4 y cuatroassets iguales.
-Sesión pública anterior conservada; consola sin errores. Reintento real de la
-persona solicitado; todavía no confirmar su alta ni atribuir causa exacta al iPhone.
+Sesión pública anterior conservada; consola sin errores. Roberto confirmó después
+«Ya entró; revisa estos detalles». Acceso resuelto por su confirmación; la causa
+exacta del dispositivo físico no está certificada.
 Informe reports/home-signup-216/implementation.md.
 Al terminar este arreglo retomar los pendientes215 de Ejercicio antes de Mascotas.
 

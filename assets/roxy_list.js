@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '216';
+  const APP_VERSION = '217';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -874,8 +874,8 @@
     const host=$((panel==='pets'?'recipes':panel)+'Panel');if(!host||!chapters[panel])return;
     let help=host.querySelector('.rht-module-help');
     if(!help){help=makeButton('','rht-module-help',()=>void window.RoxyHomeTour?.open(help.dataset.chapter));host.prepend(help)}
-    if(panel==='more')host.querySelector('.more-home-hero')?.append(help);
-    help.dataset.chapter=chapters[panel];help.textContent=panel==='more'?'Guía de Roxy':'Roxy, explícame esta sección';
+    if(panel==='more')host.querySelector('#moreGuideEntry')?.append(help);
+    help.dataset.chapter=chapters[panel];help.textContent=panel==='more'?'Guía de Roxy':'Ayuda';help.setAttribute('aria-label',panel==='more'?'Guía de Roxy':'Roxy, explícame esta sección');
   }
   let activePanel='';
   function openFitnessCalendarDraft(activity){
@@ -926,10 +926,9 @@
       node.classList.toggle('active',active);
     });
     document.querySelectorAll('.bottom-nav [data-tab-link]').forEach(button => {
-      const primaryPanels=['house','today','kitchen','shopping','recipes','pantry','fitness','wellness'];
-      const active=button.dataset.tabLink===panel||(button.dataset.tabLink==='fitness'&&panel==='wellness')||(button.dataset.tabLink==='house'&&panel==='today')||(button.dataset.tabLink==='kitchen'&&['recipes','pantry'].includes(panel))||(button.dataset.tabLink==='more'&&!primaryPanels.includes(panel));
+      const active=button.dataset.tabLink==='house'?panel==='house':button.dataset.tabLink==='more'&&panel!=='house';
       button.classList.toggle('active',active);
-      if(active)requestAnimationFrame(()=>{const nav=button.closest('.bottom-nav');if(nav)nav.scrollTo({left:Math.max(0,button.offsetLeft-(nav.clientWidth-button.offsetWidth)/2),behavior:smooth?'smooth':'auto'})});
+      if(active)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');
     });
     // The large greeting remains as dormant infrastructure for a future
     // dedicated welcome experience. Today starts and ends with useful content,

@@ -116,7 +116,7 @@
     s.sound=btn(s.muted?'Activar sonido':'Silenciar',()=>{s.muted=!s.muted;s.sound.textContent=s.muted?'Activar sonido':'Silenciar';if(s.muted){stop(s);message(s,'Puedes seguir a tu ritmo, sin sonido.');}else{void unlock(s)?.then(()=>speak(s,s.spokenKey||`world-${s.scene}`));}},'rhw-icon-button');
     if(s.started){controls.append(btn('Repetir',()=>{s.muted=false;s.sound.textContent='Silenciar';void unlock(s)?.then(()=>speak(s,s.spokenKey||`world-${s.scene}`));},'rhw-icon-button'),s.sound,btn('Mi casa',()=>go(s,'map'),'rhw-icon-button'));}
     controls.append(btn('Salir',close,'rhw-icon-button'));header.append(brand,controls);s.dialog.append(header);
-    const main=node('main',null,'rhw-main');s.main=main;s.dialog.append(main);
+    const main=node('section',null,'rhw-main');main.setAttribute('aria-label','Paso del recorrido');s.main=main;s.dialog.append(main);
     s.status=node('p','','rhw-status');s.status.setAttribute('role','status');s.dialog.append(s.status);
     if(!s.started){
       main.classList.add('rhw-arrival');main.append(node('p','TU HISTORIA EMPIEZA AQUÍ','rhw-eyebrow'),node('h1','Entra.\nEstás en casa.'),node('p','Soy Roxy. Vamos a crear un hogar que se parezca a ti.','rhw-lead'));
@@ -166,7 +166,7 @@
   function drawMap(s,main){
     main.append(node('h1','¿Dónde empezamos?'),node('p','Cada espacio tiene algo para ti. Elige una puerta.','rhw-lead'));
     const rooms=node('nav',null,'rhw-rooms');rooms.setAttribute('aria-label','Habitaciones de tu casa');
-    ROOMS.forEach(([key,label,icon])=>{const b=btn('',()=>go(s,key),'rhw-room');b.append(symbol(icon),node('span',label),node('span','↗'));rooms.append(b);});main.append(rooms,btn('Afinar mi Roxy',()=>go(s,'name'),'rhw-text-button'),btn('Entrar en la aplicación',async()=>{await progress(s,true);if(current(s)&&!s.progressConflict){close();s.owner.navigate('today');}},'rhw-primary'));
+    ROOMS.forEach(([key,label,icon])=>{const b=btn('',()=>go(s,key),'rhw-room');b.append(symbol(icon),node('span',label),symbol('north_east'));rooms.append(b);});main.append(rooms,btn('Afinar mi Roxy',()=>go(s,'name'),'rhw-text-button'),btn('Entrar en la aplicación',async()=>{await progress(s,true);if(current(s)&&!s.progressConflict){close();s.owner.navigate('today');}},'rhw-primary'));
   }
   function demonstration(s,main,kind){
     const surface=node('div',null,'rhw-demonstration');surface.append(node('small','PRUEBA EN LA ESCENA · NO CAMBIA TUS DATOS'));

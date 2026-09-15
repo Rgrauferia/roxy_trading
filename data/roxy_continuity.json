@@ -5,8 +5,8 @@
   "public_url": "https://roxy-home.onrender.com/lista#hoy",
   "last_verified_public_version": 216,
   "deployed_implementation_commit": "17f0f835e857d89f80d82e9101b4bcae624a902c",
-  "candidate_version": 216,
-  "candidate_status": "published_registration_feedback_recovery_verified_actual_user_retry_pending",
+  "candidate_version": 217,
+  "candidate_status": "local_simplified_navigation_and_mobile_fixes_qa_publication_pending",
   "candidate_199": {
     "published": true,
     "implementation_commit": "4652e5200594401ed719cf7c928a8ade2010e97a",
@@ -734,7 +734,7 @@
     "Aderezo César photo showed a salad; quarantine until an exact replacement is visually reviewed",
     "Only five manufacturer ingredient panels screened; restrictions fail closed, not clinical allergy clearance"
   ],
-  "next_step": "Home216 registration feedback/retry fix is public. Await actual user retry: account was absent before fix; do not claim their signup succeeded or exact device cause. Local valid signup followed by exact-password login passed; public health/assets/browser216 confirmed. Then resume Exercise private storage/readiness and reviewed routine adaptation before Pets; preserve data, secrets, prototypes and8770voice.",
+  "next_step": "Finish217 finalvisual/packagechecks, publish existing Home service and verify publicassets/session. Then resume Fitness private storage and reviewedroutine adaptation before Pets. Avatar/selfie idea notimplemented; preserve all data/media/prototypes and8770voice.",
   "launch": {
     "five_day_web_beta": "registration_enabled_positive_signup_verified_20260914",
     "app_store": "target_next_month_not_guaranteed",
@@ -1475,7 +1475,7 @@
   "objective_after_registration": "Home215 is publicly deployed and verified: immersive More/rooms, cinematic Exercise and six Spanish editorial routines. Prepare a concrete Home-only private PostgreSQL option/cost for approval, then configure TLS/RLS/minimal role and four migrations and verify public plans/results. Broaden reviewed routine alternatives/adaptation and finish Exercise before auditing and implementing Pets. Avatar/Runway paused; Apple Watch pending. Preserve household data, original media, prototypes and8770voice. Do not redeploy solely for final notes.",
   "candidate_216": {
     "published": true,
-    "status": "published_registration_feedback_recovery_verified_actual_user_retry_pending",
+    "status": "published_access_confirmed_by_user",
     "report": "reports/home-signup-216/implementation.md",
     "reported_account_found": false,
     "public_registration_enabled": true,
@@ -1492,9 +1492,26 @@
     "render_deploy": "dep-dak8vv6k1f9s73ft60rg",
     "render_status": "Live",
     "public_proof": "health200;HTML216;registrationenabledtrue;fourchangedstaticassetsbyteidentical. Browsermeta216/scriptregistration4;existingmembersessionretained;consoleempty.",
-    "reported_user_retry": "pending",
+    "reported_user_retry": "user_confirmed_entered",
     "exact_reported_device_cause_verified": false,
     "final_notes_local_only": true,
     "qa_cleanup": "Own synthetic31751/PID7350 stopped after successfultest; original8770/8771andprototypepreviews preserved. Public13delivered;viewportreset."
+  },
+  "candidate_217": {
+    "published": false,
+    "status": "local_simplified_navigation_and_mobile_fixes_qa_publication_pending",
+    "report": "reports/home-mobile-217/implementation.md",
+    "navigation": [
+      "Casa",
+      "Espacios",
+      "Roxy"
+    ],
+    "primary_module_count": 8,
+    "source_assets_preserved": true,
+    "production_user_data_modified": false,
+    "avatar_from_selfie": false,
+    "tests_node": 63,
+    "tests_python_package": 18,
+    "qa": "CUA393and320; clippingreproduced/fixed; syntheticquantity1-2-1; avatar4selectandcontinue; foodpreferencessteps1-3withoutsave; eightmoduleentranceschecked."
   }
 }
