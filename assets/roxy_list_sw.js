@@ -20,7 +20,7 @@ SHELL_VERSIONED.push('/assets/roxy_home_more.css?v=4');
 SHELL_VERSIONED.push('/assets/roxy_fitness_progress.js?v=1','/assets/roxy_fitness_progress.css?v=1');
 SHELL_VERSIONED.push('/assets/roxy_fitness_training.js?v=3','/assets/roxy_fitness_training.css?v=4');
 SHELL_VERSIONED.push('/assets/roxy_fitness_measurements.js?v=1','/assets/roxy_fitness_measurements.css?v=1');
-SHELL_VERSIONED.push('/assets/roxy_fitness_world.js?v=3','/assets/roxy_fitness_world.css?v=7','/assets/roxy_fitness_session.css?v=1');
+SHELL_VERSIONED.push('/assets/roxy_fitness_world.js?v=3','/assets/roxy_fitness_world.css?v=8','/assets/roxy_fitness_session.css?v=1');
 SHELL_VERSIONED.push('/assets/roxy_fitness_discovery.js?v=3','/assets/roxy_fitness_discovery.css?v=1','/assets/roxy_fitness.js?v=16','/assets/roxy_fitness.css?v=7','/assets/roxy_fitness_catalog.js?v=3','/assets/roxy_fitness_programs.js?v=5','/assets/roxy_fitness_programs.css?v=1','/assets/roxy_fitness_planner.js?v=11','/assets/roxy_fitness_planner.css?v=2','/assets/roxy_home/fitness/roxy-fitness-welcome.jpg');
 // Photos are cached only after they are requested. Downloading the entire
 // product/pet library during installation competes with the first visible page.
