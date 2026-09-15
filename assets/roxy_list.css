@@ -1,5 +1,15 @@
 /* Native hidden state must win over component grid/flex rules in every module. */
 [hidden] { display: none !important; }
+/* Keep signup feedback readable in Safari, including enlarged text. */
+#pairDialog article, #pairDialog section, #pairDialog form, #pairDialog label { min-width: 0; }
+#pairDialog input:not([type="checkbox"]) { min-width: 0; font-size: max(16px, 1rem); }
+#pairDialog button { white-space: normal; overflow-wrap: anywhere; }
+#pairDialog p, #pairDialog small { overflow-wrap: anywhere; line-height: 1.5; }
+#pairDialog small { color: var(--muted); }
+#pairDialog .signup-status { margin: 0; padding: 12px; border-radius: 12px; background: var(--sage-soft); color: var(--forest-dark); }
+#pairDialog #signupError:not(:empty) { margin: 0; padding: 12px; border: 1px solid currentColor; border-radius: 12px; }
+#pairDialog #signupAcknowledged { width: 22px; min-height: 22px; vertical-align: middle; }
+#pairDialog #signupChallenge { min-width: 0; overflow-x: auto; }
 .demo-trial-banner { display: block; padding: 12px 16px; margin-bottom: 16px; border: 1px solid #d9dfd5; border-radius: 18px; background: #f0f4e9; color: #1b503b; font-size: .85rem; line-height: 1.5; overflow-wrap: anywhere; }
 .family-map-zoom { position: absolute; z-index: 6; left: 18px; top: 160px; display: grid; gap: 8px; }
 .family-map-zoom button { width: 44px; height: 44px; padding: 0; border: 1px solid #d9dfd5; border-radius: 14px; background: #fffdf8; color: #1b503b; font: 600 26px/1 system-ui; box-shadow: 0 4px 12px #173f2b20; }

@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="215" />
+  <meta name="roxy-home-version" content="216" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
   <link rel="stylesheet" href="/assets/roxy_home_tour.css?v=1" />
   <link rel="stylesheet" href="/assets/roxy_home_world.css?v=4" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=140" />
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=141" />
   <link rel="stylesheet" href="/assets/roxy_fitness.css?v=7" />
   <link rel="stylesheet" href="/assets/roxy_fitness_discovery.css?v=1" />
   <link rel="stylesheet" href="/assets/roxy_fitness_programs.css?v=1" />
@@ -58,8 +58,8 @@
   <script src="/assets/roxy_home_world.js?v=5" defer></script>
   <script src="/assets/roxy_home_living.js?v=5" defer></script>
   <script src="/assets/roxy_home_tour.js?v=3" defer></script>
-  <script src="/assets/roxy_list.js?v=222" defer></script>
-  <script src="/assets/roxy_home_registration.js?v=3" defer></script>
+  <script src="/assets/roxy_list.js?v=223" defer></script>
+  <script src="/assets/roxy_home_registration.js?v=4" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -872,7 +872,7 @@
       <div class="dialog-heading"><div><p class="eyebrow">Acceso privado</p><h2 id="pairTitle">¿Quién está entrando?</h2></div><button type="button" data-close-dialog="pairDialog" aria-label="Cerrar acceso">Cerrar</button></div>
       <p>Usa tu perfil personal. Este dispositivo recordará tu sesión durante un año.</p>
       <form id="loginForm" class="kitchen-form">
-        <label><span>Usuario</span><input id="loginUsername" autocomplete="username" required /></label>
+        <label><span>Usuario</span><input id="loginUsername" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required /></label>
         <label><span>Contraseña</span><input id="loginPassword" type="password" autocomplete="current-password" minlength="8" required /></label>
         <p id="loginError" class="error" role="alert"></p>
         <button class="primary full" type="submit">Entrar a nuestro hogar</button>
@@ -883,16 +883,18 @@
         <h3>Un hogar solo para ti</h3>
         <p>Cinco días desde el registro, sin tarjeta ni cobro automático. Después podrás consultar lo guardado, sin crear nuevos registros.</p>
         <p>La demo incluye hasta 5 solicitudes de Roxy por hogar al día, sujetas a disponibilidad, y el recorrido con la voz oficial de Roxy. No incluye conversación de voz, vídeos ni imágenes generadas a pedido. Algunas funciones siguen en desarrollo.</p>
-        <form id="signupForm" class="kitchen-form">
+        <form id="signupForm" class="kitchen-form" novalidate>
           <label><span>Tu nombre</span><input id="signupName" autocomplete="name" maxlength="64" required /></label>
-          <label><span>Elige tu usuario</span><input id="signupUsername" autocomplete="username" minlength="3" maxlength="64" pattern="[a-zA-Z0-9_.@-]+" required /></label>
-          <label><span>Contraseña · mínimo 12 caracteres</span><input id="signupPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required /></label>
+          <label><span>Elige tu usuario</span><input id="signupUsername" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" minlength="3" maxlength="64" pattern="[a-zA-Z0-9_.@\-]+" required /></label>
+          <label><span>Contraseña · mínimo 12 caracteres</span><input id="signupPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" aria-describedby="signupPasswordHelp" required /><small id="signupPasswordHelp">Puedes usar una frase larga que recuerdes. No compartas tu contraseña.</small></label>
           <label><span>Repite la contraseña</span><input id="signupPasswordRepeat" type="password" autocomplete="new-password" minlength="12" maxlength="128" required /></label>
           <p>Al crear tu cuenta recibirás códigos de respaldo. Guárdalos fuera de Roxy: los necesitarás si olvidas tu contraseña. No se envían por correo.</p>
           <label><input id="signupAcknowledged" type="checkbox" required /> Tengo al menos 18 años, he leído la <a href="/privacy" target="_blank" rel="noopener">privacidad</a> y entiendo los límites de esta demo.</label>
           <div id="signupChallenge"></div>
-          <p id="signupError" class="error" role="alert"></p>
-          <button id="signupSubmit" class="primary full" type="submit" disabled>Crear mi hogar privado</button>
+          <p id="signupStatus" class="signup-status" role="status" aria-live="polite">Completa tus datos y la comprobación de seguridad para crear tu cuenta.</p>
+          <button id="signupRetryChallenge" class="secondary full" type="button" hidden>Reintentar comprobación de seguridad</button>
+          <p id="signupError" class="error" role="alert" tabindex="-1"></p>
+          <button id="signupSubmit" class="primary full" type="submit">Crear mi hogar privado</button>
         </form>
         <button id="backToLogin" class="quiet-button" type="button">Ya tengo una cuenta</button>
       </section>

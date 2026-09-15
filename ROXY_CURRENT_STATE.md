@@ -1,5 +1,24 @@
 # Roxy Home — estado operativo
 
+## 216 — REGISTRO CORREGIDO Y VERIFICADO LOCALMENTE; PUBLICACIÓN PENDIENTE
+
+Roberto reporta que crear cuenta no responde y después login falla. La consulta
+operativa para el usuario exacto reportado encontró0cuentas; no se leyeron secretos
+ni se modificaron cuentas públicas. Registro enabled:true. Se corrigen estados
+silenciosos: CAPTCHA pendiente/caducado/carga bloqueada con reintento, validación
+completa visible, progreso al enviar, confirmación y30s de espera acotada. Conserva
+validaciones del servidor, protección contra duplicados, cancelación y privacidad.
+No se atribuye todavía una causa exacta al dispositivo físico.
+
+CUA393×852 en fixture aislada31751: contraseña corta→mensaje, sin token→mensaje,
+reintento→comprobación local→alta→códigos→cerrar→login con misma contraseña→
+bienvenida. Una cuenta sintética nueva; sin errores de consola/desbordamiento.
+44Python paquete y76Node registro/login/recuperación aprobadas;272casos backend
+de referencia aprobados por revisión independiente.
+Público215 todavía. Informe reports/home-signup-216/implementation.md.
+Al terminar este arreglo retomar los pendientes215 de Ejercicio antes de Mascotas.
+
+
 ## 215 — PUBLICADO Y VERIFICADO EN LA WEB PÚBLICA
 
 La foto de Roberto mostraba el menú antiguo203 porque los avances204–214 solo

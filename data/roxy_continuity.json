@@ -5,8 +5,8 @@
   "public_url": "https://roxy-home.onrender.com/lista#hoy",
   "last_verified_public_version": 215,
   "deployed_implementation_commit": "882f4c8642110ccd44a5d55bee32185330cb7051",
-  "candidate_version": 215,
-  "candidate_status": "published_visual_and_catalogues_verified_private_storage_pending",
+  "candidate_version": 216,
+  "candidate_status": "local_registration_feedback_verified_publication_pending",
   "candidate_199": {
     "published": true,
     "implementation_commit": "4652e5200594401ed719cf7c928a8ade2010e97a",
@@ -734,7 +734,7 @@
     "Aderezo César photo showed a salad; quarantine until an exact replacement is visually reviewed",
     "Only five manufacturer ingredient panels screened; restrictions fail closed, not clinical allergy clearance"
   ],
-  "next_step": "Home215 is publicly deployed and verified: immersive More/rooms, cinematic Exercise and six Spanish editorial routines. Prepare a concrete Home-only private PostgreSQL option/cost for approval, then configure TLS/RLS/minimal role and four migrations and verify public plans/results. Broaden reviewed routine alternatives/adaptation and finish Exercise before auditing and implementing Pets. Avatar/Runway paused; Apple Watch pending. Preserve household data, original media, prototypes and8770voice. Do not redeploy solely for final notes.",
+  "next_step": "Finish registration216 tests and publish to existing Home service. Verify public assets and ask user to retry actual registration; exact device failure not established. Preserve all public accounts, authentication gates, original media and previews. Then resume Exercise private storage/readiness and routine adaptation before Pets.",
   "launch": {
     "five_day_web_beta": "registration_enabled_positive_signup_verified_20260914",
     "app_store": "target_next_month_not_guaranteed",
@@ -1173,7 +1173,7 @@
     "included_in_release": 215,
     "publication_note": "Code included in215. Historical local verification remains as recorded; private Fitness storage remains unavailable publicly."
   },
-  "current_objective": "Home215 is publicly deployed and verified: immersive More/rooms, cinematic Exercise and six Spanish editorial routines. Prepare a concrete Home-only private PostgreSQL option/cost for approval, then configure TLS/RLS/minimal role and four migrations and verify public plans/results. Broaden reviewed routine alternatives/adaptation and finish Exercise before auditing and implementing Pets. Avatar/Runway paused; Apple Watch pending. Preserve household data, original media, prototypes and8770voice. Do not redeploy solely for final notes.",
+  "current_objective": "Finish registration216 tests and publish to existing Home service. Verify public assets and ask user to retry actual registration; exact device failure not established. Preserve all public accounts, authentication gates, original media and previews. Then resume Exercise private storage/readiness and routine adaptation before Pets.",
   "candidate_205": {
     "published": true,
     "report": "reports/home_living_205_20260914.md",
@@ -1471,5 +1471,22 @@
       "commit": "1508e7642a6d142a31f99cf04f9ccf534e73f4d7",
       "cause": "Public209class catalogue excluded by data/*.json Git rule; corrected with specific exception and catalogue file. Prior service remained running until successful second deployment."
     }
+  },
+  "objective_after_registration": "Home215 is publicly deployed and verified: immersive More/rooms, cinematic Exercise and six Spanish editorial routines. Prepare a concrete Home-only private PostgreSQL option/cost for approval, then configure TLS/RLS/minimal role and four migrations and verify public plans/results. Broaden reviewed routine alternatives/adaptation and finish Exercise before auditing and implementing Pets. Avatar/Runway paused; Apple Watch pending. Preserve household data, original media, prototypes and8770voice. Do not redeploy solely for final notes.",
+  "candidate_216": {
+    "published": false,
+    "status": "local_registration_feedback_verified_publication_pending",
+    "report": "reports/home-signup-216/implementation.md",
+    "reported_account_found": false,
+    "public_registration_enabled": true,
+    "production_accounts_modified": false,
+    "backend_auth_changed": false,
+    "qa": "Synthetic local31751/393px;shortpassword andmissingtoken feedback;retrychallenge;oneaccountcreated;codesclose thenexactpasswordlogin reacheswelcome;no consoleerrors or overflow. RealTurnstile/device not reverified.",
+    "tests_python_package": 44,
+    "tests_node_login_recovery": 40,
+    "preview_pid": 7350,
+    "preview_session": 90845,
+    "tests_node_final": 76,
+    "tests_backend_baseline": 272
   }
 }
