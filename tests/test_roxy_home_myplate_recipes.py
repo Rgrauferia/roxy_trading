@@ -76,6 +76,32 @@ def test_search_normalized_under_demand_and_no_profile_parameters():
     assert response.closed
 
 
+def test_current_source_image_domain_in_search_and_detail_preserves_content():
+    image = "https://recipe-images.myplate.food/recipe-images/fixture-dish.jpg"
+    p, _, _ = provider(search_payload([{**card(), "image_url": image}]))
+    assert p.search()["recipes"][0]["image_url"] == image
+    original = {**detail(), "image_url": image}
+    p, _, _ = provider(original)
+    recipe = p.detail("fixture-dish")["recipe"]
+    assert recipe["image_url"] == image
+    assert recipe["directions"] == original["directions"]
+    assert recipe["ingredients"] == original["ingredients"]
+
+
+@pytest.mark.parametrize("url", [
+    "https://recipe-images.myplate.food.evil.test/recipe-images/fixture-dish.jpg",
+    "https://recipe-images.myplate.food/other/fixture-dish.jpg",
+    "https://recipe-images.myplate.food/recipe-images/fixture-dish.svg",
+    "https://recipe-images.myplate.food/recipe-images/fixture-dish.jpg?token=secret",
+    "https://user:secret@recipe-images.myplate.food/recipe-images/fixture-dish.jpg",
+    "https://recipe-images.myplate.food:444/recipe-images/fixture-dish.jpg",
+])
+def test_current_image_domain_does_not_expand_to_unapproved_links(url):
+    p, _, _ = provider(search_payload([{**card(), "image_url": url}]))
+    with pytest.raises(recipes.MyPlateRecipeError):
+        p.search()
+
+
 def test_source_text_quantities_and_notes_not_rewritten_by_reading_segments():
     original = detail()
     p, calls, response = provider(original)

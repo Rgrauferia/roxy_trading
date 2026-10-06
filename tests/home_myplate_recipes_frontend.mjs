@@ -209,7 +209,16 @@ test('no photo fallback or browser fetch when the exact source image fails', asy
   assert.equal(mock.requests.length, 1); assert.deepEqual(h.storageWrites, []);
 });
 
+test('current MyPlate image domain renders the exact source image', async () => {
+  const image_url='https://recipe-images.myplate.food/recipe-images/synthetic-000.jpg';
+  const h=harness(), panel=h.container(), mock=server({items:[{...rows[0],image_url}]});await start(h,panel,mock);
+  assert.equal(all(panel,'img')[0].src,image_url);assert.deepEqual(h.storageWrites,[]);
+});
 for (const image_url of [
+  'https://recipe-images.myplate.food.evil.test/recipe-images/x.jpg',
+  'https://recipe-images.myplate.food/other/x.jpg',
+  'https://recipe-images.myplate.food/recipe-images/x.jpg?track=1',
+  'https://recipe-images.myplate.food/recipe-images/x.svg',
   'https://storage.googleapis.com.evil.test/peppermint-cdn/myplate.food-recipe-images/x.jpg',
   'https://storage.googleapis.com/other-bucket/x.jpg', 'https://myplate.food.evil.test/x.jpg',
   'https://user:secret@storage.googleapis.com/peppermint-cdn/myplate.food-recipe-images/x.jpg',

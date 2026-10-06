@@ -16,7 +16,10 @@
       const url = new URL(value);
       if (url.protocol !== 'https:' || url.username || url.password || url.port || url.hash) return null;
       if (image) {
-        if (url.hostname !== 'storage.googleapis.com' || !/^\/peppermint-cdn\/myplate\.food-recipe-images\/[a-z0-9][a-z0-9_-]*\.(?:webp|png|jpe?g)$/i.test(url.pathname) || url.search) return null;
+        const validPath = url.hostname === 'storage.googleapis.com'
+          ? /^\/peppermint-cdn\/myplate\.food-recipe-images\/[a-z0-9][a-z0-9_-]*\.(?:webp|png|jpe?g)$/i.test(url.pathname)
+          : url.hostname === 'recipe-images.myplate.food' && /^\/recipe-images\/[a-z0-9][a-z0-9_-]*\.(?:webp|png|jpe?g)$/i.test(url.pathname);
+        if (!validPath || url.search) return null;
       } else if (url.hostname !== 'myplate.food') return null;
       return url.href;
     } catch (_) { return null; }

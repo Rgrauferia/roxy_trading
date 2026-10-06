@@ -110,8 +110,11 @@ def _url(value: Any, hosts: set[str], *, expected_path: str | None = None) -> st
 def _image_url(value: Any) -> str:
     if value is None or value == "":
         return ""
-    value = _url(value, {"storage.googleapis.com"})
-    if not _IMAGE_PATH.fullmatch(urlsplit(value).path):
+    value = _url(value, {"storage.googleapis.com", "recipe-images.myplate.food"})
+    parsed = urlsplit(value)
+    valid_path = (_IMAGE_PATH.fullmatch(parsed.path) if parsed.hostname == "storage.googleapis.com"
+                  else re.fullmatch(r"/recipe-images/[a-z0-9][a-z0-9_-]*\.(?:jpg|jpeg|png|webp)", parsed.path))
+    if not valid_path:
         raise _invalid_content()
     return value
 

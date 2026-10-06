@@ -1839,6 +1839,7 @@ def shopping_page() -> Response:
         "https://maps.gstatic.com https://*.googleapis.com https://*.gstatic.com "
         "https://images.openfoodfacts.org https://www.themealdb.com https://themealdb.com https://upload.wikimedia.org https://wger.de https://*.rainviewer.com "
         "https://storage.googleapis.com/peppermint-cdn/myplate.food-recipe-images/ "
+        "https://recipe-images.myplate.food/recipe-images/ "
         "https://raw.githubusercontent.com/alfg/opendrinks/f446f0e9356b9b43155d207b4f7c5214d9da91ab/src/assets/recipes/ "
         "https://*.basemaps.cartocdn.com https://tile.openstreetmap.org "
         "https://mazuri.com https://oxbowanimalhealth.com https://www.wysong.net "
