@@ -31,6 +31,7 @@ from roxy_os.home_ai import (
     HomeAIConfigurationError,
     RoxyHomeAI,
 )
+from roxy_os.home_assistant_context import HomeScreen, build_application_context
 from roxy_os.home_recipe_fallback import (
     exact_local_recipe,
     find_local_recipe,
@@ -222,6 +223,8 @@ class PetProductShoppingRequest(BaseModel):
 
 class AssistantCommandRequest(BaseModel):
     text: str = Field(min_length=1, max_length=1000)
+    active_section: HomeScreen = ""
+    recipe_id: str | None = Field(default=None, max_length=100)
 
 
 class HomeProfileRequest(BaseModel):
@@ -1642,7 +1645,7 @@ def _conversation_needs_deep_reasoning(text: str) -> bool:
     )
 
 
-def _conversation_snapshot(user: str, auth: AuthContext) -> dict[str, Any]:
+def _conversation_snapshot(user: str, auth: AuthContext, *, screen: str = "", recipe_id: str | None = None) -> dict[str, Any]:
     food = _home_food_store().snapshot(user)
     member = _member_for_auth(auth)
     personal_preferences = (member or {}).get("preferences") or {}
@@ -1663,6 +1666,10 @@ def _conversation_snapshot(user: str, auth: AuthContext) -> dict[str, Any]:
         now=moment,
     )
     return {
+        "application": build_application_context(screen, next((
+            row for row in (food.get("recipes") or [])
+            if recipe_id and str(row.get("id")) == recipe_id
+        ), None)),
         "profile": {
             **(food.get("profile") or {}),
             "communication_style": personal_preferences.get("response_style") or "balanced",
@@ -3018,7 +3025,7 @@ def assistant_command(
         result = _ai_call(
             lambda: _home_ai().converse(
                 command_text,
-                _conversation_snapshot(user, auth),
+                _conversation_snapshot(user, auth, screen=payload.active_section, recipe_id=payload.recipe_id),
                 history=conversation_store.turns(owner_key),
                 display_name=str(member.get("display_name") or "") if member else "",
                 deep=_conversation_needs_deep_reasoning(command_text),

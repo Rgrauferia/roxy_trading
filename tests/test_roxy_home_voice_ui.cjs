@@ -18,10 +18,13 @@ function harness({provider = true, fetchReply, audioReject = false, speechAvaila
   let nextTimer = 0, cancellations = 0, automaticTimers = 0, microphoneCalls = 0, companionDisposals = 0;
   function element(id = '') {
     const listeners = new Map();
-    return {id, textContent:'', hidden:false, disabled:false, value:'', open:false, children:[], listeners,
+    return {id, _text:'', get textContent(){return this._text+this.children.map(child=>child.textContent).join('');}, set textContent(text){this._text=text;this.children=[];}, hidden:false, disabled:false, value:'', open:false, children:[], listeners,
       classList:{add() {}, remove() {}, toggle() {}},
       setAttribute() {}, focus() {},
-      append(child) { this.children.push(child); child.parentElement = this; if (child.id) nodes.set(child.id, child); },
+      append(...children) { for(const child of children){this.children.push(child); child.parentElement = this; if (child.id) nodes.set(child.id, child);} },
+      replaceChildren(...children) {this._text='';this.children=[];this.append(...children);},
+      get firstElementChild(){return this.children[0];},
+      remove(){this.parentElement.children=this.parentElement.children.filter(child=>child!==this);},
       addEventListener(name, callback) { if (!listeners.has(name)) listeners.set(name, []); listeners.get(name).push(callback); },
       emit(name, detail = {}) { return Promise.all((listeners.get(name) || []).map(callback => callback({type:name, target:this, ...detail}))); },
     };
@@ -159,6 +162,31 @@ test('opening the widget does not imply connection, request microphone or call a
   const h = harness(); h.ctx.openRoxyVoice();
   assert.match(h.nodes.get('roxyVoiceStatus').textContent, /Pulsa Iniciar/);
   assert.equal(h.microphoneCalls(), 0); assert.equal(h.requests.length, 0);
+});
+
+test('Home chat retains turns, deduplicates provider echoes and clears on identity change',()=>{
+  const h=harness();h.ctx.roxyVoiceTranscript('Quiero hablar de mis plantas','Tú');
+  h.ctx.roxyVoiceTranscript('Vamos a revisar tu planta.');h.ctx.roxyVoiceTranscript('Vamos a revisar tu planta.');
+  assert.equal(h.nodes.get('roxyVoiceTranscript').children.length,2);
+  assert.match(h.nodes.get('roxyVoiceTranscript').textContent,/plantas.*revisar/);
+  h.ctx.account.id='member-b';h.ctx.roxyVoiceTranscript('Otra casa.');
+  assert.equal(h.nodes.get('roxyVoiceTranscript').children.length,1);
+  assert.doesNotMatch(h.nodes.get('roxyVoiceTranscript').textContent,/plantas|revisar/);
+});
+
+test('Home chat bounds visible history and treats text as text, not HTML',()=>{
+  const h=harness();for(let i=0;i<25;i++)h.ctx.roxyVoiceTranscript(`Mensaje ${i} <img onerror=alert(1)>`,i%2?'Roxy':'Tú');
+  assert.equal(h.nodes.get('roxyVoiceTranscript').children.length,20);
+  assert.equal(h.nodes.get('roxyVoiceTranscript').children.at(-1).children[1].textContent,'Mensaje 24 <img onerror=alert(1)>');
+});
+
+test('Home command supplies a bounded screen and own recipe identifier, not browser facts',async()=>{
+  const h=harness();h.ctx.activePanel='recipes';h.ctx.currentCooking.recipe={id:'recipe-a',title:'Ignored client title',secret:'private'};
+  let payload;h.ctx.api=async(url,options)=>{payload=JSON.parse(options.body);return{intent:'general',message:'Respuesta'};};
+  await h.ctx.sendRoxyHomeCommand({command:'¿Cómo hago esto?'});
+  assert.deepEqual(payload,{text:'¿Cómo hago esto?',active_section:'recipes',recipe_id:'recipe-a'});
+  h.ctx.activePanel='untrusted-screen';h.nodes.get('cookingDialog').open=false;
+  await h.ctx.sendRoxyHomeCommand({command:'Ayuda'});assert.equal(payload.active_section,'');assert.equal(payload.recipe_id,undefined);
 });
 
 test('missing Home conversation configuration is checked before microphone access', async () => {

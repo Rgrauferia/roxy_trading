@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Roxy Home" />
-  <meta name="roxy-home-version" content="223" />
+  <meta name="roxy-home-version" content="224" />
   <title>Roxy Home</title>
   <link rel="icon" href="/assets/roxy_home_avatar.jpg" />
   <link rel="apple-touch-icon" href="/assets/roxy_home_avatar.jpg" />
@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0" />
   <link rel="stylesheet" href="/assets/roxy_home_tour.css?v=1" />
   <link rel="stylesheet" href="/assets/roxy_home_world.css?v=7" />
-  <link rel="stylesheet" href="/assets/roxy_list.css?v=144" />
+  <link rel="stylesheet" href="/assets/roxy_list.css?v=145" />
   <link rel="stylesheet" href="/assets/roxy_fitness.css?v=7" />
   <link rel="stylesheet" href="/assets/roxy_fitness_discovery.css?v=1" />
   <link rel="stylesheet" href="/assets/roxy_fitness_programs.css?v=1" />
@@ -58,7 +58,7 @@
   <script src="/assets/roxy_home_world.js?v=7" defer></script>
   <script src="/assets/roxy_home_living.js?v=7" defer></script>
   <script src="/assets/roxy_home_tour.js?v=3" defer></script>
-  <script src="/assets/roxy_list.js?v=231" defer></script>
+  <script src="/assets/roxy_list.js?v=232" defer></script>
   <script src="/assets/roxy_home_registration.js?v=4" defer></script>
 </head>
 <body>
@@ -986,12 +986,12 @@
   </dialog>
 
   <section id="roxyVoicePanel" class="roxy-voice-panel" aria-labelledby="roxyVoiceTitle" hidden>
-    <header><img data-roxy-avatar src="/assets/roxy_home_avatar.jpg" alt="Roxy" /><div><strong id="roxyVoiceTitle">Roxy</strong><small>Tu agente de Home · voz oficial</small></div><button id="roxyVoiceClose" type="button" aria-label="Cerrar conversación">Cerrar</button></header>
+    <header><img data-roxy-avatar src="/assets/roxy_home_avatar.jpg" alt="Roxy" /><div><strong id="roxyVoiceTitle">Roxy contigo</strong><small id="roxyChatContext">Hablemos de tu hogar</small></div><button id="roxyVoiceClose" type="button" aria-label="Cerrar conversación">Cerrar</button></header>
     <p id="roxyVoiceStatus" class="roxy-voice-status" role="status" aria-live="polite">Pulsa Iniciar para conectar la voz o escribe tu mensaje.</p>
-    <div id="roxyVoiceTranscript" class="roxy-voice-transcript" aria-live="polite">Puedes pedirme una receta, cambiar tu lista o decir “guíame paso a paso”.</div>
+    <div id="roxyVoiceTranscript" class="roxy-voice-transcript" role="log" aria-label="Conversación con Roxy" aria-live="polite" aria-relevant="additions">Cuéntame qué necesitas en esta sección. Podemos hablar sobre tu hogar sin salir de aquí.</div>
     <form id="roxyTextForm" class="roxy-text-form">
-      <label for="roxyTextMessage">También puedes escribirle a Roxy</label>
-      <div><input id="roxyTextMessage" name="message" type="text" maxlength="1000" autocomplete="off" placeholder="¿Qué tengo en mi lista?" required /><button id="roxyTextSend" class="secondary" type="submit">Enviar</button></div>
+      <label for="roxyTextMessage">Tu mensaje</label>
+      <div><input id="roxyTextMessage" name="message" type="text" maxlength="1000" autocomplete="off" placeholder="Roxy, ayúdame con esta sección…" required /><button id="roxyTextSend" class="secondary" type="submit">Enviar</button></div>
     </form>
     <div class="roxy-voice-actions"><button id="roxyVoiceStart" class="primary" type="button">Iniciar</button><button id="roxyVoiceEnd" class="secondary" type="button" disabled>Terminar</button></div>
     <details id="roxyVoicePrivacy" class="roxy-voice-privacy"><summary>Voz y privacidad</summary><p>Al iniciar, el navegador pide permiso para dictar y puede procesar tu audio mediante su servicio. Home responde con OpenAI y su memoria de Home; ElevenLabs lee la respuesta con la voz oficial. El micrófono se detiene mientras Roxy habla. Terminar o cerrar detiene la escucha y la voz.</p></details>

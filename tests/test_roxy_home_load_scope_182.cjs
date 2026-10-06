@@ -48,7 +48,7 @@ function harness(options = {}) {
     } } }, document: { querySelectorAll: () => [], createElement: makeElement, body: { classList: { add() {}, remove() {} } } },
     localStorage: { setItem() {} }, sessionStorage: { getItem: () => null, setItem() {} },
     appearance: {}, safeAppearance: value => value, applyAppearance() {}, mountFitness() {},
-    setBusy: value => busy.push(value), setConnection() {}, announce() {},
+    setBusy: value => busy.push(value), setConnection() {}, setHomeLoadStatus() {}, announce() {},
     populateHomeForms() {}, render() { renders.push({ user: ctx.user, identity: ctx.collectionIdentity(), hiddenDuringRender: $('app').hidden, snapshot: copy(ctx.snapshot), plants: copy(ctx.homePlants), design: copy(ctx.homeDesign) }); },
     bindHomeTour() {}, renderAccount() {}, renderHomeMoment() {}, renderRecipes() {}, openAccountDialog() {},
     selectPanel(panel) { ctx.activePanel = panel; }, makeButton(text, cls, action) { return { textContent: text, className: cls, click: action }; },

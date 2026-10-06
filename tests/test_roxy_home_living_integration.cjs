@@ -51,7 +51,7 @@ function harness({mode='member',failureStatus=0,failIdentity=false,fitnessWorld=
     safeAppearance:value=>value,prepareRecipePreferences:async isCurrent=>isCurrent(),
   };
   context.collectionIdentity=()=>`${context.account.mode}:${context.account.id||''}`;
-  for(const name of ['stopCookingSpeech','resetRoxyVoiceContext','setBusy','syncFamilyMapReadiness','clearRecipePreferences','applyAppearance','setConnection','populateHomeForms','render','activateRecipeSources','renderRecipes','addModuleHelp','openRoxyVoice','renderAccount','renderHomeMoment','mountFitness','renderFamily'])context[name]=noop;
+  for(const name of ['stopCookingSpeech','resetRoxyVoiceContext','setBusy','setHomeLoadStatus','syncFamilyMapReadiness','clearRecipePreferences','applyAppearance','setConnection','populateHomeForms','render','activateRecipeSources','renderRecipes','addModuleHelp','openRoxyVoice','renderAccount','renderHomeMoment','mountFitness','renderFamily'])context[name]=noop;
   for(const name of ['refreshDesignProjects','refreshPlants','refreshFamily','loadPriceRecommendations'])context[name]=async()=>{};
   for(const name of ['openPlantForm','openPetProfile','openCalendarEvent','openPersonalization'])context[name]=(...args)=>{forms.push({name,args});return `opened:${name}`};
   vm.createContext(context);

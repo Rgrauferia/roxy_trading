@@ -158,6 +158,9 @@ def test_conversation_synthesizes_home_context_and_recent_turns(tmp_path):
             "shopping": [{"name": "Arroz", "quantity": 1, "unit": "bolsa"}],
             "today_meals": [],
             "calendar": [],
+            "application": {"screen": "recipes", "private_token": "never-send-this", "selected_recipe": {
+                "id": "recipe-a", "title": "Pollo exacto", "steps": ["Paso de la receta guardada"], "medical_history": "not-for-chat",
+            }},
             "trading": {"positions": ["secret"]},
         },
         history=[{"role": "user", "content": "No quiero pasta"}],
@@ -174,6 +177,10 @@ def test_conversation_synthesizes_home_context_and_recent_turns(tmp_path):
     assert "No quiero pasta" in call["input"]
     assert "Pollo" in call["input"]
     assert "positions" not in call["input"]
+    assert "Paso de la receta guardada" in call["input"]
+    assert '"screen": "recipes"' in call["input"]
+    assert "never-send-this" not in call["input"]
+    assert "not-for-chat" not in call["input"]
 
 
 def test_pet_recipe_scan_uses_terra_and_keeps_only_pet_safety_context(tmp_path):

@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '223';
+  const APP_VERSION = '224';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -918,6 +918,7 @@
     if(panel==='wellness'&&typeof window.RoxyFitnessWorld?.mount==='function')panel='fitness';
     if(!['checking','unknown','member'].includes(account.mode))panel=window.RoxyHomeLiving?.toolFor(panel)||({house:'today',kitchen:'recipes'})[panel]||panel;
     activePanel=panel;
+    if(typeof updateRoxyChatContext==='function')updateRoxyChatContext();
     window.RoxyHomeTour?.stop();
     addModuleHelp(panel);
     // Do not browse before authentication has resolved the visible household.
@@ -3270,6 +3271,37 @@
   }
 
   let roxyVoiceConversation=null;let roxyVoiceStarting=false;let roxyElevenLabsModule=null;let roxyVoicePermissionStream=null;let roxyLastAgentMessage='';let roxyLastAgentMessageAt=0;let roxyVoiceAttempt=0;let roxyReadableResponse=null;
+  let roxyChatTurns=[];let roxyChatScope='';
+  function roxyChatScreen(){
+    const screen=typeof activePanel==='string'?activePanel:'';
+    return ['house','kitchen','today','recipes','pets','plants','fitness','design','family','calendar','shopping','pantry','more'].includes(screen)?screen:'';
+  }
+  function updateRoxyChatContext(){
+    const node=$('roxyChatContext');if(!node)return;
+    const labels={house:'Mi casa',kitchen:'Cocina',today:'Hoy',recipes:'Recetas',pets:'Mascotas',plants:'Jardín',fitness:'Ejercicio',design:'Renueva',family:'Nexo',calendar:'Calendario',shopping:'Compra',pantry:'Despensa',more:'Espacios y ajustes'};
+    node.textContent=`Hablemos de ${labels[roxyChatScreen()]||'tu hogar'}`;
+  }
+  function roxyChatCommandContext(){
+    const context={active_section:roxyChatScreen()};
+    const recipe=$('cookingDialog')?.open&&typeof currentCooking!=='undefined'?currentCooking?.recipe:$('recipeDialog')?.open&&typeof currentRecipe!=='undefined'?currentRecipe:null;
+    if(recipe?.id)context.recipe_id=String(recipe.id).slice(0,100);
+    return context;
+  }
+  function appendRoxyChatTurn(text,source){
+    const content=String(text||'').trim();if(!content)return;
+    const scope=`${user}:${collectionIdentity()}`;
+    const transcript=$('roxyVoiceTranscript');
+    if(roxyChatScope!==scope){roxyChatTurns=[];roxyChatScope=scope;transcript.textContent='';}
+    const role=source==='Tú'?'user':'assistant',last=roxyChatTurns.at(-1);
+    if(last?.role===role&&last.text===content)return;
+    roxyChatTurns.push({role,text:content});roxyChatTurns=roxyChatTurns.slice(-20);
+    const bubble=document.createElement('p');bubble.className=`roxy-chat-message ${role}`;
+    const label=document.createElement('strong');label.textContent=role==='user'?'Tú':'Roxy';
+    const body=document.createElement('span');body.textContent=content;
+    bubble.append(label,body);transcript.append(bubble);
+    if(transcript.children.length>20)transcript.firstElementChild.remove();
+    transcript.scrollTop=transcript.scrollHeight;
+  }
   const roxyVoiceUrls=['https://esm.sh/@elevenlabs/client@1.8.1?bundle','https://cdn.jsdelivr.net/npm/@elevenlabs/client@1.8.1/+esm','https://esm.run/@elevenlabs/client@1.8.1'];
   function roxyVoiceStatus(text,error=false){$('roxyVoiceStatus').textContent=text;$('roxyVoiceStatus').classList.toggle('error',error)}
   function ensureRoxyTextSpeech(){
@@ -3319,14 +3351,15 @@
     await roxyVoiceConversation.speak(text);
   }
   function roxyVoiceTranscript(text,source='Roxy'){
-    stopRoxyDeviceSpeech('response');$('roxyVoiceTranscript').textContent=`${source}: ${text}`;
+    stopRoxyDeviceSpeech('response');appendRoxyChatTurn(text,source);
     roxyReadableResponse=source==='Roxy'&&String(text||'').trim()?{text:String(text),owner:user,identity:collectionIdentity()}:null;
     const button=ensureRoxyTextSpeech();button.hidden=!roxyReadableResponse;button.textContent='Escuchar respuesta · voz del dispositivo';
     const official=ensureRoxyOfficialListen();official.hidden=!roxyReadableResponse;
   }
   function resetRoxyVoiceContext(){
     stopCookingSpeech();stopRoxyDeviceSpeech();void endRoxyVoice();roxyReadableResponse=null;roxyLastAgentMessage='';roxyLastAgentMessageAt=0;
-    $('roxyVoiceTranscript').textContent='Puedes pedirme una receta, cambiar tu lista o decir “guíame paso a paso”.';
+    roxyChatTurns=[];roxyChatScope='';
+    $('roxyVoiceTranscript').textContent='Cuéntame qué necesitas en esta sección. Podemos hablar sobre tu hogar sin salir de aquí.';
     const button=$('roxyTextListen');if(button)button.hidden=true;
     const official=$('roxyOfficialListen');if(official)official.hidden=true;
     $('roxyTextMessage').value='';roxyVoiceStatus('Pulsa Iniciar para conectar la voz o escribe tu mensaje.');
@@ -3356,11 +3389,27 @@
     catch(error){if(current())roxyVoiceStatus(roxyTextError(error),true)}
     finally{button.disabled=false}
   }
-  function openRoxyVoice(){window.RoxyHomeLiving?.stop();window.RoxyHomeTour?.stop();window.RoxyRecipeGuide?.pauseActive?.();$('roxyVoicePanel').hidden=false;$('roxyVoiceLauncher').setAttribute('aria-expanded','true');$('roxyVoiceLauncher').classList.add('active');if(!roxyVoiceConversation&&!roxyVoiceStarting&&!roxyReadableResponse)roxyVoiceStatus('Pulsa Iniciar para hablar con el agente de Home o escribe tu mensaje.');$('roxyVoiceStart').focus()}
+  function openRoxyVoice(){window.RoxyHomeLiving?.stop();window.RoxyHomeTour?.stop();window.RoxyRecipeGuide?.pauseActive?.();updateRoxyChatContext();$('roxyVoicePanel').hidden=false;$('roxyVoiceLauncher').setAttribute('aria-expanded','true');$('roxyVoiceLauncher').classList.add('active');if(!roxyVoiceConversation&&!roxyVoiceStarting&&!roxyReadableResponse)roxyVoiceStatus('Pulsa Iniciar para hablar con Roxy o escribe tu mensaje.');$('roxyTextMessage').focus()}
   function closeRoxyVoice(){stopRoxyDeviceSpeech('response');void endRoxyVoice();$('roxyVoicePanel').hidden=true;$('roxyVoiceLauncher').setAttribute('aria-expanded','false');$('roxyVoiceLauncher').classList.remove('active');$('roxyVoiceLauncher').focus()}
   async function loadElevenLabs(){if(roxyElevenLabsModule)return roxyElevenLabsModule;let lastError=null;for(const url of roxyVoiceUrls){try{roxyElevenLabsModule=await import(url);return roxyElevenLabsModule}catch(error){lastError=error}}throw lastError||new Error('ElevenLabs SDK no disponible')}
   function currentShoppingSummary(){const rows=activeItems();return{pending_count:rows.length,total_quantity:rows.reduce((total,item)=>total+Number(item.quantity||0),0),items:rows.slice(0,50).map(item=>({name:item.name,quantity:item.quantity,unit:item.unit,category:item.category}))}}
-  async function sendRoxyHomeCommand(parameters={}){const command=String(parameters.command||parameters.text||parameters.request||'').trim();if(!command)return{ok:false,error:'missing_command'};const owner=user,identity=collectionIdentity();const result=await api(`/v1/assistant/command/${encodeURIComponent(owner)}`,{method:'POST',body:JSON.stringify({text:command}),signal:parameters.signal});checkCollectionContext(owner,identity);if(parameters.isCurrent&&!parameters.isCurrent())throw new Error('La conversación cambió.');if(result.intent!=='general')await load({quiet:true});checkCollectionContext(owner,identity);if(parameters.isCurrent&&!parameters.isCurrent())throw new Error('La conversación cambió.');if(result.message)roxyVoiceTranscript(result.message);if(result.data&&result.data.cooking)showCooking(result.data.cooking);if(result.data&&result.data.calendar_draft)showCalendarConfirmation(result.data.calendar_draft,result.data.calendar_conflicts||[]);if(result.data&&result.data.calendar_event)selectPanel('calendar');if(result.data&&result.data.weather&&result.data.weather.status==='READY'){homeWeather=result.data.weather;renderWeather();renderCalendar()}if(result.data&&result.data.price_recommendations){priceRecommendations=result.data.price_recommendations;selectPanel('shopping');renderPriceRecommendations()}if(result.data&&result.data.preparation){currentPreparation=result.data.preparation;renderCommercePreparation(currentPreparation,result.data.providers||commerce.providers||[]);if(!$('commerceDialog').open)$('commerceDialog').showModal()}return result}
+  async function sendRoxyHomeCommand(parameters={}){
+    const command=String(parameters.command||parameters.text||parameters.request||'').trim();
+    if(!command)return{ok:false,error:'missing_command'};
+    const owner=user,identity=collectionIdentity();
+    const result=await api(`/v1/assistant/command/${encodeURIComponent(owner)}`,{method:'POST',body:JSON.stringify({text:command,...roxyChatCommandContext()}),signal:parameters.signal});
+    checkCollectionContext(owner,identity);if(parameters.isCurrent&&!parameters.isCurrent())throw new Error('La conversación cambió.');
+    if(result.intent!=='general')await load({quiet:true});
+    checkCollectionContext(owner,identity);if(parameters.isCurrent&&!parameters.isCurrent())throw new Error('La conversación cambió.');
+    if(result.message)roxyVoiceTranscript(result.message);
+    if(result.data&&result.data.cooking)showCooking(result.data.cooking);
+    if(result.data&&result.data.calendar_draft)showCalendarConfirmation(result.data.calendar_draft,result.data.calendar_conflicts||[]);
+    if(result.data&&result.data.calendar_event)selectPanel('calendar');
+    if(result.data&&result.data.weather&&result.data.weather.status==='READY'){homeWeather=result.data.weather;renderWeather();renderCalendar()}
+    if(result.data&&result.data.price_recommendations){priceRecommendations=result.data.price_recommendations;selectPanel('shopping');renderPriceRecommendations()}
+    if(result.data&&result.data.preparation){currentPreparation=result.data.preparation;renderCommercePreparation(currentPreparation,result.data.providers||commerce.providers||[]);if(!$('commerceDialog').open)$('commerceDialog').showModal()}
+    return result;
+  }
   function recoverRoxyVoiceSpeech(speech,startedAt){const owner=user,identity=collectionIdentity(),attempt=roxyVoiceAttempt;setTimeout(()=>{if(user!==owner||collectionIdentity()!==identity||roxyVoiceAttempt!==attempt||!roxyVoiceConversation||!speech)return;const answer=String(roxyLastAgentMessage||'').toLowerCase();const falseFailure=/no (?:puedo|tengo acceso)|no (?:est[aá]|estaba) funcionando|b[uú]squeda.{0,30}recet|problema.{0,30}recet/.test(answer);if(roxyLastAgentMessageAt<=startedAt||falseFailure){const instruction=`[RESULTADO CONFIRMADO DE ROXY HOME. NO LLAMES HERRAMIENTAS.] Lee en voz alta exactamente este resultado completo y después pregunta si deseo agregar los ingredientes o cocinar paso a paso: ${speech}`;if(typeof roxyVoiceConversation.sendUserMessage==='function')roxyVoiceConversation.sendUserMessage(instruction)}},3200)}
   async function sendCommandToRoxyOSForVoice(parameters={}){const startedAt=Date.now();const result=await sendRoxyHomeCommand(parameters);const speech=String(result.speech||result.message||'').trim();recoverRoxyVoiceSpeech(speech,startedAt);return{ok:Boolean(result.ok),intent:result.intent||'general',must_speak:true,speech,message:speech,data:result.data||{},instruction:'Espera a que termine esta herramienta. Lee en voz alta ahora el campo speech completo. No lo resumas, no lo contradigas y no digas que no tienes acceso.'}}
   function roxyHomeClientTools(){return{getCurrentScreenContext:async()=>({ok:true,app:'Roxy Home',page:'Hoy, plan de comidas, compra, recetas, despensa, calendario y clima',provider:'ElevenLabs',member:{display_name:activePersonName(),role:account.role,household_name:account.household_name},profile:homeFood.profile||{},pantry:(homeFood.pantry||[]).slice(0,80),daily_brief:homeDaily,weather:homeWeather&&homeWeather.status==='READY'?{location:homeWeather.location,current:homeWeather.current,daily:(homeWeather.daily||[]).slice(0,8)}:{status:homeWeather&&homeWeather.status},shopping_list:currentShoppingSummary(),calendar:{upcoming:(homeCalendar.events||[]).slice(0,20)},latest_recipe:currentRecipe&&{id:currentRecipe.id,title:currentRecipe.title,servings:currentRecipe.servings},instruction:'Eres la misma Roxy, operando únicamente con memoria y permisos de Home. Usa los datos reales de esta pantalla, sintetiza y recomienda con criterio sin inventar.'}),getShoppingList:async()=>({ok:true,shopping_list:currentShoppingSummary()}),summarizeCurrentScreen:async()=>({ok:true,summary:`Roxy Home muestra ${activeItems().length} productos pendientes, ${(homeFood.recipes||[]).length} recetas guardadas y ${(homeCalendar.events||[]).length} eventos próximos.`,shopping_list:currentShoppingSummary()}),sendCommandToRoxyOS:sendCommandToRoxyOSForVoice}}

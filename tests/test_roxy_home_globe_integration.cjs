@@ -228,8 +228,11 @@ test('kitchen and exercise remain adjacent in navigation without CSS reordering'
   const html = read('assets/roxy_list.html'), css = read('assets/roxy_list.css').replace(/\/\*[\s\S]*?\*\//g, '');
   const nav = html.match(/<nav\b[^>]*class="bottom-nav"[^>]*>([\s\S]*?)<\/nav>/)[1];
   const links = [...nav.matchAll(/\bdata-tab-link="([^"]+)"/g)].map(match => match[1]);
-  assert.ok(links.includes('kitchen'));
-  assert.equal(links[links.indexOf('kitchen') + 1], 'fitness');
+  assert.deepEqual(links, ['house', 'more']);
+  const moduleSection = html.slice(html.indexOf('id="morePanel"'), html.indexOf('id="morePanel"') + 3500);
+  const moduleLinks = [...moduleSection.matchAll(/\bdata-tab-link="([^"]+)"/g)].map(match => match[1]);
+  assert.ok(moduleLinks.includes('recipes'));
+  assert.equal(moduleLinks[moduleLinks.indexOf('recipes') + 1], 'fitness');
   const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)];
   for (const [, selector, declarations] of rules) {
     if (!selector.includes('bottom-nav') && !selector.includes('fitness-nav') && !selector.includes('roxy-nav')) continue;

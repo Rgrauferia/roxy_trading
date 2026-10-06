@@ -617,7 +617,7 @@ dialog > form, dialog > article { display: grid; gap: 14px; padding: 23px; }
 .cooking-actions { display: grid; gap: 10px; }
 .cooking-actions > div { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
-.roxy-voice-panel { position: fixed; right: 12px; bottom: calc(82px + env(safe-area-inset-bottom)); z-index: 40; width: min(calc(100% - 24px), 370px); padding: 14px; border: 1px solid rgba(255,255,255,.15); border-radius: 22px; color: white; background: var(--forest-dark); box-shadow: 0 24px 70px rgba(10,31,20,.38); }
+.roxy-voice-panel { position: fixed; right: 12px; bottom: calc(82px + env(safe-area-inset-bottom)); z-index: 40; width: min(calc(100% - 24px), 480px); padding: 16px; border: 1px solid rgba(255,255,255,.15); border-radius: 22px; color: white; background: var(--forest-dark); box-shadow: 0 24px 70px rgba(10,31,20,.38); }
 .roxy-voice-panel header { display: grid; grid-template-columns: 46px minmax(0,1fr) auto; gap: 10px; align-items: center; }
 .roxy-voice-panel { max-height:calc(100dvh - 160px);overflow-y:auto; }
 .roxy-voice-panel .roxy-voice-privacy, .roxy-voice-panel .roxy-voice-privacy summary { color:#c7dbc9; }
@@ -626,10 +626,15 @@ dialog > form, dialog > article { display: grid; gap: 14px; padding: 23px; }
 .roxy-voice-panel header img { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; }
 .roxy-voice-panel header strong, .roxy-voice-panel header small { display: block; }
 .roxy-voice-panel header small { color: #bed2c4; }
-.roxy-voice-panel header button { min-height: 38px; border: 1px solid rgba(255,255,255,.25); border-radius: 12px; color: white; background: transparent; }
+.roxy-voice-panel header button { min-height: 44px; border: 1px solid rgba(255,255,255,.25); border-radius: 12px; color: white; background: transparent; }
 .roxy-voice-status { color: #d8b971; font-weight: 800; }
 .roxy-voice-status.error { color: #ffb4aa; }
-.roxy-voice-transcript { min-height: 64px; max-height: 128px; overflow-y: auto; padding: 12px; border-radius: 14px; font-size: 13px; line-height: 1.4; background: rgba(255,255,255,.08); }
+.roxy-voice-transcript { min-height: 100px; max-height: min(36dvh, 340px); overflow-y: auto; overscroll-behavior: contain; padding: 12px; border-radius: 14px; font-size: 15px; line-height: 1.5; background: rgba(255,255,255,.04); }
+.roxy-chat-message { width: fit-content; max-width: 94%; margin: 0 0 12px; padding: 12px 14px; border-radius: 16px 16px 16px 4px; color: #183e2d; background: #f4f6ed; overflow-wrap: anywhere; }
+.roxy-chat-message.user { margin-left: auto; border-radius: 16px 16px 4px 16px; color: white; background: #2b644c; }
+.roxy-chat-message strong { display: block; margin-bottom: 4px; font-size: 12px; opacity: .75; }
+.roxy-chat-message span { white-space: pre-wrap; }
+.roxy-voice-panel input { font-size: 16px; }
 .roxy-voice-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 12px; }
 
 .toast { position: fixed; right: 18px; bottom: calc(96px + env(safe-area-inset-bottom)); left: 18px; z-index: 60; width: fit-content; max-width: calc(100% - 36px); margin: auto; padding: 12px 16px; border-radius: 14px; color: white; background: #14291e; box-shadow: var(--shadow); font-weight: 750; text-align: center; }

@@ -165,7 +165,7 @@ def test_open_question_uses_private_conversational_brain_and_remembers_context(t
     first = client.post(
         "/v1/assistant/command/robert",
         headers=headers,
-        json={"text": "¿Qué cena me recomiendas y por qué?"},
+        json={"text": "¿Qué cena me recomiendas y por qué?", "active_section": "recipes", "recipe_id": "foreign-recipe"},
     )
     second = client.post(
         "/v1/assistant/command/robert",
@@ -180,5 +180,11 @@ def test_open_question_uses_private_conversational_brain_and_remembers_context(t
     assert first.json()["data"]["conversation"]["confidence"] == "high"
     assert brain.calls[0]["deep"] is True
     assert brain.calls[0]["snapshot"]["pantry"][0]["name"] == "Pollo"
+    assert brain.calls[0]["snapshot"]["application"]["screen"] == "recipes"
+    assert "selected_recipe" not in brain.calls[0]["snapshot"]["application"]
     assert second.status_code == 200
     assert brain.calls[1]["history"][-2]["content"] == "¿Qué cena me recomiendas y por qué?"
+    invalid = client.post("/v1/assistant/command/robert", headers=headers,
+                          json={"text": "Ayuda", "active_section": "Trading"})
+    assert invalid.status_code == 422
+    assert len(brain.calls) == 2
