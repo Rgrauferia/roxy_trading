@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '220';
+  const APP_VERSION = '221';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -442,6 +442,14 @@
     busy = value;
     $('app').setAttribute('aria-busy', String(value));
   }
+  function setHomeLoadStatus(text='',pending=false) {
+    const surface=$('homeLoadStatus');
+    surface.hidden=!text;
+    surface.setAttribute('aria-busy',String(pending));
+    $('homeLoadMessage').textContent=text;
+    $('homeLoadRetry').hidden=pending||!text;
+    $('homeLoadRetry').disabled=pending;
+  }
   async function api(path,options={}) {
     const response = await fetch(path, {
       credentials:'include', cache:'no-store',
@@ -640,7 +648,7 @@
     let requestedOwner=user,identity=collectionIdentity(),identityConfirmed=false;
     const isCurrent=()=>load.ticket===ticket&&user===requestedOwner&&collectionIdentity()===identity;
     const hasRenderedScope=()=>load.renderedScope?.owner===requestedOwner&&load.renderedScope?.identity===identity;
-    if(!hasRenderedScope()){stopCookingSpeech();resetRoxyVoiceContext();$('app').hidden=true;}
+    if(!hasRenderedScope()){stopCookingSpeech();resetRoxyVoiceContext();$('app').hidden=true;setHomeLoadStatus('Estoy preparando tu casa y comprobando tu sesión…',true);}
     const emptyDesign=()=>({projects:[],generation_configured:false});
     const emptyPlants=()=>({plants:[],due_today:[],vacation:{},species:[],identification_configured:false});
     const emptyFamily=()=>({status:'UNAVAILABLE',members:[],places:[],alerts:[],capabilities:{}});
@@ -742,7 +750,7 @@
         return;
       }
       // A fresh, unverified session cannot choose a private member's cache.
-      if(!identityConfirmed&&account.mode!=='member'){setConnection('No se pudo confirmar tu sesión. Revisa la conexión.','offline');return}
+      if(!identityConfirmed&&account.mode!=='member'){setConnection('No se pudo confirmar tu sesión. Revisa la conexión.','offline');setHomeLoadStatus('No pude comprobar tu sesión. Revisa tu conexión y vuelve a intentarlo.');return}
       const designKey=collectionCacheKey('design',requestedOwner,identity),plantsKey=collectionCacheKey('plants',requestedOwner,identity);
       const [cached,cachedFood,cachedCommerce,cachedCalendar,cachedDaily,cachedDesign,cachedPlants,cachedWeather,cachedFamily,designRecovery,plantsRecovery]=await Promise.all([
         readCache(`snapshot:${requestedOwner}`),readCache(`home-food:${requestedOwner}`),
@@ -775,7 +783,11 @@
       if (!cached) setConnection('No se pudo cargar Roxy Home','offline');
     } finally {
       // An older request must not clear a newer request's loading indicator.
-      if(load.ticket===ticket)setBusy(false);
+      if(load.ticket===ticket){
+        setBusy(false);
+        if(!$('app').hidden||$('pairDialog').open||!$('recipeWelcomePage').hidden)setHomeLoadStatus();
+        else setHomeLoadStatus('No pude abrir tu casa ahora. Tus datos guardados no se borraron. Vuelve a intentarlo.');
+      }
     }
   }
 
@@ -3579,7 +3591,7 @@
     window.addEventListener('online',()=>load({quiet:true}));
   }
 
-  applyAppearance();bind();renderHomeMoment();setInterval(renderHomeMoment,30000);render();
+  applyAppearance();bind();$('homeLoadRetry').addEventListener('click',()=>load());renderHomeMoment();setInterval(renderHomeMoment,30000);render();
   window.addEventListener('pageshow',event=>{if(event.persisted)location.reload()});
   if('scrollRestoration'in history)history.scrollRestoration='manual';
   const initialPanels={patio:'garden',bienestar:'wellness',companeros:'companions',estudio:'atelier',encuentro:'connection',agenda:'agenda',hoy:'house',casa:'house',cocina:'kitchen',dia:'today',compra:'shopping',recetas:'recipes',mascotas:'pets',pets:'pets',despensa:'pantry',calendario:'calendar',renueva:'design',jardin:'plants',familia:'family',nexo:'family',family:'family',mas:'more',ejercicio:'fitness'};

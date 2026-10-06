@@ -46,3 +46,15 @@ test('old meal plans keep their real dates instead of pretending to be this week
   assert.match(code,/Este plan corresponde a otra semana/);
   assert.match(code,/const date=new Date\(`\$\{day.date\}T12:00:00`\)/);
 });
+test('first load and unavailable service have a visible recovery outside the hidden app',()=>{
+  const nodes=Object.fromEntries(['homeLoadStatus','homeLoadMessage','homeLoadRetry'].map(id=>[id,{hidden:true,disabled:false,textContent:'',setAttribute(){}}]));
+  const context={$:id=>nodes[id]};vm.createContext(context);
+  vm.runInContext(code.slice(code.indexOf('  function setHomeLoadStatus('),code.indexOf('  async function api(')),context);
+  context.setHomeLoadStatus('Preparando',true);
+  assert.equal(nodes.homeLoadStatus.hidden,false);assert.equal(nodes.homeLoadRetry.hidden,true);
+  context.setHomeLoadStatus('Reintenta');assert.equal(nodes.homeLoadRetry.hidden,false);assert.equal(nodes.homeLoadRetry.disabled,false);
+  context.setHomeLoadStatus();assert.equal(nodes.homeLoadStatus.hidden,true);
+  const html=fs.readFileSync(new URL('../assets/roxy_list.html',import.meta.url),'utf8');
+  assert.ok(html.indexOf('id="homeLoadStatus"')<html.indexOf('id="app"'));
+  assert.match(code,/homeLoadRetry'\).addEventListener\('click',\(\)=>load\(\)\)/);
+});
