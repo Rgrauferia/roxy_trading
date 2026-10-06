@@ -540,7 +540,7 @@ class WeeklyPlanMealRequest(BaseModel):
 
 class WeeklyPlanDayRequest(BaseModel):
     day_index: int = Field(ge=0, le=6)
-    action: str = Field(pattern="^(cooked|leftovers|skip|reset)$")
+    action: str = Field(pattern="^(cooked|leftovers|skip|reset|ready|not_ready)$")
 
 
 class RecipeScaleRequest(BaseModel):
@@ -1012,6 +1012,13 @@ def _recipe_with_resilience(
 def _assistant_shopping_intent(text: str) -> str:
     normalized = text.lower().strip()
     plain = unicodedata.normalize("NFKD", normalized).encode("ascii", "ignore").decode("ascii")
+    # Questions about capabilities are not permission to start a recipe or
+    # change household data, even when they mention "cocinar paso a paso".
+    if (
+        re.search(r"\b(?:explicame|cuentame)\s+como\b", plain)
+        and re.search(r"\b(?:acompanas|ayudas|funciona|funcionas|puedes)\b", plain)
+    ) or re.search(r"\bque\s+(?:puedo\s+hacer\s+contigo|puedes\s+hacer)\b", plain):
+        return "general"
     if re.search(r"\bcuando\s+(?:yo\s+)?digo\b.+\b(?:me\s+refiero\s+a|quiero\s+decir|significa)\b", plain):
         return "shopping_teach_alias"
     if re.fullmatch(r"(?:(?:si|sí)(?:,?\s+confirmo)?|confirmo|confirmar|confirmalo|confírmalo|hazlo|correcto)[.! ]*", normalized):

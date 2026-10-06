@@ -8,6 +8,49 @@ from roxy_os.home_weekly_plans import create_local_weekly_plan, resolve_weekly_m
 from tools.roxy_home_service import _weekly_day_index
 
 
+def test_normal_week_uses_all_compatible_options_before_repeating():
+    plan = create_local_weekly_plan({}, style="normal", people=2, max_minutes=25, weekly_budget=85)
+    breakfast = [day["meals"][0]["catalog_key"] for day in plan["days"]]
+    assert len(set(breakfast[:5])) == 5
+    for before, after in zip(plan["days"], plan["days"][1:]):
+        for position in (0, 1, 2):
+            assert before["meals"][position]["catalog_key"] != after["meals"][position]["catalog_key"]
+    assert all(len({meal["catalog_key"] for meal in day["meals"]}) == 3 for day in plan["days"])
+
+
+def test_ingredient_readiness_is_persistent_and_excluded_from_shopping():
+    plan = create_local_weekly_plan({}, style="normal", people=2, max_minutes=40, weekly_budget=85)
+    full = weekly_plan_shopping_items(plan)
+    expected = weekly_plan_shopping_items(plan, {0})
+    update_weekly_plan_day(plan, day_index=0, action="ready")
+    assert plan["days"][0]["ingredients_ready"] is True
+    assert weekly_plan_shopping_items(plan) == expected
+    assert full != expected
+    update_weekly_plan_meal(plan, {}, day_index=0, meal_index=0, action="favorite")
+    assert plan["days"][0]["ingredients_ready"] is True
+    update_weekly_plan_meal(plan, {}, day_index=0, meal_index=0, action="swap")
+    assert plan["days"][0]["ingredients_ready"] is False
+
+
+def test_readiness_follows_moved_meals_and_reset():
+    plan = create_local_weekly_plan({}, style="normal", people=2, max_minutes=40, weekly_budget=85)
+    update_weekly_plan_day(plan, day_index=0, action="ready")
+    update_weekly_plan_day(plan, day_index=0, action="skip")
+    assert plan["days"][0]["ingredients_ready"] is False
+    assert plan["days"][1]["ingredients_ready"] is True
+    update_weekly_plan_day(plan, day_index=0, action="reset")
+    assert plan["days"][0]["ingredients_ready"] is True
+    assert plan["days"][1]["ingredients_ready"] is False
+
+
+def test_readiness_can_be_removed_without_changing_meals():
+    plan = create_local_weekly_plan({}, style="normal", people=2, max_minutes=40, weekly_budget=85)
+    original = deepcopy(plan)
+    update_weekly_plan_day(plan, day_index=0, action="ready")
+    update_weekly_plan_day(plan, day_index=0, action="not_ready")
+    assert plan == original
+
+
 def test_weekly_styles_generate_complete_real_meals_without_openai():
     snapshot = {"profile": {"allergies": [], "dislikes": []}}
     for style in ("fitness", "normal", "quick", "weight_loss"):

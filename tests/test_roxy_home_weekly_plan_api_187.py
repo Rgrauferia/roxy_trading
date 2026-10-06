@@ -18,6 +18,21 @@ SETTINGS = {"style": "normal", "people": 3, "max_minutes": 40, "weekly_budget": 
             "cook_days": 2, "meal_scope": "all"}
 
 
+def test_ready_days_survive_api_reload_and_never_commit_ingredients(api):
+    client, store, shopping = api
+    plan = client.post(BASE + "/weekly-plans", json=SETTINGS).json()["plan"]
+    for index in range(7):
+        response = client.patch(BASE + f"/weekly-plans/{plan['id']}/day", json={"day_index": index, "action": "ready"})
+        assert response.status_code == 200
+    read = client.get(BASE).json()["weekly_plans"][-1]
+    assert all(day["ingredients_ready"] for day in read["days"])
+    fresh = HomeFoodStore(store.path).get_weekly_plan("weekly_test", plan["id"])
+    assert fresh == read
+    commit = client.post(BASE + f"/weekly-plans/{plan['id']}/shopping-commit", json={"confirmed": True})
+    assert commit.status_code == 200 and commit.json()["items"] == []
+    assert shopping.snapshot("weekly_test")["items"] == []
+
+
 @pytest.fixture
 def api(tmp_path, monkeypatch):
     monkeypatch.setenv("ROXY_HOME_API_KEY", "synthetic-weekly-api-key")

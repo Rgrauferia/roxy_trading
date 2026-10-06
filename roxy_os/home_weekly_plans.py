@@ -185,10 +185,14 @@ def resolve_weekly_meal_recipe(meal: dict[str, Any], snapshot: dict[str, Any]) -
 def _meal(
     key: str, catalog: dict[str, dict[str, Any]], exclusions: set[str],
     alternatives: list[str], max_minutes: int, *, avoid: set[str] | None = None,
+    recent: set[str] | None = None, usage: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     candidates = list(dict.fromkeys([key, *alternatives]))
     avoided = avoid or set()
-    candidates.sort(key=lambda candidate: candidate in avoided)
+    candidates.sort(key=lambda candidate: (
+        candidate in avoided, candidate in (recent or set()),
+        (usage or {}).get(candidate, 0), candidate != key,
+    ))
     for candidate in candidates:
         meal = catalog.get(candidate)
         if meal and meal["minutes"] <= max_minutes and _compatible(meal, exclusions):
@@ -228,6 +232,7 @@ def create_local_weekly_plan(
     # "Hoy" begins with the household's actual day, not the next Monday.
     start = start_date or date.today()
     days = []
+    usage: dict[str, int] = {}
     for index, keys in enumerate(STYLE_SCHEDULES[selected_style]):
         current = start + timedelta(days=index)
         planned_keys = list(keys)
@@ -252,7 +257,10 @@ def create_local_weekly_plan(
                 planned_keys[position], catalog, exclusions,
                 alternatives[offset:] + alternatives[:offset], effective_max_minutes,
                 avoid={selected["catalog_key"] for selected in meals},
+                recent={row["catalog_key"] for row in days[-1]["meals"]} if days else set(),
+                usage=usage,
             )
+            usage[meal["catalog_key"]] = usage.get(meal["catalog_key"], 0) + 1
             meal["meal_type"] = ("breakfast", "lunch", "dinner")[position]
             meal["servings"] = people
             meal["nutrition_goal"] = STYLE_BALANCE[selected_style]
@@ -326,7 +334,7 @@ def validate_weekly_plan_for_shopping(
         if not 0 < people <= 100:
             raise ValueError(failure)
         for day_index, day in enumerate(plan.get("days") or []):
-            if day_index in excluded or day.get("status") in {"cooked", "leftovers", "skipped"}:
+            if day_index in excluded or day.get("ingredients_ready") or day.get("status") in {"cooked", "leftovers", "skipped"}:
                 continue
             for meal in day.get("meals") or []:
                 # Explicit references never fall back to a different title.
@@ -357,7 +365,7 @@ def weekly_plan_shopping_items(plan: dict[str, Any], excluded_days: set[int] | N
     excluded = excluded_days or set()
     totals: dict[tuple[str, str], dict[str, Any]] = {}
     for day_index, day in enumerate(plan.get("days") or []):
-        if day_index in excluded or day.get("status") in {"cooked", "leftovers", "skipped"}:
+        if day_index in excluded or day.get("ingredients_ready") or day.get("status") in {"cooked", "leftovers", "skipped"}:
             continue
         for meal in day.get("meals") or []:
             for ingredient in meal.get("ingredients") or []:
@@ -374,10 +382,14 @@ def update_weekly_plan_day(plan: dict[str, Any], *, day_index: int, action: str)
     if not 0 <= day_index < len(days):
         raise ValueError("El día indicado no existe.")
     day = days[day_index]
+    if action in {"ready", "not_ready"}:
+        day["ingredients_ready"] = action == "ready"
+        return plan
     if action == "reset":
         swap_index = day.pop("reschedule_swap_with", None)
         if isinstance(swap_index, int) and 0 <= swap_index < len(days):
             day["meals"], days[swap_index]["meals"] = days[swap_index]["meals"], day["meals"]
+            day["ingredients_ready"], days[swap_index]["ingredients_ready"] = bool(days[swap_index].get("ingredients_ready")), bool(day.get("ingredients_ready"))
             days[swap_index].pop("rescheduled_from", None)
         day["status"] = "scheduled"
         day.pop("status_note", None)
@@ -403,6 +415,7 @@ def update_weekly_plan_day(plan: dict[str, Any], *, day_index: int, action: str)
         )
         if next_index is not None:
             day["meals"], days[next_index]["meals"] = days[next_index]["meals"], day["meals"]
+            day["ingredients_ready"], days[next_index]["ingredients_ready"] = bool(days[next_index].get("ingredients_ready")), bool(day.get("ingredients_ready"))
             day["reschedule_swap_with"] = next_index
             days[next_index]["rescheduled_from"] = day.get("date")
             day["status_note"] = "Roxy movió estas comidas al próximo día disponible."
@@ -465,4 +478,5 @@ def update_weekly_plan_meal(
         for row in meal["ingredients"]
     ]
     days[day_index]["meals"][meal_index] = meal
+    days[day_index]["ingredients_ready"] = False
     return plan
