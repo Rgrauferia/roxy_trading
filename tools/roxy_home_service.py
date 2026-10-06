@@ -1871,13 +1871,13 @@ def shopping_manifest() -> Response:
     response = JSONResponse(
         {
             "id": "/home",
-            "name": "Roxy Home – Lista de compras",
-            "short_name": "Lista Roxy",
-            "description": "Lista de compras privada y sincronizada de Roxy Home.",
+            "name": "Roxy Home",
+            "short_name": "Roxy Home",
+            "description": "Tu hogar, recetas y cuidados con Roxy.",
             "start_url": "/home",
             "scope": "/home",
             "display": "standalone",
-            "orientation": "portrait-primary",
+            "orientation": "any",
             "background_color": "#f7f4ed",
             "theme_color": "#173f2b",
             "icons": [{"src": "/assets/roxy_home_avatar.jpg", "sizes": "768x768", "type": "image/jpeg"}],

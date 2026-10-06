@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const APP_VERSION = '217';
+  const APP_VERSION = '219';
   const now = () => new Date().toISOString();
   const categories = {ALL:'Todo',FOOD:'Alimentos',CLEANING:'Limpieza',PERSONAL:'Aseo personal',HEALTH:'Salud y farmacia',HOUSEHOLD:'Hogar y accesorios',PETS:'Mascotas',OTHER:'Otros',GENERAL:'Otros'};
   const categoryOrder = ['FOOD','CLEANING','PERSONAL','HEALTH','HOUSEHOLD','PETS','OTHER'];
@@ -1752,9 +1752,9 @@
     }catch(error){announce(error.message)}finally{button.disabled=false;button.textContent='Analizar con Roxy'}
   }
   async function saveImportedRecipe(){if(!pendingImportedRecipe)return;const button=$('recipeImportSave');button.disabled=true;try{const data=await api(`/v1/home-food/${encodeURIComponent(user)}/recipe-imports/commit`,{method:'POST',body:JSON.stringify({confirmed:true,recipe:pendingImportedRecipe})});$('recipeImportDialog').close();pendingImportedRecipe=null;await load({quiet:true});setRecipeAudience(data.recipe.audience==='pet'?'pet':'human');openRecipe(data.recipe);announce(data.recipe.audience==='pet'?'Ficha guardada. La fuente original y su idoneidad requieren revisión.':'Receta importada. Revisa el original antes de cocinar.')}catch(error){announce(error.message)}finally{button.disabled=false}}
-  async function openCatalogRecipe(recipe){
+  async function openCatalogRecipe(recipe,{cook=false}={}){
     announce(recipe.editorial_status==='needs_canonical_review'?'Roxy está revisando ingredientes, pasos y fuentes. Puede tardar unos segundos.':'Guardando receta…');
-    try{const data=await api(`/v1/home-food/${encodeURIComponent(user)}/recipes`,{method:'POST',body:JSON.stringify({prompt:recipe.title,mode:'routine',recipe_type:recipe.drink_type||'general',catalog_key:recipe.catalog_key||'',pet_id:recipe.audience==='pet'?(recipe.pet_id||selectedPetProfile()?.id||''):''})});await load({quiet:true});openRecipe(data.recipe);announce('Receta incluida guardada en tu carpeta')}
+    try{const data=await api(`/v1/home-food/${encodeURIComponent(user)}/recipes`,{method:'POST',body:JSON.stringify({prompt:recipe.title,mode:'routine',recipe_type:recipe.drink_type||'general',catalog_key:recipe.catalog_key||'',pet_id:recipe.audience==='pet'?(recipe.pet_id||selectedPetProfile()?.id||''):''})});await load({quiet:true});if(cook){await startCooking(data.recipe.id)}else{openRecipe(data.recipe);announce('Receta incluida guardada en tu carpeta')}}
     catch(error){announce(error.message)}
   }
   function resolveMealRecipe(mealOrTitle){
@@ -1833,7 +1833,16 @@
       $('recipeDialogEyebrow').textContent='Ficha conservada · original por verificar';
       const warning=document.createElement('section');warning.className='recipe-pet-safety';const title=document.createElement('strong');title.textContent=recipe.provenance?.label||'Fuente original sin verificar';const note=document.createElement('p');note.textContent=recipe.provenance?.message||'No se ha verificado una publicación con estos ingredientes, cantidades y pasos. No usar esta ficha como indicación para alimentar a tu mascota.';warning.append(title,note);
       const draft=document.createElement('details');draft.append(Object.assign(document.createElement('summary'),{textContent:'Ver el borrador conservado · no listo para preparar'}),columns);root.append(hero,warning,draft);
-    }else if(catalogPreview){const save=makeButton('Guardar en mi recetario','primary',()=>openCatalogRecipe(recipe));actions.append(save)}else{const add=makeButton('Agregar ingredientes','secondary',()=>previewRecipe(recipe.id,Number(recipe.servings||1)));const buy=makeButton('Buscar para comprar','secondary',()=>preparePurchase('recipe',recipe.id));const guide=makeButton('Cocinar paso a paso','primary',()=>startCooking(recipe.id));actions.append(add,buy,guide)}
+    }else if(catalogPreview){
+      const save=makeButton('Guardar en mi recetario','secondary',()=>runCatalogAction(false));
+      const guide=makeButton('Guardar y cocinar con Roxy','primary',()=>runCatalogAction(true));
+      async function runCatalogAction(cook){
+        if(save.disabled||guide.disabled)return;
+        save.disabled=true;guide.disabled=true;
+        try{await openCatalogRecipe(recipe,{cook})}finally{save.disabled=false;guide.disabled=false}
+      }
+      actions.append(guide,save);
+    }else{const add=makeButton('Agregar ingredientes','secondary',()=>previewRecipe(recipe.id,Number(recipe.servings||1)));const buy=makeButton('Buscar para comprar','secondary',()=>preparePurchase('recipe',recipe.id));const guide=makeButton('Cocinar paso a paso','primary',()=>startCooking(recipe.id));actions.append(add,buy,guide)}
     if(!sourceReview)root.append(hero,columns,actions);
     $('recipePersonalForm').hidden=catalogPreview;$('recipeFavorite').checked=Boolean(recipe.favorite);
     $('recipeNotes').value=recipe.user_notes||'';
@@ -2860,6 +2869,10 @@
     catch(_error){renderCookingVideo('',null);}
   }
   function showCooking(data){
+    const dialog=$('cookingDialog');
+    const stepKey=JSON.stringify([data.session?.id,data.step_number,data.session?.status]);
+    const changedStep=dialog.dataset.stepKey!==stepKey;
+    dialog.dataset.stepKey=stepKey;
     if(currentCooking?.session?.id!==data.session?.id||currentCooking?.step_number!==data.step_number||currentCooking?.session?.status!==data.session?.status||currentCooking?.current_step!==data.current_step)stopCookingSpeech();
     currentCooking=data;
     const total=(data.recipe.steps||[]).length;
@@ -2877,6 +2890,7 @@
     if(!$('cookingDialog').open)$('cookingDialog').showModal();
     showCookingCompanion(data);
     if(currentCookingVideo)renderCookingVideo(currentCookingVideo.status,currentCookingVideo);
+    if(changedStep){dialog.scrollTop=0;const article=dialog.querySelector('article');if(article)article.scrollTop=0;}
   }
   let cookingCompanion=null,cookingCompanionScope='';
   function disposeCookingCompanion(){cookingCompanion?.dispose();cookingCompanion=null;cookingCompanionScope='';}

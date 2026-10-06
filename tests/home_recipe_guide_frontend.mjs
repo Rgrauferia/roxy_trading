@@ -16,8 +16,8 @@ class Element extends Target {
   append(...nodes) { nodes.forEach(node => { node.remove(); node.parentNode = this; this.children.push(node); }); }
   remove() { if (this.parentNode) { this.parentNode.children = this.parentNode.children.filter(el => el !== this); this.parentNode = null; } }
   get textContent() { return this._text + this.children.map(el => el.textContent).join(''); }
-  set textContent(value) { this._text = String(value); this.children.forEach(el => { el.parentNode = null; }); this.children = []; }
-  setAttribute(key, value) { this.attributes[key] = String(value); }
+  set textContent(value) { this.writes = (this.writes || 0) + 1; this._text = String(value); this.children.forEach(el => { el.parentNode = null; }); this.children = []; }
+  setAttribute(key, value) { this.writes = (this.writes || 0) + 1; this.attributes[key] = String(value); }
   getAttribute(key) { return this.attributes[key]; }
   get isConnected() { return this.isRoot === true || Boolean(this.parentNode?.isConnected); }
   closest(selector) { if (selector === '[hidden]') return this.hidden ? this : this.parentNode?.closest(selector) || null; return null; }
@@ -82,6 +82,15 @@ function harness({tts = true, microphone = true, availableVoices = [esVoice, enV
 test('mount reads no audio, microphone, network or storage automatically', () => {
   const h = harness(); h.mount(); h.tick(60000);
   assert.equal(progress(h.container), 'Paso 1 de 3'); assert.deepEqual(h.calls, []); assert.deepEqual(h.microphones, []); assert.deepEqual(h.forbidden, []); assert.equal(h.timers.size, 0);
+});
+test('suspension is idempotent when its own DOM writes trigger more observer callbacks', () => {
+  const h = harness(); h.mount(); h.visibility(true);
+  const writes = () => descendants(h.container).reduce((sum, el) => sum + (el.writes || 0), 0);
+  const first = writes();
+  for (let index = 0; index < 25; index++) h.mutation();
+  assert.equal(writes(), first, 'Invalid scope must not generate an infinite mutation loop');
+  h.visibility(false); button(h.container, 'Listo, siguiente').click();
+  assert.equal(stepText(h.container), 'Cocina durante 15 minutos.');
 });
 test('source text, whitespace, duplicates and HTML-like text are preserved without interpretation', () => {
   const h = harness(); const original = '  Mezcla <b>sin HTML</b>.\n Repite: mezcla.  ';

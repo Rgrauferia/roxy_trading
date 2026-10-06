@@ -46,7 +46,7 @@
     const audioAvailable = speechAvailable || Boolean(requestSpeech);
     const id = `recipe-guide-${++sequence}`;
     const state = {
-      active:true, disposed:false, paused:false, voiceEnabled:false,
+      active:true, disposed:false, paused:false, suspended:false, voiceEnabled:false,
       index:Number.isInteger(options.initialStep) ? Math.max(0, Math.min(options.initialStep, steps.length - 1)) : 0,
       speechToken:0, utterance:null, voiceRequest:null, recognition:null, micToken:0,
       audioTimer:null, voiceTimer:null, cancelTimer:null, micTimer:null, scopeTimer:null,
@@ -178,7 +178,7 @@
         return !state.disposed && state.active && root.isConnected && !document.hidden && !root.closest?.('[hidden]') && isCurrent() === true;
       } catch (_) { return false; }
     }
-    function usable() { if (scopeValid()) return true; suspend(); return false; }
+    function usable() { if (scopeValid()) { state.suspended = false; return true; } suspend(); return false; }
     function watchScope() {
       if (state.scopeTimer != null || state.disposed) return;
       state.scopeTimer = setTimeout(() => {
@@ -217,7 +217,10 @@
       talk.textContent = 'Hablar'; talk.setAttribute('aria-pressed', 'false');
     }
     function suspend() {
-      if (state.disposed) return;
+      if (state.disposed || state.suspended) return;
+      // Suspending mutates this subtree. A MutationObserver must not suspend it
+      // again for those same mutations while its parent dialog is closed.
+      state.suspended = true;
       const hadMedia = Boolean(state.officialJob || state.utterance || state.voiceRequest || state.recognition);
       stopSpeech(); stopRecognition(); cancelCompanion(); clearConversation(); clearTimer('scopeTimer');
       if (hadMedia) { state.paused = true; audioStatus.textContent = 'Guía pausada. Puedes continuar desde este paso.'; micStatus.textContent = ''; paint(); }
@@ -569,7 +572,7 @@
       if (state.voiceRequest && usable()) { const loaded = voices(); if (loaded.length) dispatchVoice(loaded); }
     });
     const Observer = window.MutationObserver;
-    const observer = Observer ? new Observer(() => { if (!scopeValid()) suspend(); }) : null;
+    const observer = Observer ? new Observer(() => { if (!scopeValid()) suspend(); else state.suspended = false; }) : null;
     observer?.observe(document.documentElement || document.body, {subtree:true, childList:true, attributes:true, attributeFilter:['hidden', 'open', 'style', 'class']});
     function dispose() {
       if (state.disposed) return;
