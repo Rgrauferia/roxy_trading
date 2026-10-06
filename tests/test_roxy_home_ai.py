@@ -159,7 +159,7 @@ def test_conversation_synthesizes_home_context_and_recent_turns(tmp_path):
             "today_meals": [],
             "calendar": [],
             "application": {"screen": "recipes", "private_token": "never-send-this", "selected_recipe": {
-                "id": "recipe-a", "title": "Pollo exacto", "steps": ["Paso de la receta guardada"], "medical_history": "not-for-chat",
+                "id": "recipe-a", "title": "Pollo exacto", "ingredients": [{"name": "Pollo", "quantity": 1, "unit": "unidad"}], "steps": ["Paso de la receta guardada"], "medical_history": "not-for-chat",
             }},
             "trading": {"positions": ["secret"]},
         },

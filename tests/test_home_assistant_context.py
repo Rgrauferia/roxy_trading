@@ -15,11 +15,21 @@ def test_recipe_context_is_bounded_and_excludes_media_and_private_notes():
         "ingredients": [{"name": "Arroz", "quantity": 1, "unit": "taza", "secret": "hidden"}] * 60,
         "photo_data_url": "private-photo", "user_notes": "private-notes",
     })["selected_recipe"]
-    assert len(context["steps"]) == 50
-    assert len(context["steps"][0]) == 2000
-    assert len(context["ingredients"]) == 40
-    assert "secret" not in context["ingredients"][0]
+    assert context["details_available"] is False
+    assert "steps" not in context and "ingredients" not in context
     assert "photo_data_url" not in context and "user_notes" not in context
+
+
+def test_long_whole_steps_are_kept_exactly_without_silent_truncation():
+    step = "Texto completo. " * 180 + "CONDICIÓN FINAL."
+    context = build_application_context("recipes", {
+        "id": "own", "ingredients": [{"name": "Arroz", "quantity": 1, "unit": "taza", "secret": "hidden"}],
+        "steps": [step],
+    })["selected_recipe"]
+    assert context["details_available"] is True
+    assert context["steps"] == [step]
+    assert "secret" not in context["ingredients"][0]
+    assert build_application_context("recipes", {**context, "details_available": False})["selected_recipe"]["details_available"] is False
 
 
 def test_server_resolves_recipe_only_in_authorized_household(tmp_path, monkeypatch):
