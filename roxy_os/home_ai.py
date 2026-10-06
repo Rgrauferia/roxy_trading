@@ -631,7 +631,7 @@ class RoxyHomeAI:
             # A timeout can follow a billed response. Only one provider attempt
             # belongs to this durable reservation; never let SDK retries hide
             # additional spend behind the same receipt.
-            client = OpenAI(api_key=config.api_key, max_retries=0)
+            client = OpenAI(api_key=config.api_key, max_retries=0, timeout=30.0)
         self.client = client
         self.budget = HomeAIBudgetLedger(
             config.budget_path,

@@ -44,6 +44,7 @@ def test_sdk_automatic_retries_are_disabled_for_one_reservation_one_attempt(tmp_
     monkeypatch.setattr(openai, "OpenAI", create_client)
     RoxyHomeAI(HomeAIConfig(api_key="synthetic-home", budget_path=str(tmp_path / "budget.json")))
     assert captured["max_retries"] == 0
+    assert captured["timeout"] == 30.0
 
 
 def test_known_text_usage_is_persisted_once_without_double_billing_reasoning(tmp_path):

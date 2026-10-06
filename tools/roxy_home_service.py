@@ -1821,7 +1821,9 @@ def root() -> RedirectResponse:
 
 
 @app.get("/health")
-def health() -> dict[str, str | int]:
+async def health() -> dict[str, str | int]:
+    # Liveness must not queue behind blocking provider/file work in the shared
+    # thread pool. This is deliberately not a claim that providers are ready.
     return {"status": "ok", "service": "roxy-home", "video_prompt_version": VIDEO_PROMPT_VERSION}
 
 
