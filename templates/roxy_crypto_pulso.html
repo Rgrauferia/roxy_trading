@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src https://api.crypto.com; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Roxy Crypto · Pulso de la hora</title>
+  <link rel="stylesheet" href="/assets/crypto_pulso/style.css">
+  <script src="/assets/crypto_pulso/bootstrap-data.js" defer></script>
+  <script src="/assets/crypto_pulso/contract-validation.js" defer></script>
+  <script src="/assets/crypto_pulso/rest-feed.js" defer></script>
+  <script src="/assets/crypto_pulso/context-aggregate.js" defer></script>
+  <script src="/assets/crypto_pulso/pulso-ui.js" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar" aria-label="Roxy Crypto">
+      <a class="brand" href="#pulso" aria-label="Roxy Crypto, Pulso de la hora">
+        <span class="brandmark" aria-hidden="true">R</span>
+        <span class="wordmark">Roxy<span class="brand-category">CRYPTO</span></span>
+      </a>
+      <nav aria-label="Secciones del panel">
+        <a class="nav-item active" href="#pulso" aria-current="page"><img src="/assets/crypto_pulso/icons/bar-chart-line.svg" alt="">Pulso de la hora</a>
+        <a class="nav-item" href="#modelo"><img src="/assets/crypto_pulso/icons/bell.svg" alt="">Lectura de Roxy</a>
+        <a class="nav-item" href="#historial"><img src="/assets/crypto_pulso/icons/clock-history.svg" alt="">Historial</a>
+        <a class="nav-item" href="#contrato"><img src="/assets/crypto_pulso/icons/gear.svg" alt="">Contrato</a>
+      </nav>
+      <div class="sidebar-bottom"><span class="eyebrow">CRYPTO.COM · BTC</span><p>Un nivel.<br>Un vencimiento.<br>El mismo contrato.</p></div>
+    </aside>
+    <main id="pulso">
+      <a class="back-link" href="/">← Roxy Crypto</a>
+      <header class="page-header">
+        <h1>Pulso de la hora</h1>
+        <span class="status-pill"><img src="/assets/crypto_pulso/icons/exclamation-triangle.svg" alt=""><span id="status" role="status">Selecciona un contrato</span></span>
+        <div class="header-clock"><span id="today">11 oct 2026</span><span class="clock-zone">Hora ET</span><time id="now">—</time></div>
+      </header>
+
+      <section class="getting-started" aria-label="Cómo empezar"><p><strong>1.</strong> Comprueba el catálogo. <strong>2.</strong> Elige el nivel y vencimiento de tu contrato. <strong>3.</strong> Inicia el seguimiento.</p><a href="/contratos/1h">Revisión manual, CSV y costes →</a></section>
+      <p id="connection-error" class="connection-error" role="alert" hidden></p>
+      <section class="metric-strip" aria-label="El contrato seleccionado">
+        <div class="metric metric-price">
+          <span class="bitcoin-mark"><img src="/assets/crypto_pulso/icons/currency-bitcoin.svg" alt="Bitcoin"></span>
+          <div><span class="metric-label">BTC / USD</span><strong id="price">—</strong><small id="price-source">Último cierre spot · no índice CDNA</small></div>
+        </div>
+        <div class="metric"><div><span class="metric-label">Nivel fijo</span><strong id="level">—</strong><small>Por encima del nivel</small></div></div>
+        <div class="metric"><img class="metric-icon" src="/assets/crypto_pulso/icons/clock.svg" alt=""><div><span class="metric-label">Cierre del contrato</span><strong id="expiry-label">—</strong><small id="contract-date">Selecciona el vencimiento</small></div></div>
+        <div class="metric"><img class="metric-icon" src="/assets/crypto_pulso/icons/hourglass.svg" alt=""><div><span class="metric-label">Faltan</span><strong id="countdown">—</strong><small id="market-status">Mismo vencimiento fijo</small></div></div>
+      </section>
+
+      <div class="heading-group"><h2>Así cambia la lectura del contrato</h2><p id="question">Selecciona el nivel y el vencimiento exactos de tu contrato.</p></div>
+
+      <div class="main-grid">
+        <section class="card primary-chart" aria-labelledby="chart-heading">
+          <div class="card-heading"><h3 id="chart-heading">Cotizaciones en cada actualización</h3><div class="legend"><span class="legend-bid">Bid del contrato</span><span class="legend-ask">Ask del contrato</span></div></div>
+          <p class="chart-subtitle">Historial de un mismo nivel y vencimiento</p>
+          <div class="chart-frame"><canvas id="chart-main" role="img" aria-label="Historial de cotizaciones bid y ask del contrato seleccionado"></canvas><div class="chart-placeholder" id="main-placeholder"><strong>Esperando cotizaciones verificadas</strong><span>El historial comenzará con la primera lectura válida de este contrato.</span></div></div>
+          <p class="chart-note" id="chart-status">No hay un historial conectado. El contador no actualiza las cotizaciones.</p>
+          <div class="connection-toolbar" aria-label="Seguimiento del contrato">
+            <button class="primary" id="live-start" type="button" disabled>Iniciar seguimiento</button>
+            <button id="refresh" type="button" disabled>Actualizar ahora</button>
+            <button class="subtle" id="live-stop" type="button" disabled>Detener</button>
+            <span class="toolbar-note">Actualización pública REST · cada 10 segundos al iniciar</span>
+          </div>
+        </section>
+
+        <aside class="card reading-panel" aria-labelledby="reading-heading">
+          <span class="eyebrow" id="reading-heading">PRECIOS DE LA APP</span>
+          <span class="historical-tag">Sin sincronización Sí/No</span>
+          <div class="phone-sides">
+            <div class="side-value side-no"><span>No</span><strong id="no-price">—</strong><small>Precio mostrado en la App</small></div>
+            <div class="side-value side-yes"><span>Sí</span><strong id="yes-price">—</strong><small>Precio mostrado en la App</small></div>
+          </div>
+          <p class="source-note" id="phone-time">Los precios Sí y No de la App no se sustituyen por bid y ask.</p>
+          <div class="market-quotes"><h3>Cotización del instrumento</h3><dl><div><dt>Bid</dt><dd id="bid">—</dd></div><div><dt>Ask</dt><dd id="ask">—</dd></div><div><dt>Último</dt><dd id="last">—</dd></div></dl><p id="quote-time">Sin snapshot verificado del contrato</p><p class="source-note">Bid y ask no se han validado como los precios Sí y No de la App.</p></div>
+          <div class="model-note" id="modelo"><h3>Lectura de Roxy</h3><p id="technical-reading">Esperando velas verificadas de BTC/USD.</p><small id="technical-source">La probabilidad del cierre requiere un modelo y datos de liquidación validados.</small></div>
+          <a class="primary action-link" href="#contrato">Ver datos del contrato</a><span class="manual-decision">Decisión manual en Crypto.com</span>
+        </aside>
+      </div>
+
+      <section class="context-grid" aria-label="Contexto del mercado BTC">
+        <article class="card context-card"><div class="card-heading"><h3>Contexto 15m</h3><span class="context-source">BTC/USD · Exchange</span></div><div class="context-frame"><canvas id="chart-15m" role="img" aria-label="Velas BTC USD de 15 minutos como contexto"></canvas><div class="chart-placeholder" id="placeholder-15m"><span>Esperando velas de 15 minutos</span></div></div><p class="chart-note">Contexto spot de Exchange; no es el índice de liquidación CDNA.</p></article>
+        <article class="card context-card"><div class="card-heading"><h3>Contexto 1h</h3><span class="context-source">BTC/USD · Exchange</span></div><div class="context-frame"><canvas id="chart-1h" role="img" aria-label="Velas BTC USD de una hora agrupadas de cuatro velas de quince minutos"></canvas><div class="chart-placeholder" id="placeholder-1h"><span>Esperando cuatro velas de 15 minutos cerradas</span></div></div><p class="chart-note" id="chart-note-1h">Agrupada de cuatro velas reales de 15m. Contexto spot; no índice CDNA.</p></article>
+      </section>
+
+      <section class="card contract-card" id="contrato" aria-labelledby="contract-heading">
+        <div class="card-heading"><div><h3 id="contract-heading">El mismo contrato que tienes abierto</h3><p class="source-note" id="catalog-status">Consulta los contratos disponibles y selecciona el de tu teléfono</p></div><button id="reload-catalogue" type="button" disabled>Cargar catálogo actual</button></div>
+        <form id="contract-form" autocomplete="off">
+          <div class="form-grid"><label>Activo<select id="symbol"><option value="BTC/USD">BTC / USD</option></select></label><label>Nivel fijo<input id="strike" inputmode="decimal" value="" placeholder="Nivel de la ficha" type="text" spellcheck="false" required></label><label>Vencimiento exacto · UTC<input id="expiry" value="" placeholder="AAAA-MM-DDTHH:MM:SSZ" type="text" spellcheck="false" required></label><label>Contrato del catálogo<select id="contract-choice"><option value="">Selecciona un contrato actual</option></select></label></div>
+          <div class="form-footer"><p>Elegir otro contrato inicia un historial separado. No se cambia automáticamente al vencer.</p><button id="confirm-contract" type="submit" disabled>Fijar contrato</button></div>
+        </form>
+        <details><summary>Fuente y comprobaciones</summary><pre id="api-details" class="api-details">Selecciona un contrato para ver su fuente y vencimiento.</pre></details>
+      </section>
+
+      <section class="card history-card" id="historial" aria-labelledby="history-heading"><div class="card-heading"><h3 id="history-heading">Historial de este contrato</h3><span class="context-source">Fuente y hora en cada lectura</span></div><ol id="event-log" class="event-log"><li>No hay actualizaciones conectadas.</li></ol></section>
+      <footer><span>Lectura de mercado · Decisión manual</span><span id="footer-state">Solo lectura · sin órdenes · probabilidades pendientes de validación</span></footer>
+      <noscript><p class="noscript">Activa JavaScript para ver el estado y el contador del contrato. Esta página no realiza operaciones.</p></noscript>
+    </main>
+  </div>
+</body>
+</html>

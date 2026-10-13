@@ -18,6 +18,8 @@ COPY assets/roxy_crypto_hour.css ./assets/roxy_crypto_hour.css
 COPY assets/roxy_crypto_hour_core.js ./assets/roxy_crypto_hour_core.js
 COPY assets/roxy_crypto_hour_feed.js ./assets/roxy_crypto_hour_feed.js
 COPY assets/roxy_crypto_hour_ui.js ./assets/roxy_crypto_hour_ui.js
+COPY templates/roxy_crypto_pulso.html ./templates/roxy_crypto_pulso.html
+COPY assets/crypto_pulso ./assets/crypto_pulso
 COPY tools/roxy_market_service.py ./tools/roxy_market_service.py
 COPY roxy_trader ./roxy_trader
 RUN mkdir -p /var/data/alerts
