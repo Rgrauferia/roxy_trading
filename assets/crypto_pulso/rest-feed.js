@@ -129,9 +129,24 @@
       const url = ENDPOINTS[name] + '?instrument_name=' + encodeURIComponent(symbol) + (kind === 'BOOK' ? '&depth=1' : '');
       const receipt = await request(url, input.signal);
       const result = validation.normalizeQuoteSnapshot(receipt.raw, {kind, source: receipt.source,
-        expectedInstrumentSymbol: symbol, receivedAtMs: receipt.receivedAtMs, maxAgeMs: maxQuoteAgeMs}, receipt.receivedAtMs);
+        expectedInstrumentSymbol: symbol, receivedAtMs: receipt.receivedAtMs, maxAgeMs: maxQuoteAgeMs, allowOneSided: options.allowOneSided === true}, receipt.receivedAtMs);
       if (result.status !== 'VALID') fail(result.status === 'STALE' ? 'STALE_SNAPSHOT' : 'QUOTE_INVALID', 'El snapshot no pasó identidad, tiempo o bid/ask.');
       return {...result, requestedAtMs: receipt.requestedAtMs, sourceServerDate: receipt.sourceServerDate};
+    }
+    async function getIndex(input) {
+      input = input || {};
+      // Only the exact declared BTC CDNA index; never substitute Exchange spot.
+      const instrument = 'BTCUSD-INDEX@CdnaFunded';
+      if (input.underlyingSymbol !== instrument) return {status:'UNAVAILABLE',reason:'DECLARED_INDEX_UNSUPPORTED'};
+      const receipt = await request(ENDPOINTS.ticker + '?instrument_name=' + encodeURIComponent(instrument), input.signal);
+      let payload; try { payload=JSON.parse(receipt.raw); } catch (_) { return {status:'UNAVAILABLE',reason:'INDEX_RESPONSE_INVALID'}; }
+      const rows = payload && payload.result && payload.result.data;
+      if (payload.code !== 0 || payload.method !== 'public/get-tickers' || !Array.isArray(rows) || rows.length !== 1) return {status:'UNAVAILABLE',reason:'NO_PUBLIC_INDEX_TICKER'};
+      const row=rows[0], value=row && row.a;
+      const price=(typeof value==='number' || typeof value==='string' && /^\d+(?:\.\d+)?$/.test(value)) ? Number(value) : null;
+      const now=receipt.receivedAtMs;
+      if (!row || row.i!==instrument || !Number.isSafeInteger(row.t) || row.t>now || now-row.t>60000 || !(price>0) || !Number.isFinite(price)) return {status:'UNAVAILABLE',reason:'INDEX_NOT_FRESH_OR_IDENTIFIED'};
+      return {status:'VALID',instrumentSymbol:instrument,price,providerTimestampMs:row.t,validUntilMs:row.t+60000,source:receipt.source,receivedAtMs:now};
     }
     async function getCandles(input) {
       input = input || {};
@@ -142,7 +157,7 @@
       try { payload = JSON.parse(receipt.raw); } catch (_) { fail('INVALID_JSON', 'JSON Exchange inválido.'); }
       return {...decodeCandles(payload, input.intervalSeconds, receipt.requestedAtMs, receipt.receivedAtMs), sourceURL: receipt.source, sourceServerDate: receipt.sourceServerDate};
     }
-    return Object.freeze({getCatalogue, getTicker: input => quote('TICKER', input), getBook: input => quote('BOOK', input), getCandles});
+    return Object.freeze({...(options.includeUnderlyingIndex === true ? {getIndex} : {}),getCatalogue, getTicker: input => quote('TICKER', input), getBook: input => quote('BOOK', input), getCandles});
   }
   function createReadController(options) {
     options = options || {}; requireValidation();
@@ -222,6 +237,7 @@
         const instrumentSymbol = match.contract.instrumentSymbol;
         const ticker = await client.getTicker({instrumentSymbol, signal: abort.signal}); assertCurrent();
         const book = await client.getBook({instrumentSymbol, signal: abort.signal}); assertCurrent();
+        const index = typeof client.getIndex === 'function' ? await client.getIndex({underlyingSymbol:match.contract.underlyingSymbol,signal:abort.signal}) : {status:'UNAVAILABLE',reason:'NOT_REQUESTED'}; assertCurrent();
         const m5 = await client.getCandles({intervalSeconds: 300, signal: abort.signal}); assertCurrent();
         const m15 = await client.getCandles({intervalSeconds: 900, signal: abort.signal}); assertCurrent();
         const now = clockMs(clock);
@@ -234,7 +250,7 @@
         }
         for (const row of [m5, m15]) if (row.status !== 'VALID' || row.purpose !== 'CONTEXT_ONLY_NOT_SETTLEMENT_INDEX' || now >= row.validUntilMs) fail('STALE_CONTEXT', 'El contexto Exchange dejó de estar vigente.');
         state = {...state, connection: 'CONNECTED', reason: 'PUBLIC_REST_SNAPSHOTS', match,
-          data: {catalogue, quotes: {ticker, book}, context: {m5, m15}, receivedAtMs: now,
+          data: {catalogue, quotes: {ticker, book}, index, context: {m5, m15}, receivedAtMs: now,
             snapshotCoherence: 'EACH_RESPONSE_SEPARATE_NOT_SIMULTANEOUS', mappedYesNo: null, ...flags()}};
         armGuards(); publish(); return clone(state);
       } catch (error) {

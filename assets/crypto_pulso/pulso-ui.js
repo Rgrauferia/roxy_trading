@@ -109,7 +109,7 @@
   }
   function wellFormedSelection(selection) {
     return isObject(selection) && selection.symbol === 'BTC/USD' && selection.operator === '>'
-      && selection.horizonSeconds === 3600 && timestamp(selection.expiryTimestampMs) !== null
+      && [900, 3600].includes(selection.horizonSeconds) && timestamp(selection.expiryTimestampMs) !== null
       && typeof selection.strike === 'string' && /^\d+(?:\.\d+)?$/.test(selection.strike)
       && Number.isFinite(Number(selection.strike)) && Number(selection.strike) > 0;
   }
@@ -238,7 +238,7 @@
       'contract-form', 'symbol', 'strike', 'expiry', 'contract-choice', 'confirm-contract', 'price', 'price-source',
       'level', 'expiry-label', 'countdown', 'question', 'bid', 'ask', 'last', 'quote-time', 'yes-price', 'no-price',
       'phone-time', 'chart-main', 'chart-15m', 'chart-1h', 'chart-status', 'event-log', 'api-details',
-      'main-placeholder', 'placeholder-15m', 'placeholder-1h', 'chart-note-1h', 'today', 'now', 'contract-date', 'footer-state', 'connection-error', 'technical-reading', 'technical-source'];
+      'main-placeholder', 'placeholder-15m', 'placeholder-1h', 'chart-note-1h', 'today', 'now', 'contract-date', 'footer-state', 'connection-error', 'technical-reading', 'technical-source', 'horizon', 'required-move', 'quote-provenance', 'connect-current'];
     const elements = {};
     ids.forEach(id => { elements[id] = doc.getElementById(id); });
     const write = (id, value) => { if (elements[id]) elements[id].textContent = value; };
@@ -248,7 +248,7 @@
     let catalogue = validation && typeof env.PULSO_BOOTSTRAP_CATALOGUE === 'string'
       ? validation.decodeCatalogue(env.PULSO_BOOTSTRAP_CATALOGUE, {evidenceKind: 'ARCHIVED_PUBLIC_CATALOGUE'}) : null;
     const observed = phone && isObject(phone.contract) ? phone.contract : {};
-    let selection = {symbol: 'BTC/USD', strike: observed.visible_strike || '', operator: '>', horizonSeconds: 3600,
+    let selection = {symbol: 'BTC/USD', strike: observed.visible_strike || '', operator: '>', horizonSeconds: [900,3600].includes(env.PULSO_DEFAULT_HORIZON_SECONDS) ? env.PULSO_DEFAULT_HORIZON_SECONDS : 3600,
       expiryTimestampMs: timestamp(observed.catalogue_expiry_timestamp_ms)};
     if (typeof observed.catalogue_symbol === 'string') selection.instrumentSymbol = observed.catalogue_symbol;
     if (observed.catalogue_inst_id !== undefined) selection.instId = String(observed.catalogue_inst_id);
@@ -289,11 +289,11 @@
       write('phone-time', latest ? phone.observation_date + ' · ' + latest.visible_phone_clock
         + ' (reloj con precisión de minuto) · captura histórica. Timestamp del proveedor no disponible.'
         + (records.length > 1 ? ' Anterior: ' + records[0].visible_phone_clock + ', Sí ' + money(records[0].yes_display_price) + ', No ' + money(records[0].no_display_price) + '.' : '')
-        : 'Sin captura histórica de esta selección.');
+        : 'Esperando la cotización pública del contrato seleccionado.');
     }
     function renderCatalogue() {
       const valid = catalogue && catalogue.status === 'VALID';
-      const contracts = valid ? catalogue.instruments.filter(row => row.status === 'VALID' && row.durationSeconds === 3600 && row.operator === '>' && row.expiryTimestampMs > clock()).sort((a, b) => a.expiryTimestampMs - b.expiryTimestampMs || Number(a.strike) - Number(b.strike)) : [];
+      const contracts = valid ? catalogue.instruments.filter(row => row.status === 'VALID' && row.durationSeconds === selection.horizonSeconds && row.operator === '>' && row.expiryTimestampMs > clock()).sort((a, b) => a.expiryTimestampMs - b.expiryTimestampMs || Number(a.strike) - Number(b.strike)) : [];
       const choice = elements['contract-choice'];
       if (choice) {
         choice.textContent = '';
@@ -308,14 +308,15 @@
         choice.disabled = !networkEnabled || !contracts.length;
       }
       write('catalog-status', catalogueLoading ? 'Leyendo solo catálogo público; selección fija, sin rollover' : valid ? (catalogueFromNetwork ? 'Catálogo público leído' : 'Catálogo histórico archivado') + ' · '
-        + contracts.length + ' contrato(s) BTC 1h en la página cargada · '
+        + contracts.length + ' contrato(s) BTC de ' + (selection.horizonSeconds === 900 ? '15 minutos' : '1 hora') + ' en la página cargada · '
         + (catalogue.coverage === 'PARTIAL' ? 'cobertura parcial; unicidad global sin comprobar' : 'página cargada; unicidad global sin comprobar')
         : 'Sin catálogo validado.');
     }
     function renderForm() {
+      if (elements.horizon) elements.horizon.value = String(selection.horizonSeconds);
       if (elements.symbol) { elements.symbol.value = 'BTC/USD'; elements.symbol.disabled = true; }
-      if (elements.strike) { elements.strike.value = selection.strike; elements.strike.readOnly = !networkEnabled; }
-      if (elements.expiry) { elements.expiry.value = timestamp(selection.expiryTimestampMs) === null ? '' : new Date(selection.expiryTimestampMs).toISOString(); elements.expiry.readOnly = !networkEnabled; }
+      if (elements.strike) { elements.strike.value = selection.strike; elements.strike.readOnly = true; }
+      if (elements.expiry) { elements.expiry.value = timestamp(selection.expiryTimestampMs) === null ? '' : new Date(selection.expiryTimestampMs).toISOString(); elements.expiry.readOnly = true; }
     }
     function renderDetails(entries) {
       const element = elements['api-details'];
@@ -352,7 +353,7 @@
       const quote = activeQuote(nowMs);
       write('today', displayDate(nowMs)); write('now', displayTime(nowMs, true));
       write('level', selection.strike ? money(selection.strike) : '—'); write('expiry-label', displayTime(selection.expiryTimestampMs, false) + ' ET');
-      write('contract-date', displayDate(selection.expiryTimestampMs) + ' · 1 hora');
+      write('contract-date', displayDate(selection.expiryTimestampMs) + ' · ' + (selection.horizonSeconds === 900 ? '15 minutos' : '1 hora'));
       write('countdown', formatCountdown(selection.expiryTimestampMs, nowMs));
       write('question', '¿BTC terminará por encima de ' + money(selection.strike) + ' a las ' + displayTime(selection.expiryTimestampMs, false) + ' ET?');
       const currentError = catalogueError || (feedState && feedState.lastError && feedState.lastError.message);
@@ -365,8 +366,15 @@
         : currentMatch && currentMatch.status === 'NOT_OPEN' ? 'Ventana del contrato aún no abierta'
         : 'Selección sin coincidencia validada · no se sustituye por otro contrato');
       write('bid', quote ? quoteValue(quote.bid) : '—'); write('ask', quote ? quoteValue(quote.ask) : '—'); write('last', quote ? quoteValue(quote.last) : '—');
+      if (quote) {
+        write('yes-price', money(quote.ask)); write('no-price', money(quote.bid));
+        write('phone-time', 'FCM público · compra = ask / venta = bid · ' + utc(quote.providerTimestampMs));
+        write('quote-provenance', quote.bid === null || quote.ask === null ? 'Un lado sin cotización disponible' : 'Mismo instrumento · cotización de compra y venta');
+      } else {
+        write('quote-provenance', 'Esperando cotizaciones automáticas');
+      }
       write('quote-time', quote ? 'Proveedor: ' + utc(quote.providerTimestampMs) + ' · edad ' + Math.max(0, Math.floor((nowMs - quote.providerTimestampMs) / 1000))
-        + ' s · cotización nativa FCM REST ticker. Bid/ask no equivalen a Sí/No de la App.' : 'Sin ticker vigente del símbolo seleccionado.');
+        + ' s · cotización nativa FCM REST ticker. Compra (ask) y venta (bid), sin comisiones.' : 'Sin ticker vigente del símbolo seleccionado.');
       write('chart-status', history.length ? history.length + ' observaciones reales del mismo contrato · última: '
         + utc(history[history.length - 1].providerTimestampMs) + (quote ? '' : ' · historial; cotización vigente no disponible')
         : 'Sin historial de ticker válido para este contrato. Las capturas del teléfono no generan esta gráfica.');
@@ -380,12 +388,22 @@
         write('price', money(latest.close));
         write('price-source', 'BTC spot Exchange · cierre 5m ' + displayTime(latest.intervalStartMs + 300000, true) + ' ET · no índice CDNA');
         const result = technicalReading(candles5m, selection.strike);
+        const gap = Number(selection.strike) - latest.close;
+        write('required-move', Number(selection.strike) > 0 ? (gap >= 0 ? 'Faltan ' : 'Supera el nivel por ') + money(Math.abs(gap)) + ' respecto al último cierre spot (no índice CDNA).' : 'Selecciona un contrato para ver la distancia al nivel.');
         write('technical-reading', result.text);
         write('technical-source', 'Descripción de velas cerradas · no probabilidad del contrato. ' + result.detail);
       } else {
-        renderPhone();
+        if (!quote) renderPhone();
         write('technical-reading', 'Esperando velas verificadas de BTC/USD.');
+        write('required-move', 'Esperando el último cierre spot para calcular la distancia.');
         write('technical-source', 'La probabilidad del cierre requiere un modelo y datos de liquidación validados.');
+      }
+      if (env.PULSO_AUTO_CONNECT === true) {
+        const index = feedState && feedState.data && feedState.data.index;
+        const fresh = index && index.status === 'VALID' && index.instrumentSymbol === 'BTCUSD-INDEX@CdnaFunded'
+          && index.providerTimestampMs <= nowMs && nowMs <= index.validUntilMs;
+        write('price', fresh ? money(index.price) : '—');
+        write('price-source', fresh ? 'Índice CDNA · ' + displayTime(index.providerTimestampMs,true) + ' ET' : 'Índice CDNA sin cotización pública; contexto spot en los gráficos');
       }
       let hourContext = contexts.m60, candles1h = contextCandles(hourContext, 3600, nowMs);
       if (!candles1h.length && env.PulsoContextAggregate && typeof env.PulsoContextAggregate.aggregateHour === 'function') {
@@ -409,6 +427,7 @@
         ['Precio BTC de cabecera', candles5m.length ? 'Último cierre spot Exchange de 5m; no índice CDNA ni precio instantáneo' : 'Sin precio actual verificado'],
         ['Contexto BTC spot', 'Exchange; velas de 15m: ' + candles15m.length + ', de 1h: ' + candles1h.length
           + (hourDerived ? ' (agrupadas de cuatro velas de 15m)' : '') + '. No es el índice de liquidación CDNA'],
+        ['Unidad del instrumento', currentMatch && currentMatch.contract ? 'contract_size=' + currentMatch.contract.contractSize + '; price_tick_size=' + currentMatch.contract.priceTickSize : 'sin instrumento seleccionado'],
         ['Índice declarado en catálogo', currentMatch && currentMatch.contract ? currentMatch.contract.underlyingSymbol + ' · serie no verificada' : 'sin candidato activo; serie no verificada'],
         ['Lectura de Roxy', 'Modelo pendiente de validación. Sin mapeo Sí/No, costes, reglas completas ni operación financiera'],
         ['Estado de conexión', (networkEnabled ? 'Lecturas públicas explícitas habilitadas' : 'Conexión pendiente; red deshabilitada en este paquete')
@@ -422,6 +441,7 @@
           || selection.expiryTimestampMs <= nowMs || catalogueLoading || currentReadPromise !== null
           || (feedState && (feedState.connection === 'READING' || feedState.following));
       });
+      if (elements['connect-current']) elements['connect-current'].disabled = !networkEnabled || !client || catalogueLoading || currentReadPromise !== null;
       if (elements['reload-catalogue']) elements['reload-catalogue'].disabled = !networkEnabled || !client || catalogueLoading || typeof env.AbortController !== 'function';
       if (elements['live-stop']) elements['live-stop'].disabled = !networkEnabled || !feed || !(feedState && (feedState.following || feedState.connection === 'READING'));
       if (elements['confirm-contract']) elements['confirm-contract'].disabled = !networkEnabled || catalogueLoading;
@@ -443,7 +463,7 @@
       render();
     }
     function changeSelection(next) {
-      if (!validation || !wellFormedSelection(next)) { log('Selección inválida: requiere BTC/USD, strike y vencimiento UTC explícitos de 1h.'); return false; }
+      if (!validation || !wellFormedSelection(next)) { log('Selección inválida: requiere BTC/USD, strike y vencimiento UTC explícitos de 15 minutos o 1 hora.'); return false; }
       cancelCatalogue(); catalogueError = null;
       if (identityKey(next) !== identityKey(selection)) { history = []; feedState = null; stoppedWindowKey = null; lastLogKey = null; }
       selection = {...next};
@@ -456,19 +476,19 @@
       if (event) event.preventDefault();
       if (!networkEnabled) return;
       const chosen = elements['contract-choice'] && elements['contract-choice'].value;
-      const contract = catalogue && catalogue.status === 'VALID' ? catalogue.instruments.find(row => row.status === 'VALID' && row.instrumentSymbol === chosen && row.durationSeconds === 3600) : null;
-      if (contract) return changeSelection({symbol: 'BTC/USD', strike: contract.strike, operator: '>', horizonSeconds: 3600,
+      const contract = catalogue && catalogue.status === 'VALID' ? catalogue.instruments.find(row => row.status === 'VALID' && row.instrumentSymbol === chosen && row.durationSeconds === selection.horizonSeconds) : null;
+      if (contract) return changeSelection({symbol: 'BTC/USD', strike: contract.strike, operator: '>', horizonSeconds: contract.durationSeconds,
         expiryTimestampMs: contract.expiryTimestampMs, instrumentSymbol: contract.instrumentSymbol, instId: contract.instId,
         windowStartTimestampMs: contract.windowStartTimestampMs});
       const value = elements.expiry ? elements.expiry.value.trim() : '';
       let time = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(value) ? Date.parse(value) : null;
       if (timestamp(time) !== null && new Date(time).toISOString() !== value && new Date(time).toISOString().replace('.000Z', 'Z') !== value) time = null;
-      return changeSelection({symbol: 'BTC/USD', strike: elements.strike ? elements.strike.value.trim() : '', operator: '>', horizonSeconds: 3600, expiryTimestampMs: time});
+      return changeSelection({symbol: 'BTC/USD', strike: elements.strike ? elements.strike.value.trim() : '', operator: '>', horizonSeconds: selection.horizonSeconds, expiryTimestampMs: time});
     }
     if (!validation) log('Falta el módulo de validación; lectura bloqueada.');
     if (networkEnabled && validation && env.PulsoRestFeed && typeof env.PulsoRestFeed.createRestClient === 'function'
       && typeof env.PulsoRestFeed.createReadController === 'function' && typeof env.fetch === 'function') {
-      client = env.PulsoRestFeed.createRestClient({fetchImpl: env.fetch.bind(env), clock, timers: env});
+      client = env.PulsoRestFeed.createRestClient({fetchImpl: env.fetch.bind(env), clock, timers: env, allowOneSided: true, includeUnderlyingIndex: true});
       feed = env.PulsoRestFeed.createReadController({client, selection, clock, timers: env, onState, isVisible: () => !doc.hidden});
       feedState = feed.getState();
     }
@@ -479,6 +499,21 @@
         .catch(error => { log('Lectura detenida: ' + (error && error.message || 'error de lectura pública')); })
         .finally(() => { currentReadPromise = null; render(); });
       render();
+    }
+    async function connectActive() {
+        if (disposed) return;
+        const initialKey = identityKey(selection);
+        await reloadCatalogue();
+        if (identityKey(selection) !== initialKey) return;
+        if (disposed || !catalogue || catalogue.status !== 'VALID' || catalogueError || doc.hidden) return;
+        const candidates = catalogue.instruments.filter(row => row.status === 'VALID' && row.durationSeconds === selection.horizonSeconds
+          && row.operator === '>' && row.tradable === true && row.windowStartTimestampMs <= clock()
+          && clock() < Math.min(row.windowCloseTimestampMs, row.expiryTimestampMs));
+        if (candidates.length !== 1) { log('Elige un contrato del catálogo: no hay un único candidato vigente.'); return; }
+        const contract = candidates[0];
+        if (changeSelection({symbol:'BTC/USD', strike:contract.strike, operator:'>', horizonSeconds:contract.durationSeconds,
+          expiryTimestampMs:contract.expiryTimestampMs, instrumentSymbol:contract.instrumentSymbol, instId:contract.instId,
+          windowStartTimestampMs:contract.windowStartTimestampMs})) request('start');
     }
     function cancelCatalogue() {
       catalogueVersion += 1;
@@ -513,11 +548,23 @@
     listen(elements['live-start'], 'click', () => request('start'));
     listen(elements.refresh, 'click', () => request('readOnce'));
     listen(elements['reload-catalogue'], 'click', reloadCatalogue);
+    listen(elements['connect-current'], 'click', () => Promise.resolve().then(connectActive).catch(error => log('Conexión detenida: ' + error.message)));
     listen(elements['live-stop'], 'click', () => { if (networkEnabled && feed) feed.stop('USER_STOP'); });
+    listen(elements.horizon, 'change', () => {
+      const value = Number(elements.horizon.value);
+      if (![900,3600].includes(value) || value === selection.horizonSeconds) return;
+      cancelCatalogue(); if (feed) feed.stop('DURATION_CHANGED');
+      selection = {symbol:'BTC/USD', strike:'', operator:'>', horizonSeconds:value, expiryTimestampMs:null};
+      history=[]; feedState=null; stoppedWindowKey=null; catalogueError=null;
+      if (feed) feed.setSelection(selection);
+      renderForm(); renderCatalogue(); renderPhone(); render();
+      log('Duración cambiada: el contrato anterior dejó de seguirse.');
+      if (env.PULSO_AUTO_CONNECT === true) Promise.resolve().then(connectActive).catch(error => log('Conexión detenida: ' + error.message));
+    });
     listen(elements['contract-form'], 'submit', submit);
     listen(elements['contract-choice'], 'change', () => {
       const chosen = elements['contract-choice'] && elements['contract-choice'].value;
-      const contract = catalogue && catalogue.status === 'VALID' ? catalogue.instruments.find(row => row.status === 'VALID' && row.instrumentSymbol === chosen && row.durationSeconds === 3600 && row.operator === '>') : null;
+      const contract = catalogue && catalogue.status === 'VALID' ? catalogue.instruments.find(row => row.status === 'VALID' && row.instrumentSymbol === chosen && row.durationSeconds === selection.horizonSeconds && row.operator === '>') : null;
       if (!contract) return;
       // Populate required fields before native form validation runs on submit.
       // This only edits the draft; fixing the contract remains an explicit action.
@@ -530,13 +577,16 @@
     listen(doc, 'visibilitychange', () => { if (doc.hidden) cancelCatalogue(); if (feed) feed.setVisible(!doc.hidden); renderCatalogue(); render(); });
     listen(env, 'resize', render);
     renderForm(); renderCatalogue(); renderPhone(); render();
-    log(networkEnabled ? 'Listo para lecturas públicas explícitas; no se realizó ninguna al abrir.' : 'Conexión pendiente: red deshabilitada. Observaciones históricas, modelo pendiente.');
+    log(networkEnabled ? (env.PULSO_AUTO_CONNECT === true ? 'Conexión automática al catálogo público.' : 'Listo para lecturas públicas explícitas; no se realizó ninguna al abrir.') : 'Conexión pendiente: red deshabilitada. Observaciones históricas, modelo pendiente.');
     const interval = typeof env.setInterval === 'function' ? env.setInterval(render, 1000) : null;
     const controller = Object.freeze({
       getState: () => ({selection: {...selection}, match: currentMatch, history: history.map(point => ({...point})), networkEnabled, liveFeedVerified: false}),
       dispose: () => { disposed = true; cancelCatalogue(); if (interval !== null && typeof env.clearInterval === 'function') env.clearInterval(interval); listeners.forEach(remove => remove()); if (feed) feed.dispose(); delete env.__PULSO_UI_CONTROLLER__; }
     });
     env.__PULSO_UI_CONTROLLER__ = controller;
+    if (networkEnabled && env.PULSO_AUTO_CONNECT === true) {
+      Promise.resolve().then(connectActive).catch(error => { if (!disposed) log('Conexión detenida: ' + error.message); });
+    }
     return controller;
   }
   return Object.freeze({formatCountdown, appendSnapshot, buildCandles, technicalReading, mount});

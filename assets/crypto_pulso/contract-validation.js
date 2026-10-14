@@ -130,12 +130,12 @@
     const clock = ms(nowMs === undefined ? Date.now() : nowMs);
     const expiry = isObject(selection) ? ms(selection.expiryTimestampMs) : null;
     const strike = isObject(selection) ? positiveDecimal(selection.strike) : null;
-    if (!isObject(selection) || selection.symbol !== 'BTC/USD' || selection.operator !== '>' || selection.horizonSeconds !== 3600 || expiry === null || strike === null) errors.push(issue('FIXED_SELECTION_REQUIRED', 'selection', 'Declara BTC/USD, >, strike, 3600 s y vencimiento fijo exacto.'));
+    if (!isObject(selection) || selection.symbol !== 'BTC/USD' || selection.operator !== '>' || ![900, 3600].includes(selection.horizonSeconds) || expiry === null || strike === null) errors.push(issue('FIXED_SELECTION_REQUIRED', 'selection', 'Declara BTC/USD, >, strike, duración de 15 minutos o 1 hora y vencimiento fijo exacto.'));
     if (clock === null) errors.push(issue('INVALID_CLOCK', 'nowMs', 'Falta un reloj exacto en ms.'));
     if (!isObject(catalogue) || catalogue.status !== 'VALID' || !Array.isArray(catalogue.instruments)) errors.push(issue('CATALOGUE_NOT_VALID', 'catalogue', 'El catálogo no está validado.'));
     const base = {errors, warnings, selectedExpiryTimestampMs: expiry, remainingSeconds: expiry !== null && clock !== null ? Math.max(0, (expiry - clock) / 1000) : null, candidates: [], contract: null, matchKind: 'EXACT_SELECTED_FIELDS_NOT_APP_SYNC', uniquenessScope: 'LOADED_PAGE', fullCatalogueUniquenessVerified: false, ...flags()};
     if (errors.length) return {status: 'INVALID', ...base};
-    const candidates = catalogue.instruments.filter(row => row.status === 'VALID' && row.symbol === 'BTC/USD' && row.operator === '>' && row.strike === strike && row.durationSeconds === 3600 && row.expiryTimestampMs === expiry
+    const candidates = catalogue.instruments.filter(row => row.status === 'VALID' && row.symbol === 'BTC/USD' && row.operator === '>' && row.strike === strike && row.durationSeconds === selection.horizonSeconds && row.expiryTimestampMs === expiry
       && (selection.instrumentSymbol === undefined || selection.instrumentSymbol === row.instrumentSymbol)
       && (selection.instId === undefined || String(selection.instId) === row.instId)
       && (selection.windowStartTimestampMs === undefined || selection.windowStartTimestampMs === row.windowStartTimestampMs));
@@ -166,7 +166,27 @@
     const providerTimestampMs = row ? ms(row.t) : null;
     if (!nonempty(options.expectedInstrumentSymbol) || instrument !== options.expectedInstrumentSymbol) errors.push(issue('QUOTE_IDENTITY_MISMATCH', 'instrument', 'La cotización no corresponde al símbolo fijado.'));
     if (providerTimestampMs === null) errors.push(issue('QUOTE_TIMESTAMP_REQUIRED', 't', 'Falta timestamp exacto del proveedor en ms.'));
+    const oneSidedAllowed = options.allowOneSided === true;
     let bid = null, ask = null, last = null, bidQuantity = null, askQuantity = null;
+    if (oneSidedAllowed && row) {
+      if (kind === 'TICKER') {
+        for (const key of ['b', 'k']) if (!(key in row) || (row[key] !== null && decimal(row[key]) === null)) errors.push(issue('BID_ASK_INVALID', key, 'Precio ausente o inválido.'));
+        bid = row.b === null ? null : decimal(row.b); ask = row.k === null ? null : decimal(row.k);
+        last = row.a === null || row.a === undefined ? null : decimal(row.a);
+      } else {
+        for (const [key, side] of [['bids','bid'], ['asks','ask']]) {
+          const levels = row[key];
+          if (!Array.isArray(levels)) { errors.push(issue('BOOK_LEVELS_INVALID', key, 'Falta un lado del libro.')); continue; }
+          if (!levels.length) continue;
+          const level = levels[0];
+          if (!Array.isArray(level) || ![2,3].includes(level.length) || decimal(level[0]) === null || positiveDecimal(level[1]) === null
+              || (level.length === 3 && (!Number.isSafeInteger(Number(level[2])) || Number(level[2]) < 0))) { errors.push(issue('BOOK_LEVELS_INVALID', key, 'Nivel de libro incoherente.')); continue; }
+          if (side === 'bid') { bid=decimal(level[0]); bidQuantity=positiveDecimal(level[1]); }
+          else { ask=decimal(level[0]); askQuantity=positiveDecimal(level[1]); }
+        }
+      }
+      if ((bid === null && ask === null) || (bid !== null && ask !== null && Number(bid) > Number(ask))) errors.push(issue('BID_ASK_INVALID', 'bid/ask', 'Sin cotizaciones o spread cruzado.'));
+    } else {
     if (row) {
       if (kind === 'TICKER') { bid = decimal(row.b); ask = decimal(row.k); last = row.a === undefined ? null : decimal(row.a); }
       else {
@@ -176,6 +196,7 @@
       }
     }
     if (bid === null || ask === null || !Number.isFinite(Number(bid)) || !Number.isFinite(Number(ask)) || Number(bid) > Number(ask) || (kind === 'BOOK' && (bidQuantity === null || askQuantity === null))) errors.push(issue('BID_ASK_INVALID', 'bid/ask', 'Bid/ask y cantidades deben ser explícitos y coherentes.'));
+    }
     const clock = ms(nowMs === undefined ? Date.now() : nowMs);
     const receivedAtMs = ms(options.receivedAtMs);
     if (clock === null || (providerTimestampMs !== null && clock !== null && providerTimestampMs > clock) || (receivedAtMs !== null && clock !== null && receivedAtMs > clock)) errors.push(issue('QUOTE_CLOCK_INVALID', 'time', 'El snapshot contiene tiempos futuros o un reloj inválido.'));
@@ -192,6 +213,7 @@
       bid: status === 'INVALID' ? null : bid, ask: status === 'INVALID' ? null : ask,
       last: status === 'INVALID' ? null : last, bidQuantity: status === 'INVALID' ? null : bidQuantity, askQuantity: status === 'INVALID' ? null : askQuantity,
       quoteMeaning: 'INSTRUMENT_BID_ASK_NOT_APP_YES_NO', mappedYesNo: null,
+      liquidity: bid === null || ask === null ? 'ONE_SIDED' : 'TWO_SIDED',
       // A VALID snapshot only checks identity/age: consumers must also require
       // an active matchSelectedContract result and remove it at close/expiry.
       requiresContractWindowValidation: true,
