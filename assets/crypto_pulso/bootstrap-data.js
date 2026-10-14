@@ -1,0 +1,6 @@
+'use strict';
+window.PULSO_NETWORK_ENABLED = true;
+window.PULSO_BOOTSTRAP_PHONE = null;
+window.PULSO_BOOTSTRAP_CATALOGUE = null;
+window.PULSO_DEFAULT_HORIZON_SECONDS = 900;
+window.PULSO_AUTO_CONNECT = true;

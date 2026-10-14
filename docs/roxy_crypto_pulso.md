@@ -1,0 +1,13 @@
+# Roxy Crypto · conexión automática · 14/10/2026
+
+`/pulso` privado, mismo acceso y producto Crypto. La página conecta automáticamente al catálogo público y, si existe un único contrato BTC activo de la duración seleccionada, lo fija y sigue por REST cada10s. Duraciones15m/1h;15m por defecto como la pantalla del usuario. No hay que copiar precios, nivel o vencimiento. Un catálogo ambiguo exige elegir entre contratos del selector, nunca inventa uno. Cambiar duración cancela el anterior; no rollover silencioso. Conectar contrato actual es una acción explícita para iniciar otro vencimiento.
+
+Cotizaciones nativas del mismo instrumento: ask = precio de compra/Sí, bid = precio de venta/No. No se interpreta el botónNo como coste de entrada ni como1−ask. Se admite un lado explícitamente nulo/libro vacío en modo de sololectura; el otro se muestra si es válido. No se inventan cotizaciones ni cantidades. Se mantienen todos los límites de identidad, reloj, vencimiento, errores403 y cancelación. Sin cuentas, órdenes ni nuevascredenciales.
+
+El índice indicativo se solicita opcionalmente usando exclusivamente el identificadorBTCUSD-INDEX@CdnaFunded declarado en el catálogo. Un ticker vacío/inválido/caducado no se sustituye por Exchange spot. Los gráficos y EMA siguen siendo contexto spot claramente separado. La API no expone por sí sola la selección de pantalla del teléfono; la coincidencia con la App requiere comprobar nivel/fecha/vencimiento y las cotizaciones observadas. No se afirma sincronización de navegación ni de posiciones.
+
+Las probabilidades propias, porcentajesApp, pagos/comisiones y liquidación completa no se inventan ni se deducen de un payout asumido. El producto sigue sin un modelo de cierre validado. La petición humana actual exige conexión automática y rechaza copias manuales; los formularios de revisión antigua no son necesarios para este flujo.
+
+Pruebas:72regresionesoffline actualizadas al nuevo comportamiento de15m/precios nativos,12dirigidas y3ASGI (con solapamientos, no sumar). Los tests cubren arranqueautomático único, ambigüedad, cancelación/dispose antes de leer, cambioduración durante respuesta, cotizacionesunilaterales, índiceausente y ausencia de sustitución spot. QAweb y cotejoteléfono se registran en el recibo deentrega.
+
+Fuentes oficiales: https://exchange-developer.crypto.com/dcm/v1/docs/api/rest/public-get-instruments ; https://exchange-developer.crypto.com/fcm-b2c/v1/docs/api/rest/public-get-tickers/ ; https://help.crypto.com/en/articles/8462828-about-strike-options . No copiar todas las fórmulas legacy de la ayuda: unidades/pagos deben verificarse para el instrumento exacto.

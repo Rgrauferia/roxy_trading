@@ -226,12 +226,26 @@ async def security_headers(request: Request, call_next: Any) -> Response:
         "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
         "connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     )
+    if PRODUCT == "crypto" and request.url.path in {"/contratos/1h", "/pulso"}:
+        response.headers["Content-Security-Policy"] = response.headers["Content-Security-Policy"].replace(
+            "connect-src 'self';", "connect-src 'self' https://api.crypto.com;"
+        )
     return response
 
 
 @app.get("/")
 def root() -> FileResponse:
     return FileResponse(ASSETS / "roxy_market.html", media_type="text/html")
+
+
+if PRODUCT == "crypto":
+    @app.get("/pulso", include_in_schema=False)
+    def crypto_pulso(_: str = Depends(_authenticate)) -> FileResponse:
+        return FileResponse(ROOT / "templates" / "roxy_crypto_pulso.html", media_type="text/html")
+
+    @app.get("/contratos/1h", include_in_schema=False)
+    def crypto_hour(_: str = Depends(_authenticate)) -> FileResponse:
+        return FileResponse(ROOT / "templates" / "roxy_crypto_hour.html", media_type="text/html")
 
 
 @app.get("/health")
