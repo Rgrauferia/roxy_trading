@@ -515,6 +515,16 @@
     listen(elements['reload-catalogue'], 'click', reloadCatalogue);
     listen(elements['live-stop'], 'click', () => { if (networkEnabled && feed) feed.stop('USER_STOP'); });
     listen(elements['contract-form'], 'submit', submit);
+    listen(elements['contract-choice'], 'change', () => {
+      const chosen = elements['contract-choice'] && elements['contract-choice'].value;
+      const contract = catalogue && catalogue.status === 'VALID' ? catalogue.instruments.find(row => row.status === 'VALID' && row.instrumentSymbol === chosen && row.durationSeconds === 3600 && row.operator === '>') : null;
+      if (!contract) return;
+      // Populate required fields before native form validation runs on submit.
+      // This only edits the draft; fixing the contract remains an explicit action.
+      if (elements.strike) elements.strike.value = contract.strike;
+      if (elements.expiry) elements.expiry.value = new Date(contract.expiryTimestampMs).toISOString();
+    });
+
     [elements.strike, elements.expiry].forEach(element => listen(element, 'input', () => { if (elements['contract-choice']) elements['contract-choice'].value = ''; }));
     if (elements['confirm-contract'] && elements['confirm-contract'].type !== 'submit') listen(elements['confirm-contract'], 'click', submit);
     listen(doc, 'visibilitychange', () => { if (doc.hidden) cancelCatalogue(); if (feed) feed.setVisible(!doc.hidden); renderCatalogue(); render(); });
