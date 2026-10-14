@@ -489,7 +489,7 @@
     if (networkEnabled && validation && env.PulsoRestFeed && typeof env.PulsoRestFeed.createRestClient === 'function'
       && typeof env.PulsoRestFeed.createReadController === 'function' && typeof env.fetch === 'function') {
       client = env.PulsoRestFeed.createRestClient({fetchImpl: env.fetch.bind(env), clock, timers: env, allowOneSided: true, includeUnderlyingIndex: true});
-      feed = env.PulsoRestFeed.createReadController({client, selection, clock, timers: env, onState, isVisible: () => !doc.hidden});
+      feed = env.PulsoRestFeed.createReadController({client, selection, clock, timers: env, onState, isVisible: () => !doc.hidden, refreshContextOnBoundary: env.PULSO_AUTO_CONNECT === true});
       feedState = feed.getState();
     }
     function request(method) {

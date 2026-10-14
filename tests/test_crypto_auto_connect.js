@@ -94,3 +94,16 @@ test('index lookup is opt-in, fixed to declared CDNA index, and never substitute
  rows[0].t=NOW-60001;assert.equal((await client.getIndex({underlyingSymbol:'BTCUSD-INDEX@CdnaFunded'})).status,'UNAVAILABLE');
  rows=[{i:'BTC_USD',a:'82192.32',t:NOW}];assert.equal((await client.getIndex({underlyingSymbol:'BTCUSD-INDEX@CdnaFunded'})).status,'UNAVAILABLE');
 });
+test('auto polling retires context at a normal candle boundary and waits for the next validated cycle',async()=>{
+ let now=NOW;const frames=new Map(),ticks=new Map();let nextId=1;
+ const timers={setTimeout:()=>nextId++,clearTimeout:()=>{},setInterval:(fn,ms)=>{const id=nextId++;ticks.set(id,{fn,ms});return id;},clearInterval:id=>ticks.delete(id)};
+ const quoted=kind=>({status:'VALID',kind,instrumentSymbol:SYMBOL,providerTimestampMs:now,validUntilMs:now+60000,bid:'0.10',ask:'0.20'});
+ const client={getCatalogue:async()=>({status:'VALID',instruments:[contract()],coverage:'PARTIAL'}),getTicker:async()=>quoted('TICKER'),getBook:async()=>quoted('BOOK'),
+  getCandles:async({intervalSeconds})=>{const count=(frames.get(intervalSeconds)||0)+1;frames.set(intervalSeconds,count);return {status:'VALID',purpose:'CONTEXT_ONLY_NOT_SETTLEMENT_INDEX',validUntilMs:intervalSeconds===300 && count===1 ? NOW+1 : now+300000};}};
+ const controller=feed.createReadController({client,selection:selection(),clock:()=>now,timers,isVisible:()=>true,refreshContextOnBoundary:true});
+ await controller.start({userInitiated:true});assert.equal(controller.getState().following,true);
+ now=NOW+2;const waiting=controller.getState();assert.equal(waiting.following,true);assert.equal(waiting.reason,'CONTEXT_REFRESH_PENDING');assert.equal(waiting.data.context.m5,null);assert.equal(waiting.data.context.m15,null);
+ assert.equal(frames.get(300),1); // Rechecking time never performs a new network read.
+ const poll=Array.from(ticks.values()).find(t=>t.ms===10000);assert.ok(poll);poll.fn();await flush();
+ assert.equal(frames.get(300),2);assert.equal(controller.getState().data.context.m5.status,'VALID');controller.dispose();
+});

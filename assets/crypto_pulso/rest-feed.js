@@ -202,7 +202,14 @@
         if (selection && now >= selection.expiryTimestampMs) { stop('EXPIRED'); return; }
         if (knownWindowCloseMs !== null && now >= knownWindowCloseMs) { stop('CLOSED'); return; }
         if (state.data && [state.data.quotes.ticker, state.data.quotes.book].some(row => now > row.validUntilMs)) { stop('STALE_SNAPSHOT'); return; }
-        if (state.data && [state.data.context.m5, state.data.context.m15].some(row => now >= row.validUntilMs)) stop('STALE_CONTEXT');
+        if (state.data && [state.data.context.m5, state.data.context.m15].filter(Boolean).some(row => now >= row.validUntilMs)) {
+          if (options.refreshContextOnBoundary === true && state.following && state.mode === 'POLLING') {
+            // Withdraw closed-candle context at its boundary without treating a
+            // normal new candle as a provider failure. The next scheduled public
+            // cycle must still fetch and validate both frames before showing them.
+            state = {...state, reason:'CONTEXT_REFRESH_PENDING', data:{...state.data, context:{m5:null,m15:null}}}; publish();
+          } else stop('STALE_CONTEXT');
+        }
       } catch (error) { disconnect(error); }
     }
     function armGuards() {
